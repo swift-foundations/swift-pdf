@@ -153,6 +153,7 @@ actor WebViewPoolActor {
               let (id, request) = pendingRequests.first {
             pendingRequests.removeValue(forKey: id)
             totalAcquisitions += 1
+            // WebViews from the pool should already be clean, just deliver them
             request.onSuccess(webView)
         }
     }
@@ -241,22 +242,25 @@ actor WebViewPoolActor {
 
     /// Return a web view to the pool
     func releaseWebView(_ webView: WKWebView) {
-        // Immediately return to pool without cleanup to avoid race conditions
-        // Cleanup will happen on next acquisition if needed
-        addCleanedWebView(webView)
+        // Clean the WebView on the MainActor before returning to pool
+        Task { @MainActor in
+            // Clean WebView before returning to pool
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+            // Small delay to ensure cleanup completes
+            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+            // Now add it back to the pool
+            await self.addCleanedWebView(webView)
+        }
     }
 
     /// Add a cleaned web view back to the pool
     private func addCleanedWebView(_ webView: WKWebView) {
-        // If someone is waiting for a web view, give it to them directly
-        if let (id, request) = pendingRequests.first {
-            pendingRequests.removeValue(forKey: id)
-            totalAcquisitions += 1
-            request.onSuccess(webView)
-        } else {
-            // Otherwise, put it back in the pool
-            availableWebViews.append(webView)
-        }
+        // Always put it back in the pool - this ensures proper accounting
+        availableWebViews.append(webView)
+
+        // Then process any pending requests
+        processPendingRequests()
     }
 
     /// Get current pool statistics
