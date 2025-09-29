@@ -19,7 +19,7 @@ jobs:
     runs-on: macos-15
     strategy:
       matrix:
-        xcode: ['16.0', '16.1']
+        xcode: ['26.0']
         config: ['debug', 'release']
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
     runs-on: macos-15
     strategy:
       matrix:
-        xcode: ['16.0', '16.1']
+        xcode: ['26.0']
     steps:
       - uses: actions/checkout@v4
 
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
 
       - name: Run integration tests
         run: |
@@ -142,7 +142,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
 
       - name: Build documentation
         run: |
