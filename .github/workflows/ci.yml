@@ -103,7 +103,10 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y libwebkit2gtk-4.0-dev
+          # Try to install webkit dependencies, but don't fail if not available
+          apt-get install -y libwebkit2gtk-4.1-dev || \
+          apt-get install -y libwebkit2gtk-4.0-dev || \
+          echo "WebKit not available in this environment"
 
       - name: Build
         run: swift build

@@ -66,9 +66,15 @@ extension Sequence<Document> {
         printingConfiguration: PrintingConfiguration = .default,
         createDirectories: Bool = true
     ) async throws {
+        let documents = Array(self)
+        let maxConcurrent = printingConfiguration.maxConcurrentOperations ??
+            Swift.min(ProcessInfo.processInfo.activeProcessorCount, 8)
+
+        var completedCount = 0
+
         try await withThrowingTaskGroup(of: Void.self) { taskGroup in
-            // First add all tasks to the group
-            for document in self {
+            // Add initial batch of tasks up to maxConcurrent
+            for document in documents.prefix(maxConcurrent) {
                 taskGroup.addTask {
                     @Dependency(\.webViewPool) var webViewPool
                     let webView = try await webViewPool.acquireWithRetry(8, printingConfiguration.webViewAcquisitionTimeout / 8)
@@ -87,8 +93,38 @@ extension Sequence<Document> {
                     await webViewPool.releaseWebView(webView)
                 }
             }
-            // Then wait for all tasks to complete
-            try await taskGroup.waitForAll()
+
+            var nextIndex = maxConcurrent
+
+            // Process results and add new tasks as others complete
+            for try await _ in taskGroup {
+                completedCount += 1
+                printingConfiguration.progressHandler?(completedCount, documents.count)
+
+                // Add next document if any remain
+                if nextIndex < documents.count {
+                    let document = documents[nextIndex]
+                    nextIndex += 1
+
+                    taskGroup.addTask {
+                        @Dependency(\.webViewPool) var webViewPool
+                        let webView = try await webViewPool.acquireWithRetry(8, printingConfiguration.webViewAcquisitionTimeout / 8)
+                        do {
+                            try await document.print(
+                                configuration: configuration,
+                                documentTimeout: printingConfiguration.documentTimeout,
+                                createDirectories: createDirectories,
+                                using: webView
+                            )
+                        } catch {
+                            // Always release the webView even if printing fails
+                            await webViewPool.releaseWebView(webView)
+                            throw error
+                        }
+                        await webViewPool.releaseWebView(webView)
+                    }
+                }
+            }
         }
     }
 }

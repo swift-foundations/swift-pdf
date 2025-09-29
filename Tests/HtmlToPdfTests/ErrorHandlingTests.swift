@@ -206,16 +206,21 @@ struct ErrorHandlingTests {
         let outputDir = URL.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
 
-        // Use an actor to safely collect progress updates
-        actor ProgressCollector {
-            var updates: [(Int, Int)] = []
+        // Use a thread-safe collection for progress updates
+        final class ProgressCollector: @unchecked Sendable {
+            private let lock = NSLock()
+            private var updates: [(Int, Int)] = []
 
             func addUpdate(_ completed: Int, _ total: Int) {
+                lock.lock()
+                defer { lock.unlock() }
                 updates.append((completed, total))
             }
 
             func getUpdates() -> [(Int, Int)] {
-                updates
+                lock.lock()
+                defer { lock.unlock() }
+                return updates
             }
         }
 
@@ -223,9 +228,8 @@ struct ErrorHandlingTests {
 
         let config = PrintingConfiguration(
             progressHandler: { completed, total in
-                Task {
-                    await collector.addUpdate(completed, total)
-                }
+                // Directly add to collector without async Task
+                collector.addUpdate(completed, total)
             }
         )
 
@@ -235,10 +239,7 @@ struct ErrorHandlingTests {
             printingConfiguration: config
         )
 
-        // Give a moment for final progress updates to be collected
-        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
-
-        let progressUpdates = await collector.getUpdates()
+        let progressUpdates = collector.getUpdates()
 
         // Should have received progress updates
         #expect(progressUpdates.count > 0, "Should receive progress updates")

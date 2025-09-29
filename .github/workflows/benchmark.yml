@@ -76,7 +76,7 @@ jobs:
             --filter "testMemoryPressure" || true
 
       - name: Store benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: |
