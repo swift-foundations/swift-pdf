@@ -397,7 +397,6 @@ struct PrintingErrorTests {
         let poolErrors: [WebViewPoolActor.Error] = [
             .timeout,
             .poolExhausted,
-            .queueOverload,
             .cancelled
         ]
 

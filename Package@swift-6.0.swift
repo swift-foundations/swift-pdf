@@ -10,6 +10,7 @@ extension String {
 extension Target.Dependency {
     static var htmlToPdf: Self { .target(name: .htmlToPdf) }
     static var dependencies: Self { .product(name: "Dependencies", package: "swift-dependencies") }
+    static var environmentVariables: Self { .product(name: "EnvironmentVariables", package: "swift-environment-variables") }
 }
 
 let package = Package(
@@ -23,17 +24,22 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.8.0"),
+        .package(url: "https://github.com/coenttb/swift-environment-variables", from: "0.1.3"),
     ],
     targets: [
         .target(
             name: .htmlToPdf,
             dependencies: [
-                .dependencies
+                .dependencies,
+                .environmentVariables
             ]
         ),
         .testTarget(
             name: .htmlToPdf + "Tests",
-            dependencies: [.htmlToPdf]
+            dependencies: [
+                .htmlToPdf,
+                .product(name: "DependenciesTestSupport", package: "swift-dependencies")
+            ]
         )
     ],
     swiftLanguageModes: [.v6]

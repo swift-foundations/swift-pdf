@@ -221,8 +221,6 @@ extension PrintingError {
             return .webViewAcquisitionTimeout(timeoutSeconds: 300) // Default timeout
         case .poolExhausted:
             return .webViewPoolExhausted(pendingRequests: 0)
-        case .queueOverload:
-            return .webViewPoolExhausted(pendingRequests: 100) // Estimate
         case .cancelled:
             return .cancelled(message: nil)
         }

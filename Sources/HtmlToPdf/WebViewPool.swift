@@ -9,23 +9,22 @@
 import Foundation
 import WebKit
 import Dependencies
+import EnvironmentVariables
 
 /// An actor for managing a pool of WKWebViews
 actor WebViewPoolActor {
-    // Track if we've prewarmed the processes
-    @MainActor private static var isPrewarmed = false
+    // Pool for warmup WebViews (released after use)
+    @MainActor private static var warmupWebView: WKWebView?
     /// Error types that can be thrown by the WebViewPool
     enum Error: Swift.Error, LocalizedError {
         case timeout
         case poolExhausted
-        case queueOverload
         case cancelled
 
         var errorDescription: String? {
             switch self {
             case .timeout: return "WebView acquisition timed out"
             case .poolExhausted: return "WebView pool is exhausted"
-            case .queueOverload: return "Too many pending requests"
             case .cancelled: return "Request was cancelled"
             }
         }
@@ -52,6 +51,11 @@ actor WebViewPoolActor {
     private var isInitialized = false
     private var initializationCallbacks: [CheckedContinuation<Void, Never>] = []
 
+    // Memory pressure monitoring
+    #if os(macOS) || os(iOS)
+    private var memoryPressureSource: DispatchSourceMemoryPressure?
+    #endif
+
     // Statistics tracking
     private var totalAcquisitions: Int = 0
     private var totalTimeouts: Int = 0
@@ -62,25 +66,37 @@ actor WebViewPoolActor {
         // Create web views on the main actor since WKWebView requires it
         self.availableWebViews = []
 
+        // Set up memory pressure monitoring will be done after actor is created
+        // since it requires actor isolation
+
         // Schedule creation of web views on the main actor
         Task { @MainActor in
+            // Set up memory pressure monitoring now that actor is created
+            #if os(macOS) || os(iOS)
+            self.setupMemoryPressureMonitoring()
+            #endif
+
             // Use shared process pool to avoid re-initialization
             let processPool = WebViewPoolClient.sharedProcessPool
 
-            // Pre-warm the first WebView to initialize GPU and Network processes
-            if size > 0 && !Self.isPrewarmed {
-                Self.isPrewarmed = true
+            // Pre-warm if needed and release afterward
+            if size > 0 && Self.warmupWebView == nil {
                 let warmupConfig = WKWebViewConfiguration()
                 warmupConfig.processPool = processPool
                 warmupConfig.websiteDataStore = .nonPersistent()
-                let warmupWebView = WKWebView(frame: .zero, configuration: warmupConfig)
+                Self.warmupWebView = WKWebView(frame: .zero, configuration: warmupConfig)
                 // Load a minimal page to trigger process initialization
-                warmupWebView.loadHTMLString("<html></html>", baseURL: nil)
+                Self.warmupWebView?.loadHTMLString("<html></html>", baseURL: nil)
+
+                // Schedule cleanup of warmup WebView after a delay
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                    Self.warmupWebView = nil // Release warmup WebView
+                }
             }
 
-            // Create web views
-            var webViews: [WKWebView] = []
-            for _ in 0..<size {
+            // Create web views incrementally and notify as they become available
+            for i in 0..<size {
                 let config = WKWebViewConfiguration()
                 // Share the same process pool to reduce process spawning
                 config.processPool = processPool
@@ -117,27 +133,67 @@ actor WebViewPoolActor {
                 // Disable logs from WebView
                 webView.setValue(false, forKey: "drawsBackground")
 
-                webViews.append(webView)
+                // Add incrementally
+                await self.addIncrementalWebView(webView, isLast: i == size - 1)
             }
-            await self.completeInitialization(webViews)
         }
     }
     
-    /// Complete initialization with the created web views
-    private func completeInitialization(_ webViews: [WKWebView]) {
-        availableWebViews = webViews
-        actualPoolSize = webViews.count
-        isInitialized = true
+    /// Add WebView incrementally during initialization
+    private func addIncrementalWebView(_ webView: WKWebView, isLast: Bool) {
+        availableWebViews.append(webView)
+        actualPoolSize += 1
 
-        // Resume all waiting initialization callbacks
-        for callback in initializationCallbacks {
-            callback.resume()
+        // Mark as initialized when first WebView is ready
+        if !isInitialized && actualPoolSize > 0 {
+            isInitialized = true
+            // Resume all waiting initialization callbacks
+            for callback in initializationCallbacks {
+                callback.resume()
+            }
+            initializationCallbacks.removeAll()
         }
-        initializationCallbacks.removeAll()
 
         // Process any pending requests
         processPendingRequests()
     }
+
+    #if os(macOS) || os(iOS)
+    /// Set up memory pressure monitoring
+    nonisolated private func setupMemoryPressureMonitoring() {
+        Task {
+            let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .global())
+            source.setEventHandler { [weak self] in
+                guard let self = self else { return }
+                Task {
+                    await self.handleMemoryPressure()
+                }
+            }
+            source.resume()
+            await self.setMemoryPressureSource(source)
+        }
+    }
+
+    private func setMemoryPressureSource(_ source: DispatchSourceMemoryPressure) {
+        memoryPressureSource = source
+    }
+
+    /// Handle memory pressure events
+    private func handleMemoryPressure() {
+        // Don't shrink below minimum viable size
+        let minPoolSize = 2
+        guard availableWebViews.count > minPoolSize else { return }
+
+        // Release 25% of available WebViews under memory pressure
+        let toRelease = max(1, availableWebViews.count / 4)
+        _ = availableWebViews.suffix(toRelease)
+
+        availableWebViews.removeLast(toRelease)
+        actualPoolSize -= toRelease
+
+        print("[WebViewPool] Released \(toRelease) WebViews due to memory pressure. Pool size now: \(actualPoolSize)")
+    }
+    #endif
 
     /// Add a batch of web views to the pool
     func addWebViews(_ webViews: [WKWebView]) {
@@ -168,8 +224,8 @@ actor WebViewPoolActor {
                 webView.stopLoading()
                 // Clear navigation delegate
                 webView.navigationDelegate = nil
-                // Wait a bit for cleanup
-                try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+                // Wait for document to be ready instead of arbitrary delay
+                _ = try? await webView.evaluateJavaScript("document.readyState")
             }
         }
 
@@ -180,8 +236,8 @@ actor WebViewPoolActor {
             }
         }
 
-        // Remove queue overload check - the pool should handle any number of pending requests
-        // The pool will naturally queue them and process as WebViews become available
+        // Instead of throwing on queue overload, just queue the request
+        // The natural backpressure from the timeout mechanism will handle throttling
 
         // If we have available web views, clean and return one
         if let webView = availableWebViews.popLast() {
@@ -247,8 +303,8 @@ actor WebViewPoolActor {
             // Clean WebView before returning to pool
             webView.stopLoading()
             webView.navigationDelegate = nil
-            // Small delay to ensure cleanup completes
-            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+            // Ensure WebView is ready before returning to pool
+            _ = try? await webView.evaluateJavaScript("document.readyState")
             // Now add it back to the pool
             await self.addCleanedWebView(webView)
         }
@@ -285,13 +341,30 @@ actor WebViewPoolActor {
         )
     }
 
-    /// Wait for pool initialization
+    /// Wait for pool initialization (at least one WebView ready)
     func waitForInitialization() async {
         if !isInitialized {
             await withCheckedContinuation { continuation in
                 initializationCallbacks.append(continuation)
             }
         }
+    }
+
+    /// Wait for pool to be fully initialized (all WebViews created)
+    func waitForFullInitialization() async {
+        // First wait for basic initialization
+        await waitForInitialization()
+
+        // Then wait until we have the expected pool size
+        while actualPoolSize < maxSize {
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        }
+    }
+
+    deinit {
+        #if os(macOS) || os(iOS)
+        memoryPressureSource?.cancel()
+        #endif
     }
 }
 
@@ -311,6 +384,9 @@ struct WebViewPoolClient {
 
     /// Wait for pool initialization
     var waitForInitialization: @Sendable () async -> Void
+
+    /// Wait for pool to be fully initialized
+    var waitForFullInitialization: @Sendable () async -> Void
 }
 
 extension WebViewPoolClient: DependencyKey {
@@ -318,7 +394,14 @@ extension WebViewPoolClient: DependencyKey {
     @MainActor static let sharedProcessPool = WKProcessPool()
     /// Calculate optimal pool size based on system resources
     /// This algorithm balances performance with resource usage across different systems
-    static func calculatePoolSize(cpuCount: Int, memoryBytes: UInt64) -> Int {
+    static func calculatePoolSize(cpuCount: Int, memoryBytes: UInt64, isCI: Bool = false) -> Int {
+        // CI environments need more conservative resource usage
+        if isCI {
+            // GitHub Actions runners have limited resources
+            // Use minimal pool size to ensure stability
+            return min(2, cpuCount)
+        }
+
         // Memory-based calculation:
         // Each WebContent process uses ~150-250MB of memory in practice
         // We allocate up to 10% of system memory for WebView pool
@@ -348,22 +431,29 @@ extension WebViewPoolClient: DependencyKey {
     }
 
     static var liveValue: WebViewPoolClient {
-        // Allow environment variable override for testing and tuning
+        @Dependency(\.envVars) var env
+        let config = WebViewPoolConfiguration(env: env)
+
+        // Determine pool size from configuration or calculation
         let poolSize: Int
-        if let envPoolSize = ProcessInfo.processInfo.environment["WEBVIEW_POOL_SIZE"],
-           let customSize = Int(envPoolSize), customSize > 0 {
+        if let customSize = config.poolSize, customSize > 0 {
             poolSize = customSize
             #if DEBUG
-            if ProcessInfo.processInfo.environment["WEBVIEW_POOL_SILENT"] == nil {
+            if !config.silent {
                 print("[WebViewPool] Using custom pool size from environment: \(poolSize)")
             }
             #endif
         } else {
             let processInfo = ProcessInfo.processInfo
-            poolSize = calculatePoolSize(cpuCount: processInfo.activeProcessorCount, memoryBytes: processInfo.physicalMemory)
+            poolSize = calculatePoolSize(
+                cpuCount: processInfo.activeProcessorCount,
+                memoryBytes: processInfo.physicalMemory,
+                isCI: config.isCI
+            )
             #if DEBUG
-            if ProcessInfo.processInfo.environment["WEBVIEW_POOL_SILENT"] == nil {
-                print("[WebViewPool] Using calculated pool size: \(poolSize) (CPUs: \(ProcessInfo.processInfo.activeProcessorCount), Memory: \(ProcessInfo.processInfo.physicalMemory / (1024*1024*1024))GB)")
+            if !config.silent {
+                let ciInfo = config.isCI ? " [CI MODE]" : ""
+                print("[WebViewPool] Using calculated pool size: \(poolSize)\(ciInfo) (CPUs: \(ProcessInfo.processInfo.activeProcessorCount), Memory: \(ProcessInfo.processInfo.physicalMemory / (1024*1024*1024))GB)")
             }
             #endif
         }
@@ -407,6 +497,9 @@ extension WebViewPoolClient: DependencyKey {
             },
             waitForInitialization: {
                 await actor.waitForInitialization()
+            },
+            waitForFullInitialization: {
+                await actor.waitForFullInitialization()
             }
         )
     }

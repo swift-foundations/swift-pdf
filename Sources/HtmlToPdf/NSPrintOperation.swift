@@ -78,19 +78,22 @@ extension Sequence<Document> {
                 taskGroup.addTask {
                     @Dependency(\.webViewPool) var webViewPool
                     let webView = try await webViewPool.acquireWithRetry(8, printingConfiguration.webViewAcquisitionTimeout / 8)
-                    do {
+
+                    // Use Result to ensure cleanup happens regardless of success/failure
+                    let result: Result<Void, Error> = await Result {
                         try await document.print(
                             configuration: configuration,
                             documentTimeout: printingConfiguration.documentTimeout,
                             createDirectories: createDirectories,
                             using: webView
                         )
-                    } catch {
-                        // Always release the webView even if printing fails
-                        await webViewPool.releaseWebView(webView)
-                        throw error
                     }
+
+                    // Always release the webView
                     await webViewPool.releaseWebView(webView)
+
+                    // Re-throw error if printing failed
+                    try result.get()
                 }
             }
 
@@ -109,19 +112,22 @@ extension Sequence<Document> {
                     taskGroup.addTask {
                         @Dependency(\.webViewPool) var webViewPool
                         let webView = try await webViewPool.acquireWithRetry(8, printingConfiguration.webViewAcquisitionTimeout / 8)
-                        do {
+
+                        // Use Result to ensure cleanup happens regardless of success/failure
+                        let result: Result<Void, Error> = await Result {
                             try await document.print(
                                 configuration: configuration,
                                 documentTimeout: printingConfiguration.documentTimeout,
                                 createDirectories: createDirectories,
                                 using: webView
                             )
-                        } catch {
-                            // Always release the webView even if printing fails
-                            await webViewPool.releaseWebView(webView)
-                            throw error
                         }
+
+                        // Always release the webView
                         await webViewPool.releaseWebView(webView)
+
+                        // Re-throw error if printing failed
+                        try result.get()
                     }
                 }
             }
