@@ -314,13 +314,7 @@ extension WebViewPoolClient: DependencyKey {
     @MainActor static let sharedProcessPool = WKProcessPool()
     /// Calculate optimal pool size based on system resources
     /// This algorithm balances performance with resource usage across different systems
-    private static func calculateOptimalPoolSize() -> Int {
-        let processInfo = ProcessInfo.processInfo
-
-        // Get system resources
-        let cpuCount = processInfo.activeProcessorCount
-        let memoryBytes = processInfo.physicalMemory
-
+    static func calculatePoolSize(cpuCount: Int, memoryBytes: UInt64) -> Int {
         // Memory-based calculation:
         // Each WebContent process uses ~150-250MB of memory in practice
         // We allocate up to 10% of system memory for WebView pool
@@ -361,7 +355,8 @@ extension WebViewPoolClient: DependencyKey {
             }
             #endif
         } else {
-            poolSize = calculateOptimalPoolSize()
+            let processInfo = ProcessInfo.processInfo
+            poolSize = calculatePoolSize(cpuCount: processInfo.activeProcessorCount, memoryBytes: processInfo.physicalMemory)
             #if DEBUG
             if ProcessInfo.processInfo.environment["WEBVIEW_POOL_SILENT"] == nil {
                 print("[WebViewPool] Using calculated pool size: \(poolSize) (CPUs: \(ProcessInfo.processInfo.activeProcessorCount), Memory: \(ProcessInfo.processInfo.physicalMemory / (1024*1024*1024))GB)")
