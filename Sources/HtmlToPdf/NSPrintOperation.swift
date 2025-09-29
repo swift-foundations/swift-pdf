@@ -163,7 +163,11 @@ extension Document {
             )
             webViewNavigationDelegate.printDelegate = printDelegate
 
-            webView.loadHTMLString(self.html, baseURL: configuration.baseURL)
+            // Inject margin CSS
+            let marginCSS = configuration.generateMarginCSS()
+            let htmlToLoad = self.html.injectingCSS(marginCSS)
+
+            webView.loadHTMLString(htmlToLoad, baseURL: configuration.baseURL)
         }
     }
 }
@@ -193,8 +197,8 @@ class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
 
             // Create WKPDFConfiguration
             let pdfConfig = WKPDFConfiguration()
-            // The rect property sets the portion of the web view to capture
-            // We use the full paper size since margins are handled by CSS/HTML
+
+            // Use full paper size, margins handled by CSS
             pdfConfig.rect = CGRect(origin: .zero, size: configuration.paperSize)
 
             // Export to PDF directly without using NSPrintOperation
@@ -226,14 +230,6 @@ class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
     }
 }
 
-extension NSPrintInfo.PaperOrientation {
-    init(orientation: PDFConfiguration.Orientation) {
-        self = switch orientation {
-        case .landscape: .landscape
-        case .portrait: .portrait
-        }
-    }
-}
 
 class PrintDelegate: @unchecked Sendable {
 
@@ -259,15 +255,6 @@ class PrintDelegate: @unchecked Sendable {
     }
 }
 
-extension PDFConfiguration {
-    public static func a4(margins: EdgeInsets = .a4, baseURL: URL? = nil) -> PDFConfiguration {
-        return .init(
-            margins: margins,
-            paperSize: .paperSize(),
-            baseURL: baseURL
-        )
-    }
-}
 
 extension NSEdgeInsets {
     init(
@@ -300,7 +287,6 @@ extension NSPrintInfo {
                 .leftMargin: configuration.margins.left,
                 .rightMargin: configuration.margins.right,
                 .paperSize: configuration.paperSize,
-                .orientation: NSPrintInfo.PaperOrientation(orientation: configuration.orientation),
                 .verticalPagination: NSNumber(value: NSPrintInfo.PaginationMode.automatic.rawValue)
             ]
         )

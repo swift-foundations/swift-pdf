@@ -299,14 +299,6 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
     }
 }
 
-extension PDFConfiguration {
-    public static func a4(margins: EdgeInsets) -> PDFConfiguration {
-        return .init(
-            margins: margins,
-            paperSize: .a4()
-        )
-    }
-}
 
 extension CGSize {
     public static func paperSize() -> CGSize {

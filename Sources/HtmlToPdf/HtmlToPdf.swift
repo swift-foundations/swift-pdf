@@ -111,6 +111,33 @@ extension String {
         let divisionSlash = "\u{2215}" // Unicode for Division Slash (∕)
         return self.replacingOccurrences(of: "/", with: divisionSlash)
     }
+
+    /// Injects CSS into HTML, either before </head> or at the beginning if no head tag exists
+    func injectingCSS(_ css: String) -> String {
+        // Try to inject before </head>
+        if let headEndRange = self.range(of: "</head>", options: .caseInsensitive) {
+            return self.replacingCharacters(in: headEndRange, with: css + "</head>")
+        }
+        // Try to inject after <head>
+        else if let headStartRange = self.range(of: "<head>", options: .caseInsensitive) {
+            // Find the end of the <head> tag (after any attributes)
+            if let tagEnd = self.range(of: ">", options: [], range: headStartRange.upperBound..<self.endIndex) {
+                let insertPoint = self.index(after: tagEnd.lowerBound)
+                return String(self[..<insertPoint]) + css + String(self[insertPoint...])
+            } else {
+                // If we can't find the closing >, just append after <head
+                return self.replacingOccurrences(of: "<head>", with: "<head>" + css, options: .caseInsensitive)
+            }
+        }
+        // Try to inject before <body>
+        else if let bodyRange = self.range(of: "<body", options: .caseInsensitive) {
+            return String(self[..<bodyRange.lowerBound]) + css + String(self[bodyRange.lowerBound...])
+        }
+        // Otherwise inject at the beginning
+        else {
+            return css + self
+        }
+    }
 }
 
 extension Sequence<String> {
@@ -207,89 +234,142 @@ public struct PrintingConfiguration: Sendable {
 
 /// The configurations used to print to PDF
 ///
-///
 /// - Parameters:
-///   - paperSize: The size of the paper, including margins.
+///   - paperSize: The size of the paper.
 ///   - margins: The margins that are applied to each page of the PDF.
 ///   - baseURL: The base URL to use when the system resolves relative URLs within the HTML string of the PDF.
 ///
 public struct PDFConfiguration: Sendable {
-    let margins: EdgeInsets
-    let paperSize: CGSize
-    let baseURL: URL?
-    let orientation: PDFConfiguration.Orientation
-    
-    //    public init(
-    //        margins: EdgeInsets,
-    //        paperSize: CGSize = .paperSize(),
-    //        baseURL: URL? = nil
-    //    ) {
-    //        self.paperSize = paperSize
-    //        self.margins = margins
-    //        self.baseURL = baseURL
-    //    }
-    
+    public let paperSize: CGSize
+    public let margins: EdgeInsets
+    public let baseURL: URL?
+
     public init(
-        margins: EdgeInsets,
-        paperSize: CGSize = .paperSize(),
-        baseURL: URL? = nil,
-        orientation: PDFConfiguration.Orientation = .portrait
+        paperSize: CGSize = .a4,
+        margins: EdgeInsets = .standard,
+        baseURL: URL? = nil
     ) {
         self.paperSize = paperSize
         self.margins = margins
         self.baseURL = baseURL
-        self.orientation = orientation
     }
 }
 
 extension PDFConfiguration {
-    
-    public enum Orientation: Sendable {
-        case landscape
-        case portrait
+    // Common presets with standard margins
+    public static let a4 = PDFConfiguration(paperSize: .a4, margins: .standard)
+    public static let a4Narrow = PDFConfiguration(paperSize: .a4, margins: .minimal)
+    public static let a4Wide = PDFConfiguration(paperSize: .a4, margins: .wide)
+
+    public static let letter = PDFConfiguration(paperSize: .letter, margins: .standard)
+    public static let letterNarrow = PDFConfiguration(paperSize: .letter, margins: .minimal)
+    public static let letterWide = PDFConfiguration(paperSize: .letter, margins: .wide)
+
+    public static let a3 = PDFConfiguration(paperSize: .a3, margins: .standard)
+    public static let legal = PDFConfiguration(paperSize: .legal, margins: .standard)
+
+    // Fluent API for modifications
+    public func with(margins: EdgeInsets) -> PDFConfiguration {
+        PDFConfiguration(paperSize: self.paperSize, margins: margins, baseURL: self.baseURL)
     }
-    
-    public static var a4: PDFConfiguration {
-        .a4(margins: .a4)
+
+    public func with(paperSize: CGSize) -> PDFConfiguration {
+        PDFConfiguration(paperSize: paperSize, margins: self.margins, baseURL: self.baseURL)
     }
-    
-    var printableRect: CGRect {
-        .init(
-            x: margins.left,
-            y: margins.top,
-            width: paperSize.width - margins.left - margins.right,
-            height: paperSize.height - margins.top - margins.bottom
+
+    public func with(baseURL: URL?) -> PDFConfiguration {
+        PDFConfiguration(paperSize: self.paperSize, margins: self.margins, baseURL: baseURL)
+    }
+
+    // Convenient transforms
+    public func landscape() -> PDFConfiguration {
+        let newSize = CGSize(
+            width: max(paperSize.width, paperSize.height),
+            height: min(paperSize.width, paperSize.height)
         )
+        return with(paperSize: newSize)
+    }
+
+    public func portrait() -> PDFConfiguration {
+        let newSize = CGSize(
+            width: min(paperSize.width, paperSize.height),
+            height: max(paperSize.width, paperSize.height)
+        )
+        return with(paperSize: newSize)
+    }
+
+    /// Generates CSS for margins
+    func generateMarginCSS() -> String {
+        return """
+        <style>
+        @media print, screen {
+            html, body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+            }
+            body {
+                padding-top: \(margins.top)pt !important;
+                padding-right: \(margins.right)pt !important;
+                padding-bottom: \(margins.bottom)pt !important;
+                padding-left: \(margins.left)pt !important;
+                box-sizing: border-box !important;
+            }
+        }
+        </style>
+        """
     }
 }
 
 public struct EdgeInsets: Sendable {
-    let top: CGFloat
-    let left: CGFloat
-    let bottom: CGFloat
-    let right: CGFloat
-    
+    public let top: CGFloat
+    public let left: CGFloat
+    public let bottom: CGFloat
+    public let right: CGFloat
+
     public init(top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat) {
         self.top = top
         self.left = left
         self.bottom = bottom
         self.right = right
     }
+
+    // Convenience initializers
+    public init(all: CGFloat) {
+        self.init(top: all, left: all, bottom: all, right: all)
+    }
+
+    public init(horizontal: CGFloat, vertical: CGFloat) {
+        self.init(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
+    }
 }
 
 extension EdgeInsets {
-    public static var a4: EdgeInsets {
-        EdgeInsets(
-            top: 36,
-            left: 36,
-            bottom: 36,
-            right: 36
-        )
-    }
+    // Named presets
+    public static let none = EdgeInsets(all: 0)
+    public static let minimal = EdgeInsets(all: 18)  // 0.25 inch
+    public static let standard = EdgeInsets(all: 36) // 0.5 inch (default)
+    public static let comfortable = EdgeInsets(all: 54) // 0.75 inch
+    public static let wide = EdgeInsets(all: 72)    // 1 inch
+
+    // Legacy compatibility
+    public static let a4 = standard
 }
 
 extension CGSize {
-    public static func a4() -> CGSize {
-        CGSize(width: 595.22, height: 841.85)
-    }
+    // ISO 216 sizes (in points)
+    public static let a3 = CGSize(width: 841.89, height: 1190.55)
+    public static let a4 = CGSize(width: 595.28, height: 841.89)
+    public static let a5 = CGSize(width: 420.94, height: 595.28)
+
+    // US sizes (in points)
+    public static let letter = CGSize(width: 612, height: 792)
+    public static let legal = CGSize(width: 612, height: 1008)
+    public static let tabloid = CGSize(width: 792, height: 1224)
+
+    // Convenience computed properties
+    public var isLandscape: Bool { width > height }
+    public var isPortrait: Bool { height >= width }
+
 }
