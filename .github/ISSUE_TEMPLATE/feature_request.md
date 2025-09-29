@@ -1,0 +1,37 @@
+---
+name: Feature request
+about: Suggest an idea for this project
+title: ''
+labels: 'enhancement'
+assignees: ''
+
+---
+
+**Is your feature request related to a problem? Please describe.**
+A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+
+**Describe the solution you'd like**
+A clear and concise description of what you want to happen.
+
+**Describe alternatives you've considered**
+A clear and concise description of any alternative solutions or features you've considered.
+
+**Example usage**
+Show how the feature would be used:
+
+```swift
+// Example of how the API might look
+try await htmlString.print(
+    to: url,
+    configuration: .custom(...)
+)
+```
+
+**Platform considerations**
+- [ ] This feature should work on macOS
+- [ ] This feature should work on iOS
+- [ ] This feature should work on Mac Catalyst
+- [ ] This feature should work on Linux (if applicable)
+
+**Additional context**
+Add any other context or screenshots about the feature request here.

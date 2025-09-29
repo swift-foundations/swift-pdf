@@ -1,5 +1,10 @@
 # HtmlToPdf
 
+[![CI](https://github.com/coenttb/swift-html-to-pdf/actions/workflows/ci.yml/badge.svg)](https://github.com/coenttb/swift-html-to-pdf/actions/workflows/ci.yml)
+[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/Platforms-macOS%20%7C%20iOS-blue.svg)](https://github.com/coenttb/swift-html-to-pdf)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+
 HtmlToPdf provides an easy-to-use interface for concurrently printing HTML to PDF on iOS and macOS.
 
 ## Features
@@ -33,6 +38,41 @@ try await [
     ....
 ]
 .print(to: directory)
+```
+
+## Configuration Options
+
+### PrintingConfiguration
+
+Control printing behavior and resource management with `PrintingConfiguration`:
+
+```swift
+// Default configuration - suitable for most use cases
+try await htmls.print(
+    to: directory,
+    printingConfiguration: .default
+)
+
+// Large batch configuration - optimized for millions of documents
+try await htmls.print(
+    to: directory,
+    printingConfiguration: .largeBatch
+)
+
+// Custom configuration with progress tracking
+let config = PrintingConfiguration(
+    maxConcurrentOperations: 8,           // Limit concurrent prints
+    documentTimeout: 30,                  // Timeout per document (seconds)
+    batchTimeout: 3600,                   // Overall batch timeout (seconds)
+    webViewAcquisitionTimeout: 60,        // WebView acquisition timeout
+    progressHandler: { completed, total in
+        print("Progress: \(completed)/\(total)")
+    }
+)
+try await htmls.print(
+    to: directory,
+    printingConfiguration: config
+)
 ```
 
 ## Performance
@@ -161,13 +201,23 @@ If these warnings are problematic:
 
 3. **Custom Test Runner**: Run tests inside a properly entitlemented app bundle rather than directly.
 
+## CI/CD Status
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+- **Continuous Integration**: Runs on every push and PR to ensure code quality
+- **Multi-Platform Testing**: Tests on macOS, iOS (Mac Catalyst), Linux, and Windows
+- **Performance Monitoring**: Automated benchmarks track performance across releases
+- **Documentation**: Automatic documentation generation with DocC
+- **Dependency Updates**: Dependabot keeps dependencies current
+
 ## Installation
 
 To install the package, add the following line to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/coenttb/swift-html-to-pdf.git", from: "0.1.0")
+    .package(url: "https://github.com/coenttb/swift-html-to-pdf.git", from: "0.5.0")
 ]
 ```
 

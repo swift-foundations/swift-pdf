@@ -30,17 +30,18 @@ extension Document {
     @MainActor
     public func print(
         configuration: PDFConfiguration,
-        processorCount: Int = ProcessInfo.processInfo.activeProcessorCount,
+        printingConfiguration: PrintingConfiguration = .default,
         createDirectories: Bool = true
     ) async throws {
         try await [self].print(
             configuration: configuration,
-            processorCount: processorCount,
+            printingConfiguration: printingConfiguration,
             createDirectories: createDirectories
         )
     }
 }
 
+#if os(macOS)
 extension Sequence<Document> {
     /// Prints ``Document``s  to PDFs at the given directory.
     ///
@@ -56,13 +57,13 @@ extension Sequence<Document> {
     ///
     /// - Parameters:
     ///   - configuration: The configuration that the PDFs will use.
-    ///   - processorCount: In allmost all circumstances you can omit this parameter.
+    ///   - printingConfiguration: Configuration for printing behavior and resource management.
     ///   - createDirectories: If true, the function will call FileManager.default.createDirectory for each document's directory.
     ///
 
     public func print(
         configuration: PDFConfiguration,
-        processorCount: Int = ProcessInfo.processInfo.activeProcessorCount,
+        printingConfiguration: PrintingConfiguration = .default,
         createDirectories: Bool = true
     ) async throws {
         try await withThrowingTaskGroup(of: Void.self) { taskGroup in
@@ -70,10 +71,11 @@ extension Sequence<Document> {
             for document in self {
                 taskGroup.addTask {
                     @Dependency(\.webViewPool) var webViewPool
-                    let webView = try await webViewPool.acquireWithRetry(8, 0.2)
+                    let webView = try await webViewPool.acquireWithRetry(8, printingConfiguration.webViewAcquisitionTimeout / 8)
                     do {
                         try await document.print(
                             configuration: configuration,
+                            documentTimeout: printingConfiguration.documentTimeout,
                             createDirectories: createDirectories,
                             using: webView
                         )
@@ -90,14 +92,34 @@ extension Sequence<Document> {
         }
     }
 }
+#endif
+
+private actor ContinuationHandler {
+    private var hasResumed = false
+
+    func resumeIfNeeded(_ continuation: CheckedContinuation<Void, Error>, with result: Result<Void, Error>) {
+        guard !hasResumed else { return }
+        hasResumed = true
+
+        switch result {
+        case .success:
+            continuation.resume()
+        case .failure(let error):
+            continuation.resume(throwing: error)
+        }
+    }
+}
 
 extension Document {
     @MainActor
     fileprivate func print(
         configuration: PDFConfiguration,
+        documentTimeout: TimeInterval? = nil,
         createDirectories: Bool = true,
-        using webView: WKWebView = WKWebView(frame: .zero)
+        using webView: WKWebView? = nil
     ) async throws {
+        // Use provided webView (from pool) or fallback to creating one
+        let webView = webView ?? WKWebView(frame: .zero)
 
         let webViewNavigationDelegate = WebViewNavigationDelegate(
             outputURL: self.fileUrl,
@@ -110,11 +132,37 @@ extension Document {
 
         webView.navigationDelegate = webViewNavigationDelegate
 
-        await withCheckedContinuation { continuation in
-            let printDelegate = PrintDelegate {
-                continuation.resume()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let handler = ContinuationHandler()
+
+            let timeoutTask: Task<Void, Never>?
+            if let timeout = documentTimeout {
+                timeoutTask = Task {
+                    try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    await handler.resumeIfNeeded(continuation, with: .failure(
+                        PrintingError.documentTimeout(documentURL: self.fileUrl, timeoutSeconds: timeout)
+                    ))
+                }
+            } else {
+                timeoutTask = nil
             }
+
+            let printDelegate = PrintDelegate(
+                onFinished: {
+                    timeoutTask?.cancel()
+                    Task {
+                        await handler.resumeIfNeeded(continuation, with: .success(()))
+                    }
+                },
+                onError: { error in
+                    timeoutTask?.cancel()
+                    Task {
+                        await handler.resumeIfNeeded(continuation, with: .failure(error))
+                    }
+                }
+            )
             webViewNavigationDelegate.printDelegate = printDelegate
+
             webView.loadHTMLString(self.html, baseURL: configuration.baseURL)
         }
     }
@@ -139,21 +187,42 @@ class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor [configuration, outputURL, printDelegate] in
-
+            // Only add a small delay if content might need rendering time
+            // Most HTML is ready immediately after didFinish
             webView.frame = .init(origin: .zero, size: configuration.paperSize)
 
-            let printOperation = webView.printOperation(with: .pdf(jobSavingURL: outputURL, configuration: configuration))
-            printOperation.showsPrintPanel = false
-            printOperation.showsProgressPanel = false
-            printOperation.canSpawnSeparateThread = true
+            // Create WKPDFConfiguration
+            let pdfConfig = WKPDFConfiguration()
+            // The rect property sets the portion of the web view to capture
+            // We use the full paper size since margins are handled by CSS/HTML
+            pdfConfig.rect = CGRect(origin: .zero, size: configuration.paperSize)
 
-            printOperation.runModal(
-                for: webView.window ?? NSWindow(),
-                delegate: printDelegate,
-                didRun: #selector(PrintDelegate.printOperationDidRun(_:success:contextInfo:)),
-                contextInfo: nil
-            )
+            // Export to PDF directly without using NSPrintOperation
+            webView.createPDF(configuration: pdfConfig) { [weak webView] result in
+                // Clear navigation delegate immediately to prevent further callbacks
+                webView?.navigationDelegate = nil
+
+                switch result {
+                case .success(let data):
+                    do {
+                        try data.write(to: outputURL)
+                        printDelegate?.onFinished()
+                    } catch {
+                        printDelegate?.onError?(error) ?? printDelegate?.onFinished()
+                    }
+                case .failure(let error):
+                    printDelegate?.onError?(error) ?? printDelegate?.onFinished()
+                }
+            }
         }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        printDelegate?.onError?(PrintingError.webViewNavigationFailed(underlyingError: error))
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        printDelegate?.onError?(PrintingError.webViewLoadingFailed(underlyingError: error))
     }
 }
 
@@ -169,13 +238,24 @@ extension NSPrintInfo.PaperOrientation {
 class PrintDelegate: @unchecked Sendable {
 
     var onFinished: @Sendable () -> Void
+    var onError: (@Sendable (Error) -> Void)?
 
-    init(onFinished: @Sendable @escaping () -> Void) {
+    init(onFinished: @Sendable @escaping () -> Void, onError: (@Sendable (Error) -> Void)? = nil) {
         self.onFinished = onFinished
+        self.onError = onError
+    }
+
+    convenience init(onFinished: @Sendable @escaping () -> Void) {
+        self.init(onFinished: onFinished, onError: nil)
     }
 
     @objc func printOperationDidRun(_ printOperation: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?) {
-        self.onFinished()
+        if success {
+            self.onFinished()
+        } else {
+            let error = PrintingError.printOperationFailed(success: success, underlyingError: nil)
+            self.onError?(error) ?? self.onFinished()
+        }
     }
 }
 
@@ -220,48 +300,11 @@ extension NSPrintInfo {
                 .leftMargin: configuration.margins.left,
                 .rightMargin: configuration.margins.right,
                 .paperSize: configuration.paperSize,
+                .orientation: NSPrintInfo.PaperOrientation(orientation: configuration.orientation),
                 .verticalPagination: NSNumber(value: NSPrintInfo.PaginationMode.automatic.rawValue)
             ]
         )
     }
 }
-
-// public extension NSPrintInfo {
-//    static func pdf(
-//        jobSavingURL: URL,
-//        configuration: PDFConfiguration
-//    ) -> NSPrintInfo {
-//        .pdf(
-//            url: jobSavingURL,
-//            paperSize: configuration.paperSize,
-//            topMargin: configuration.margins.top,
-//            bottomMargin: configuration.margins.bottom,
-//            leftMargin: configuration.margins.left,
-//            rightMargin: configuration.margins.right
-//        )
-//    }
-//    
-//    static func pdf(
-//        url: URL,
-//        paperSize: CGSize = NSPrintInfo.shared.paperSize,
-//        topMargin: CGFloat = 36,
-//        bottomMargin: CGFloat = 36,
-//        leftMargin: CGFloat = 36,
-//        rightMargin: CGFloat = 36
-//    ) -> NSPrintInfo {
-//        NSPrintInfo(
-//            dictionary: [
-//                .jobDisposition: NSPrintInfo.JobDisposition.save,
-//                .jobSavingURL: url,
-//                .allPages: true,
-//                .topMargin: topMargin,
-//                .bottomMargin: bottomMargin,
-//                .leftMargin: leftMargin,
-//                .rightMargin: rightMargin,
-//                .paperSize: paperSize
-//            ]
-//        )
-//    }
-// }
 
 #endif

@@ -31,24 +31,31 @@ extension Sequence<Document> where Self: Sendable {
     public func print(
         configuration: PDFConfiguration,
         createDirectories: Bool = true
-    ) async throws -> AsyncStream<URL> {
-        AsyncStream<URL> { continuation in
+    ) async throws -> AsyncThrowingStream<URL, Error> {
+        AsyncThrowingStream<URL, Error> { continuation in
             Task { [documents = self] in
-                try await withThrowingTaskGroup(of: Void.self) { taskGroup in
-                    // First add all tasks to the group
-                    for document in documents {
-                        taskGroup.addTask {
-                            try await document.print(
-                                configuration: configuration,
-                                createDirectories: createDirectories
-                            )
-                            continuation.yield(document.fileUrl)
+                do {
+                    try await withThrowingTaskGroup(of: URL.self) { taskGroup in
+                        // First add all tasks to the group
+                        for document in documents {
+                            taskGroup.addTask {
+                                try await document.print(
+                                    configuration: configuration,
+                                    createDirectories: createDirectories
+                                )
+                                return document.fileUrl
+                            }
+                        }
+
+                        // Yield results as they complete
+                        for try await url in taskGroup {
+                            continuation.yield(url)
                         }
                     }
-                    // Then wait for all tasks to complete
-                    try await taskGroup.waitForAll()
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
                 }
-                continuation.finish()
             }
         }
     }
@@ -81,7 +88,7 @@ extension Sequence<String> {
         configuration: PDFConfiguration = .a4,
         filename: (Int) -> String = { index in "\(index + 1)" },
         createDirectories: Bool = true
-    ) async throws -> AsyncStream<URL> {
+    ) async throws -> AsyncThrowingStream<URL, Error> {
         let documents: [Document] = self.enumerated()
             .map { (index, html) in
                 Document(

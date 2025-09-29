@@ -24,7 +24,7 @@ import Foundation
 public struct Document: Sendable {
     let fileUrl: URL
     let html: String
-    
+
     public init(
         fileUrl: URL,
         html: String
@@ -34,42 +34,6 @@ public struct Document: Sendable {
     }
 }
 
-extension Sequence<Document> {
-    /// Prints a sequence of ``Document``  to PDFs at the given directory.
-    ///
-    /// ## Example
-    /// ```swift
-    /// let documents = [
-    ///     Document(...),
-    ///     Document(...),
-    ///     Document(...),
-    ///     ...
-    /// ]
-    /// try await documents.print(to: .downloadsDirectory)
-    /// ```
-    ///
-    /// - Parameters:
-    ///   - configuration: The configuration that the pdfs will use.
-    ///   - createDirectories: If true, the function will call FileManager.default.createDirectory for each document's directory.
-    ///
-    ///
-    public func print(
-        configuration: PDFConfiguration,
-        createDirectories: Bool = true
-    ) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { taskGroup in
-            for document in self {
-                taskGroup.addTask {
-                    try await document.print(
-                        configuration: configuration,
-                        createDirectories: createDirectories
-                    )
-                }
-                try await taskGroup.waitForAll()
-            }
-        }
-    }
-}
 
 extension String {
     /// Prints a single html string to a PDF at the given URL, with the given margins.
@@ -92,11 +56,13 @@ extension String {
     public func print(
         to fileUrl: URL,
         configuration: PDFConfiguration = .a4,
+        printingConfiguration: PrintingConfiguration = .default,
         createDirectories: Bool = true
     ) async throws {
         try await Document(fileUrl: fileUrl, html: self)
             .print(
                 configuration: configuration,
+                printingConfiguration: printingConfiguration,
                 createDirectories: createDirectories
             )
     }
@@ -126,6 +92,7 @@ extension String {
         title: String,
         to directory: URL,
         configuration: PDFConfiguration = .a4,
+        printingConfiguration: PrintingConfiguration = .default,
         createDirectories: Bool = true
     ) async throws {
         try await Document(
@@ -133,6 +100,7 @@ extension String {
             html: self
         ).print(
             configuration: configuration,
+            printingConfiguration: printingConfiguration,
             createDirectories: createDirectories
         )
     }
@@ -167,6 +135,7 @@ extension Sequence<String> {
     public func print(
         to directory: URL,
         configuration: PDFConfiguration = .a4,
+        printingConfiguration: PrintingConfiguration = .default,
         filename: (Int) -> String = { index in "\(index + 1)" },
         createDirectories: Bool = true
     ) async throws {
@@ -181,8 +150,58 @@ extension Sequence<String> {
             }
             .print(
                 configuration: configuration,
+                printingConfiguration: printingConfiguration,
                 createDirectories: createDirectories
             )
+    }
+}
+
+/// Configuration for printing behavior and resource management
+///
+/// This configuration controls how the printing process behaves, including
+/// concurrency limits, timeouts, and progress tracking.
+///
+/// - Parameters:
+///   - maxConcurrentOperations: Maximum number of concurrent print operations. nil uses system default (CPU count).
+///   - documentTimeout: Timeout per document in seconds. nil means no timeout.
+///   - batchTimeout: Overall timeout for the entire batch in seconds. nil means no timeout.
+///   - webViewAcquisitionTimeout: Timeout for acquiring a WebView from the pool in seconds. Defaults to 300 (5 minutes).
+///   - progressHandler: Optional callback for tracking progress (completed, total).
+///
+public struct PrintingConfiguration: Sendable {
+    public let maxConcurrentOperations: Int?
+    public let documentTimeout: TimeInterval?
+    public let batchTimeout: TimeInterval?
+    public let webViewAcquisitionTimeout: TimeInterval
+    public let progressHandler: (@Sendable (Int, Int) -> Void)?
+
+    public init(
+        maxConcurrentOperations: Int? = nil,
+        documentTimeout: TimeInterval? = nil,
+        batchTimeout: TimeInterval? = nil,
+        webViewAcquisitionTimeout: TimeInterval = 300,
+        progressHandler: (@Sendable (Int, Int) -> Void)? = nil
+    ) {
+        self.maxConcurrentOperations = maxConcurrentOperations
+        self.documentTimeout = documentTimeout
+        self.batchTimeout = batchTimeout
+        self.webViewAcquisitionTimeout = webViewAcquisitionTimeout
+        self.progressHandler = progressHandler
+    }
+
+    /// Default configuration suitable for most use cases
+    public static var `default`: PrintingConfiguration {
+        PrintingConfiguration()
+    }
+
+    /// Configuration optimized for large batches (millions of documents)
+    public static var largeBatch: PrintingConfiguration {
+        PrintingConfiguration(
+            maxConcurrentOperations: 16,
+            documentTimeout: nil, // No per-document timeout
+            batchTimeout: 86400, // 24 hours
+            webViewAcquisitionTimeout: 600 // 10 minutes
+        )
     }
 }
 

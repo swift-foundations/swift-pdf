@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+
+      - name: Validate tag format
+        run: |
+          TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid tag format: $TAG"
+            echo "Tag must follow semantic versioning (e.g., 1.0.0)"
+            exit 1
+          fi
+          echo "✅ Valid tag format: $TAG"
+
+      - name: Build in release mode
+        run: swift build -c release
+
+      - name: Run all tests
+        run: |
+          export WEBVIEW_POOL_SILENT=1
+          swift test -c release
+
+      - name: Verify documentation builds
+        run: |
+          swift package \
+            --allow-writing-to-directory ./docs \
+            generate-documentation \
+            --target HtmlToPdf \
+            --output-path ./docs \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-html-to-pdf
+        continue-on-error: true
+
+  create-release-artifacts:
+    name: Create Release Artifacts
+    needs: validate
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+
+      - name: Build library archives
+        run: |
+          # Build for arm64
+          swift build -c release --arch arm64
+
+          # Build for x86_64
+          swift build -c release --arch x86_64
+
+          # Create archives of the built libraries
+          cd .build
+          tar -czf swift-html-to-pdf-macos.tar.gz \
+            arm64-apple-macosx/release/*.swiftmodule \
+            x86_64-apple-macosx/release/*.swiftmodule \
+            2>/dev/null || true
+
+          echo "✅ Created library archives"
+
+      - name: Generate documentation
+        run: |
+          swift package \
+            --allow-writing-to-directory ./docs \
+            generate-documentation \
+            --target HtmlToPdf \
+            --output-path ./docs \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-html-to-pdf
+
+          # Create documentation archive
+          zip -r documentation.zip docs/
+        continue-on-error: true
+
+      - name: Upload artifacts to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            .build/swift-html-to-pdf-macos.tar.gz
+            documentation.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-documentation:
+    name: Publish Documentation
+    needs: validate
+    runs-on: macos-15
+    if: github.event_name == 'release'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+
+      - name: Build documentation
+        run: |
+          swift package \
+            --allow-writing-to-directory ./docs \
+            generate-documentation \
+            --target HtmlToPdf \
+            --output-path ./docs \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-html-to-pdf
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

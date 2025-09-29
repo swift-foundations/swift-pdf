@@ -45,6 +45,16 @@ extension AsyncStream<URL> {
     }
 }
 
+extension AsyncThrowingStream<URL, Error> {
+    func testIfYieldedUrlExistsOnFileSystem(directory: URL) async throws {
+        for try await url in self {
+            let contents = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+                .map(\.lastPathComponent)
+            #expect(contents.contains(where: { $0 == url.lastPathComponent }))
+        }
+    }
+}
+
 extension String {
     static let html = """
     <html>
@@ -82,3 +92,6 @@ extension String {
     """
 
 }
+
+
+

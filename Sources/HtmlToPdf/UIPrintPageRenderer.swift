@@ -12,8 +12,75 @@ import UIKit
 import WebKit
 import Dependencies
 
+extension Sequence<Document> {
+    /// Prints ``Document``s to PDFs with the given configuration.
+    ///
+    /// ## Example
+    /// ```swift
+    /// let documents = [
+    ///     Document(...),
+    ///     Document(...),
+    ///     ...
+    /// ]
+    /// try await documents.print(configuration: .a4)
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - configuration: The configuration that the PDFs will use.
+    ///   - printingConfiguration: Configuration for printing behavior and resource management.
+    ///   - createDirectories: If true, the function will call FileManager.default.createDirectory for each document's directory.
+    ///
+    @MainActor
+    public func print(
+        configuration: PDFConfiguration,
+        printingConfiguration: PrintingConfiguration = .default,
+        createDirectories: Bool = true
+    ) async throws {
+        let documents = Array(self)
+        let maxConcurrent = printingConfiguration.maxConcurrentOperations ??
+            Swift.min(ProcessInfo.processInfo.activeProcessorCount, 8)
+
+        var completedCount = 0
+
+        try await withThrowingTaskGroup(of: Void.self) { taskGroup in
+            // Add initial batch of tasks up to maxConcurrent
+            for document in documents.prefix(maxConcurrent) {
+                taskGroup.addTask {
+                    try await document.print(
+                        configuration: configuration,
+                        printingConfiguration: printingConfiguration,
+                        createDirectories: createDirectories
+                    )
+                }
+            }
+
+            var nextIndex = maxConcurrent
+
+            // Process results and add new tasks as others complete
+            for try await _ in taskGroup {
+                completedCount += 1
+                printingConfiguration.progressHandler?(completedCount, documents.count)
+
+                // Add next document if any remain
+                if nextIndex < documents.count {
+                    let document = documents[nextIndex]
+                    nextIndex += 1
+
+                    taskGroup.addTask {
+                        try await document.print(
+                            configuration: configuration,
+                            printingConfiguration: printingConfiguration,
+                            createDirectories: createDirectories
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 extension Document {
-    
+
     /// Prints a ``Document`` to PDF with the given configuration.
     ///
     /// This function is more convenient when you have a directory and just want to title the PDF and save it to the directory.
@@ -31,16 +98,20 @@ extension Document {
     @MainActor
     public func print(
         configuration: PDFConfiguration,
+        printingConfiguration: PrintingConfiguration = .default,
         createDirectories: Bool = true
     ) async throws {
-        
+
         if html.containsImages() {
             try await DocumentWKRenderer(
                 document: self,
                 configuration: configuration,
                 createDirectories: createDirectories
-            ).print()
-            
+            ).print(
+                documentTimeout: printingConfiguration.documentTimeout,
+                webViewAcquisitionTimeout: printingConfiguration.webViewAcquisitionTimeout
+            )
+
         } else {
             try await print(
                 configuration: configuration,
@@ -52,21 +123,16 @@ extension Document {
 }
 
 extension String {
-    
     /// Determines if the HTML string contains any `<img>` tags.
     /// - Returns: A boolean indicating whether the HTML contains images.
     func containsImages() -> Bool {
-        let imgRegex = "<img\\s+[^>]*src\\s*=\\s*['\"]([^'\"]*)['\"][^>]*>"
-        
-        do {
-            let regex = try NSRegularExpression(pattern: imgRegex, options: .caseInsensitive)
-            let matches = regex.matches(in: self, options: [], range: NSRange(location: 0, length: self.utf16.count))
-            return !matches.isEmpty
-            
-        } catch {
-            Swift.print("Regex error: \(error.localizedDescription)")
+        // Use NSRegularExpression for iOS compatibility
+        let pattern = "(?i)<img\\s+[^>]*src\\s*=\\s*[\"']([^\"']*?)[\"'][^>]*>"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
             return false
         }
+        let range = NSRange(location: 0, length: self.utf16.count)
+        return regex.firstMatch(in: self, options: [], range: range) != nil
     }
 }
 
@@ -122,11 +188,11 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
     private var document: Document
     private var configuration: PDFConfiguration
     private var createDirectories: Bool
-    
+
     private var continuation: CheckedContinuation<Void, Error>?
-    private var webView: WKWebView?
+    private weak var webView: WKWebView?
     private var timeoutTask: Task<Void, Error>?
-    
+
     init(
         document: Document,
         configuration: PDFConfiguration,
@@ -137,30 +203,52 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
         self.createDirectories = createDirectories
         super.init()
     }
+
+    deinit {
+        // Cancel timeout task
+        timeoutTask?.cancel()
+
+        // Resume continuation with error if still pending
+        if let continuation = continuation {
+            self.continuation = nil
+            continuation.resume(throwing: CancellationError())
+        }
+    }
     
     @MainActor
-    public func print(timeout: TimeInterval = 30) async throws {
+    public func print(documentTimeout: TimeInterval? = nil, webViewAcquisitionTimeout: TimeInterval = 300) async throws {
         @Dependency(\.webViewPool) var webViewPool
-        let webView = try await webViewPool.acquireWithRetry(8, 0.2)
+        let webView = try await webViewPool.acquireWithRetry(8, webViewAcquisitionTimeout / 8)
         webView.navigationDelegate = self
         
         do {
             return try await withCheckedThrowingContinuation { continuation in
                 self.continuation = continuation
-                webView.loadHTMLString(document.html, baseURL: configuration.baseURL)
+                self.webView = webView
+                webView.loadHTMLString(self.document.html, baseURL: self.configuration.baseURL)
                 
-                timeoutTask = Task {
-                    do {
-                        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                        if self.continuation != nil {
-                            throw NSError(domain: "DocumentWKRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "WebView loading timed out"])
-                        }
-                    } catch {
-                        if !error.isCancellationError {
-                            self.continuation?.resume(throwing: error)
+                if let timeout = documentTimeout {
+                    timeoutTask = Task { [weak self] in
+                        do {
+                            try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+
+                            // Check if continuation still exists (not already completed)
+                            guard let self = self,
+                                  let continuation = self.continuation else { return }
+
+                            self.continuation = nil
+                            let timeoutError = PrintingError.webViewRenderingTimeout(timeoutSeconds: timeout)
+                            continuation.resume(throwing: timeoutError)
                             await self.cleanup(webView: webView)
+                        } catch {
+                            // Task was cancelled, which is expected behavior
+                            if !error.isCancellationError {
+                                Swift.print("[DocumentWKRenderer] Unexpected error in timeout task: \(error)")
+                            }
                         }
                     }
+                } else {
+                    timeoutTask = nil
                 }
             }
         } catch {
@@ -172,25 +260,33 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task {
+            // Prevent double-resume by clearing continuation atomically
+            guard let continuation = self.continuation else { return }
+            self.continuation = nil
+            self.timeoutTask?.cancel()
+
             do {
                 try await document.print(
                     configuration: configuration,
                     createDirectories: createDirectories,
                     printFormatter: webView.viewPrintFormatter()
                 )
-                timeoutTask?.cancel()
-                continuation?.resume(returning: ())
+                continuation.resume(returning: ())
             } catch {
-                continuation?.resume(throwing: error)
+                continuation.resume(throwing: error)
             }
             await cleanup(webView: webView)
         }
     }
-    
+
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
         Task {
-            timeoutTask?.cancel()
-            continuation?.resume(throwing: error)
+            // Prevent double-resume by clearing continuation atomically
+            guard let continuation = self.continuation else { return }
+            self.continuation = nil
+            self.timeoutTask?.cancel()
+
+            continuation.resume(throwing: PrintingError.webViewNavigationFailed(underlyingError: error))
             await cleanup(webView: webView)
         }
     }

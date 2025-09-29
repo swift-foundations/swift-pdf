@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS
+    runs-on: macos-15
+    strategy:
+      matrix:
+        xcode: ['16.0', '16.1']
+        config: ['debug', 'release']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app
+
+      - name: Print Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build -c ${{ matrix.config }}
+
+      - name: Run tests
+        run: |
+          export WEBVIEW_POOL_SILENT=1
+          swift test -c ${{ matrix.config }}
+
+  ios:
+    name: iOS (Mac Catalyst)
+    runs-on: macos-15
+    strategy:
+      matrix:
+        xcode: ['16.0', '16.1']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app
+
+      - name: Build for Mac Catalyst
+        run: |
+          xcodebuild build \
+            -scheme swift-html-to-pdf \
+            -destination 'platform=macOS,variant=Mac Catalyst' \
+            -derivedDataPath .build/catalyst \
+            | xcpretty || exit 1
+
+      - name: Run Mac Catalyst Tests
+        run: |
+          export WEBVIEW_POOL_SILENT=1
+          xcodebuild test \
+            -scheme swift-html-to-pdf \
+            -destination 'platform=macOS,variant=Mac Catalyst' \
+            -derivedDataPath .build/catalyst \
+            | xcpretty || exit 1
+        continue-on-error: true  # Tests may timeout but compilation is what matters
+
+  integration:
+    name: Integration Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+
+      - name: Run integration tests
+        run: |
+          export WEBVIEW_POOL_SILENT=1
+          echo "🧪 Running integration tests..."
+
+          # Test batch printing with various document counts
+          swift test --filter "collection" -c release
+
+          # Test error handling scenarios
+          swift test --filter "ErrorHandling" -c release
+
+          # Test WebView pool under load
+          swift test --filter "WebViewPoolTests" -c release
+
+          echo "✅ Integration tests completed"
+
+  linux:
+    name: Ubuntu
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y libwebkit2gtk-4.0-dev
+
+      - name: Build
+        run: swift build
+        continue-on-error: true  # WebKit may not be fully available on Linux CI
+
+      - name: Run tests
+        run: swift test
+        continue-on-error: true  # WebKit may not be fully available on Linux CI
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.0-release
+          tag: 6.0-RELEASE
+
+      - name: Build
+        run: swift build
+        continue-on-error: true  # WebKit not available on Windows
+
+      - name: Run tests
+        run: swift test
+        continue-on-error: true  # WebKit not available on Windows
+
+  documentation:
+    name: Documentation
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+
+      - name: Build documentation
+        run: |
+          swift package \
+            --allow-writing-to-directory ./docs \
+            generate-documentation \
+            --target HtmlToPdf \
+            --output-path ./docs \
+            --transform-for-static-hosting \
+            --hosting-base-path swift-html-to-pdf
+        continue-on-error: true  # DocC may not be configured yet

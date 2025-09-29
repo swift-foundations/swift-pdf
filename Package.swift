@@ -30,10 +30,12 @@ let package = Package(
             name: .htmlToPdf,
             dependencies: [
                 .dependencies
-            ]),
+            ]
+        ),
         .testTarget(
             name: .htmlToPdf + "Tests",
-            dependencies: [.htmlToPdf]
+            dependencies: [.htmlToPdf],
+            exclude: ["HtmlToPdf.xctestplan"]
         )
     ],
     swiftLanguageVersions: [.v5]
