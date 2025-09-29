@@ -8,6 +8,9 @@
 import Foundation
 import Dependencies
 import EnvironmentVariables
+#if canImport(WebKit)
+import WebKit
+#endif
 
 /// Configuration for WebViewPool derived from environment variables
 public struct WebViewPoolConfiguration: Sendable {
@@ -26,6 +29,11 @@ public struct WebViewPoolConfiguration: Sendable {
     /// Maximum number of pending requests (multiplier of pool size)
     public let maxQueueMultiplier: Int
 
+    #if canImport(WebKit)
+    /// Whether to use persistent data store (default: false for deterministic rendering)
+    public let usePersistentDataStore: Bool
+    #endif
+
     /// Creates configuration from environment variables
     public init(env: EnvironmentVariables) {
         self.poolSize = env.int("WEBVIEW_POOL_SIZE")
@@ -35,6 +43,13 @@ public struct WebViewPoolConfiguration: Sendable {
 
         // In CI, use smaller queue multiplier to conserve memory
         self.maxQueueMultiplier = isCI ? 2 : 4
+
+        #if canImport(WebKit)
+        // Default to non-persistent for deterministic rendering
+        // Can be overridden with WEBVIEW_POOL_DATA_STORE=persistent
+        let dataStore = env["WEBVIEW_POOL_DATA_STORE"]?.lowercased()
+        self.usePersistentDataStore = (dataStore == "persistent" || dataStore == "default")
+        #endif
     }
 
     /// Default configuration for testing

@@ -215,12 +215,11 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 extension PrintingError {
 
     /// Create an error from a WebViewPoolActor.Error
-    static func from(poolError: WebViewPoolActor.Error) -> PrintingError {
+    /// Pass the actual timeout value if available instead of using default
+    static func from(poolError: WebViewPoolActor.Error, timeoutSeconds: TimeInterval = 300) -> PrintingError {
         switch poolError {
         case .timeout:
-            return .webViewAcquisitionTimeout(timeoutSeconds: 300) // Default timeout
-        case .poolExhausted:
-            return .webViewPoolExhausted(pendingRequests: 0)
+            return .webViewAcquisitionTimeout(timeoutSeconds: timeoutSeconds)
         case .cancelled:
             return .cancelled(message: nil)
         }

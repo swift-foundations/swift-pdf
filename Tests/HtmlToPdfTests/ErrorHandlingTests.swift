@@ -396,7 +396,6 @@ struct PrintingErrorTests {
     func testErrorConversions() {
         let poolErrors: [WebViewPoolActor.Error] = [
             .timeout,
-            .poolExhausted,
             .cancelled
         ]
 
@@ -404,5 +403,10 @@ struct PrintingErrorTests {
             let printingError = PrintingError.from(poolError: poolError)
             #expect(printingError.errorDescription != nil)
         }
+
+        // Test with custom timeout
+        let timeoutError = WebViewPoolActor.Error.timeout
+        let printingErrorWithTimeout = PrintingError.from(poolError: timeoutError, timeoutSeconds: 60)
+        #expect(printingErrorWithTimeout.errorDescription?.contains("60") == true)
     }
 }

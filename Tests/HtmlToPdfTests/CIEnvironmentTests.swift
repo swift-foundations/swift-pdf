@@ -43,7 +43,6 @@ struct CIEnvironmentTests {
         await pool.waitForFullInitialization()
         let stats = await pool.getStatistics()
         let poolSize = stats.available + stats.inUse
-
         #expect(poolSize == 2, "Pool should be limited to 2 in CI")
 
         // Test that CI pool can still handle concurrent operations

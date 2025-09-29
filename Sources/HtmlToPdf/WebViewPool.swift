@@ -18,13 +18,11 @@ actor WebViewPoolActor {
     /// Error types that can be thrown by the WebViewPool
     enum Error: Swift.Error, LocalizedError {
         case timeout
-        case poolExhausted
         case cancelled
 
         var errorDescription: String? {
             switch self {
             case .timeout: return "WebView acquisition timed out"
-            case .poolExhausted: return "WebView pool is exhausted"
             case .cancelled: return "Request was cancelled"
             }
         }
@@ -47,6 +45,7 @@ actor WebViewPoolActor {
 
     private var availableWebViews: [WKWebView]
     private var pendingRequests: [UUID: PendingRequest] = [:]
+    private var pendingOrder: [UUID] = []  // FIFO queue for pending requests
     private let maxSize: Int
     private var isInitialized = false
     private var initializationCallbacks: [CheckedContinuation<Void, Never>] = []
@@ -61,8 +60,11 @@ actor WebViewPoolActor {
     private var totalTimeouts: Int = 0
     private var actualPoolSize: Int = 0
     
-    init(size: Int) {
+    private let config: WebViewPoolConfiguration
+
+    init(size: Int, config: WebViewPoolConfiguration) {
         self.maxSize = size
+        self.config = config
         // Create web views on the main actor since WKWebView requires it
         self.availableWebViews = []
 
@@ -105,8 +107,9 @@ actor WebViewPoolActor {
                 config.preferences.setValue(false, forKey: "acceleratedDrawingEnabled")
                 config.preferences.setValue(false, forKey: "displayListDrawingEnabled")
 
-                // Use non-persistent data store to reduce disk I/O and logs
-                config.websiteDataStore = .nonPersistent()
+                // Use data store based on configuration
+                // Default is non-persistent for deterministic rendering
+                config.websiteDataStore = self.config.usePersistentDataStore ? .default() : .nonPersistent()
 
                 // Suppress various WebContent logs
                 // Note: javaScriptEnabled is deprecated but still works for backward compatibility
@@ -130,8 +133,10 @@ actor WebViewPoolActor {
                 #endif
 
                 let webView = WKWebView(frame: .zero, configuration: config)
-                // Disable logs from WebView
+                // Disable logs from WebView (macOS only - iOS doesn't support this KVC)
+                #if os(macOS)
                 webView.setValue(false, forKey: "drawsBackground")
+                #endif
 
                 // Add incrementally
                 await self.addIncrementalWebView(webView, isLast: i == size - 1)
@@ -204,10 +209,9 @@ actor WebViewPoolActor {
 
     /// Process pending requests with available web views
     private func processPendingRequests() {
-        while !pendingRequests.isEmpty,
-              let webView = availableWebViews.popLast(),
-              let (id, request) = pendingRequests.first {
-            pendingRequests.removeValue(forKey: id)
+        while !pendingOrder.isEmpty, let webView = availableWebViews.popLast() {
+            let id = pendingOrder.removeFirst()
+            guard let request = pendingRequests.removeValue(forKey: id) else { continue }
             totalAcquisitions += 1
             // WebViews from the pool should already be clean, just deliver them
             request.onSuccess(webView)
@@ -224,7 +228,8 @@ actor WebViewPoolActor {
                 webView.stopLoading()
                 // Clear navigation delegate
                 webView.navigationDelegate = nil
-                // Wait for document to be ready instead of arbitrary delay
+                // Simply check if document is ready without loading new content
+                // Loading HTML here can cause hangs and process spawning issues
                 _ = try? await webView.evaluateJavaScript("document.readyState")
             }
         }
@@ -265,8 +270,9 @@ actor WebViewPoolActor {
                     }
                 )
 
-                // Store the request
+                // Store the request with FIFO ordering
                 pendingRequests[requestId] = request
+                pendingOrder.append(requestId)
 
                 // Set up timeout
                 timeoutTask = Task {
@@ -284,6 +290,7 @@ actor WebViewPoolActor {
     /// Timeout a pending request
     private func timeoutRequest(id: UUID) {
         if let request = pendingRequests.removeValue(forKey: id) {
+            pendingOrder.removeAll { $0 == id }  // Remove from order queue
             totalTimeouts += 1
             request.onError(Error.timeout)
         }
@@ -292,6 +299,7 @@ actor WebViewPoolActor {
     /// Cancel a pending request
     private func cancelRequest(id: UUID) {
         if let request = pendingRequests.removeValue(forKey: id) {
+            pendingOrder.removeAll { $0 == id }  // Remove from order queue
             request.onError(Error.cancelled)
         }
     }
@@ -303,7 +311,8 @@ actor WebViewPoolActor {
             // Clean WebView before returning to pool
             webView.stopLoading()
             webView.navigationDelegate = nil
-            // Ensure WebView is ready before returning to pool
+            // Simply ensure WebView is ready before returning to pool
+            // Don't load new HTML as it can cause process hangs
             _ = try? await webView.evaluateJavaScript("document.readyState")
             // Now add it back to the pool
             await self.addCleanedWebView(webView)
@@ -430,8 +439,7 @@ extension WebViewPoolClient: DependencyKey {
         return max(2, min(calculatedSize, cpuCount))
     }
 
-    static var liveValue: WebViewPoolClient {
-        @Dependency(\.envVars) var env
+    static func createPool(env: EnvironmentVariables) -> WebViewPoolClient {
         let config = WebViewPoolConfiguration(env: env)
 
         // Determine pool size from configuration or calculation
@@ -458,7 +466,7 @@ extension WebViewPoolClient: DependencyKey {
             #endif
         }
 
-        let actor = WebViewPoolActor(size: poolSize)
+        let actor = WebViewPoolActor(size: poolSize, config: config)
 
         return WebViewPoolClient(
             acquireWebView: {
@@ -472,17 +480,23 @@ extension WebViewPoolClient: DependencyKey {
 
                 for attempt in 0..<maxRetries {
                     do {
-                        // Adaptive timeout based on attempt
-                        let timeout = min(30, initialDelay * Double(attempt + 1) * 2)
+                        // Calculate remaining budget to stay within overall timeout
+                        let remainingTime = initialDelay * 8 - (initialDelay * Double(attempt))
+                        // Use adaptive timeout, but cap to remaining budget
+                        let timeout = min(30, min(remainingTime, initialDelay * Double(attempt + 1) * 2))
                         return try await actor.acquireWebView(timeout: timeout)
                     } catch WebViewPoolActor.Error.timeout {
                         lastError = WebViewPoolActor.Error.timeout
 
                         if attempt < maxRetries - 1 {
-                            // Exponential backoff with jitter
+                            // Exponential backoff with jitter, capped to not exceed budget
                             let jitter = Double.random(in: 0.5...1.5)
                             let backoffDelay = min(initialDelay * pow(2, Double(attempt)) * jitter, 10.0)
-                            try await Task.sleep(nanoseconds: UInt64(backoffDelay * 1_000_000_000))
+                            let remainingBudget = initialDelay * 8 - (initialDelay * Double(attempt + 1))
+                            let actualDelay = min(backoffDelay, remainingBudget / 2)  // Use at most half of remaining budget for backoff
+                            if actualDelay > 0 {
+                                try await Task.sleep(nanoseconds: UInt64(actualDelay * 1_000_000_000))
+                            }
                         }
                     } catch {
                         // For other errors, throw immediately
@@ -503,26 +517,18 @@ extension WebViewPoolClient: DependencyKey {
             }
         )
     }
-    
-    /// Test value that uses dummy web views for testing
+
+    static var liveValue: WebViewPoolClient {
+        @Dependency(\.envVars) var env
+        return createPool(env: env)
+    }
+
+    /// Test value that uses the real pool for integration testing
     static var testValue: WebViewPoolClient {
-        return liveValue
-//        return WebViewPoolClient(
-//            acquireWebView: { @MainActor in
-//                // Create a dummy web view for testing
-//                return WKWebView(frame: .zero)
-//            },
-//            releaseWebView: { _ in
-//                // Do nothing in tests
-//            },
-//            acquireWithRetry: { _, _ in
-//                // Just return a new web view in tests
-//                @MainActor func createWebView() -> WKWebView {
-//                    return WKWebView(frame: .zero)
-//                }
-//                return await createWebView()
-//            }
-//        )
+        // For tests, use the real pool so integration tests work properly
+        // Tests can override env vars to configure the pool
+        @Dependency(\.envVars) var env
+        return createPool(env: env)
     }
 }
 
