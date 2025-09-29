@@ -89,7 +89,7 @@ jobs:
           swift test --filter "ErrorHandling" -c release
 
           # Test WebView pool under load
-          swift test --filter "WebViewPoolTests" -c release
+          swift test --filter "WebViewPool" -c release
 
           echo "✅ Integration tests completed"
 
