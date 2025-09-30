@@ -17,7 +17,7 @@ extension Target.Dependency {
 
 let package = Package(
     name: "swift-html-to-pdf",
-    platforms: [.macOS(.v11), .iOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
         .library(
             name: .htmlToPdf,
@@ -27,13 +27,15 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.8.0"),
         .package(url: "https://github.com/coenttb/swift-environment-variables", from: "0.1.3"),
+        .package(path: "../swift-resource-pool"),
     ],
     targets: [
         .target(
             name: .htmlToPdf,
             dependencies: [
                 .dependencies,
-                .environmentVariables
+                .environmentVariables,
+                .product(name: "ResourcePool", package: "swift-resource-pool")
             ]
         ),
         .testTarget(

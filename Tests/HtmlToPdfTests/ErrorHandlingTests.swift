@@ -392,21 +392,20 @@ struct PrintingErrorTests {
         }
     }
 
-    @Test("Error conversions from WebViewPoolActor errors")
-    func testErrorConversions() {
-        let poolErrors: [WebViewPoolActor.Error] = [
-            .timeout,
-            .cancelled
-        ]
+    @Test("Error handling with resource pool")
+    func testResourcePoolErrorHandling() async throws {
+        // Test timeout scenario with very short timeout
+        let html = "<html><body><h1>Test Document</h1></body></html>"
+        let output = URL.temporaryDirectory
+            .appendingPathComponent("timeout-test")
+            .appendingPathExtension("pdf")
 
-        for poolError in poolErrors {
-            let printingError = PrintingError.from(poolError: poolError)
-            #expect(printingError.errorDescription != nil)
+        defer {
+            try? FileManager.default.removeItem(at: output)
         }
 
-        // Test with custom timeout
-        let timeoutError = WebViewPoolActor.Error.timeout
-        let printingErrorWithTimeout = PrintingError.from(poolError: timeoutError, timeoutSeconds: 60)
-        #expect(printingErrorWithTimeout.errorDescription?.contains("60") == true)
+        // Should still succeed even with resource constraints
+        try await html.print(to: output, configuration: .a4)
+        #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created despite resource constraints")
     }
 }

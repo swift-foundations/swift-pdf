@@ -77,23 +77,19 @@ extension Sequence<Document> {
             for document in documents.prefix(maxConcurrent) {
                 taskGroup.addTask {
                     @Dependency(\.webViewPool) var webViewPool
-                    let webView = try await webViewPool.acquireWithRetry(8, printingConfiguration.webViewAcquisitionTimeout / 8)
 
-                    // Use Result to ensure cleanup happens regardless of success/failure
-                    let result: Result<Void, Error> = await Result {
+                    // Use withResource pattern for proper resource management
+                    let pool = try await webViewPool.pool
+                    try await pool.withResource(
+                        timeout: .seconds(printingConfiguration.webViewAcquisitionTimeout)
+                    ) { resource in
                         try await document.print(
                             configuration: configuration,
                             documentTimeout: printingConfiguration.documentTimeout,
                             createDirectories: createDirectories,
-                            using: webView
+                            using: resource.webView
                         )
                     }
-
-                    // Always release the webView
-                    await webViewPool.releaseWebView(webView)
-
-                    // Re-throw error if printing failed
-                    try result.get()
                 }
             }
 
@@ -111,23 +107,19 @@ extension Sequence<Document> {
 
                     taskGroup.addTask {
                         @Dependency(\.webViewPool) var webViewPool
-                        let webView = try await webViewPool.acquireWithRetry(8, printingConfiguration.webViewAcquisitionTimeout / 8)
 
-                        // Use Result to ensure cleanup happens regardless of success/failure
-                        let result: Result<Void, Error> = await Result {
+                        // Use withResource pattern for proper resource management
+                        let pool = try await webViewPool.pool
+                        try await pool.withResource(
+                            timeout: .seconds(printingConfiguration.webViewAcquisitionTimeout)
+                        ) { resource in
                             try await document.print(
                                 configuration: configuration,
                                 documentTimeout: printingConfiguration.documentTimeout,
                                 createDirectories: createDirectories,
-                                using: webView
+                                using: resource.webView
                             )
                         }
-
-                        // Always release the webView
-                        await webViewPool.releaseWebView(webView)
-
-                        // Re-throw error if printing failed
-                        try result.get()
                     }
                 }
             }

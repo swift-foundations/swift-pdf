@@ -2,7 +2,7 @@
 //  CIEnvironmentTests.swift
 //  swift-html-to-pdf
 //
-//  Tests for CI environment simulation
+//  Tests for HTML to PDF functionality in CI environments
 //
 
 import Testing
@@ -17,7 +17,7 @@ import EnvironmentVariables
 struct CIEnvironmentTests {
 
     @Test(
-        "GitHub Actions environment simulation",
+        "HTML to PDF in CI environment",
         .dependency(\.envVars, {
             var env = EnvironmentVariables.local
             env["CI"] = "true"
@@ -25,191 +25,139 @@ struct CIEnvironmentTests {
             env["RUNNER_OS"] = "macOS"
             env["RUNNER_ARCH"] = "X64"
             env["WEBVIEW_POOL_SIZE"] = "2"
-            env["WEBVIEW_POOL_SILENT"] = "true"
             return env
         }())
     )
-    func testGitHubActionsEnvironment() async throws {
-        @Dependency(\.envVars) var envVars
-        @Dependency(\.webViewPool) var pool
+    func testHtmlToPdfInCI() async throws {
+        let html = "<html><body><h1>CI Test Document</h1><p>Generated in CI environment</p></body></html>"
+        let output = URL.temporaryDirectory
+            .appendingPathComponent("ci-test")
+            .appendingPathExtension("pdf")
 
-        // Verify CI environment is detected
-        let config = WebViewPoolConfiguration(env: envVars)
-        #expect(config.isCI == true, "Should detect CI environment")
-        #expect(config.isGitHubActions == true, "Should detect GitHub Actions")
-        #expect(config.poolSize == 2, "Should use CI pool size")
-
-        // Verify pool initialization with CI constraints
-        await pool.waitForFullInitialization()
-        let stats = await pool.getStatistics()
-        let poolSize = stats.available + stats.inUse
-        #expect(poolSize == 2, "Pool should be limited to 2 in CI")
-
-        // Test that CI pool can still handle concurrent operations
-        var acquiredViews: [WKWebView] = []
-
-        // Acquire both views
-        for i in 1...2 {
-            do {
-                let view = try await pool.acquireWithRetry(1, 0.5)
-                acquiredViews.append(view)
-                print("[CI Test] Acquired view \(i)")
-            } catch {
-                Issue.record("Failed to acquire view in CI: \(error)")
-            }
+        defer {
+            try? FileManager.default.removeItem(at: output)
         }
 
-        #expect(acquiredViews.count == 2, "Should acquire all CI pool views")
+        // Should successfully generate PDF in CI environment
+        try await html.print(to: output, configuration: .a4)
 
-        // Release views
-        for view in acquiredViews {
-            await pool.releaseWebView(view)
-        }
+        #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created in CI environment")
 
-        // Verify pool is restored
-        try await Task.sleep(nanoseconds: 500_000_000) // 500ms
-        let finalStats = await pool.getStatistics()
-        #expect(finalStats.available == 2, "All CI pool views should be available")
+        // Verify PDF has content
+        let pdfData = try Data(contentsOf: output)
+        #expect(pdfData.count > 0, "PDF should have content")
     }
 
     @Test(
-        "CI memory-constrained environment",
+        "Batch processing in memory-constrained CI",
         .dependency(\.envVars, {
             var env = EnvironmentVariables.local
             env["CI"] = "true"
-            env["WEBVIEW_POOL_SILENT"] = "true"
-            // Don't set WEBVIEW_POOL_SIZE to test automatic CI detection
-            return env
-        }())
-    )
-    func testCIMemoryConstraints() async throws {
-        @Dependency(\.webViewPool) var pool
-
-        // Pool should automatically detect CI and use conservative size
-        await pool.waitForFullInitialization()
-        let stats = await pool.getStatistics()
-        let poolSize = stats.available + stats.inUse
-
-        // In CI mode without explicit size, should use calculated CI size (max 2)
-        #expect(poolSize <= 2, "CI should use conservative pool size")
-        #expect(poolSize >= 1, "CI should have at least 1 WebView")
-    }
-
-    @Test(
-        "Local development environment",
-        .dependency(\.envVars, {
-            var env = EnvironmentVariables.local
-            env["WEBVIEW_POOL_SILENT"] = "true"
-            // Explicitly mark as NOT CI
-            env["CI"] = "false"
-            return env
-        }())
-    )
-    func testLocalEnvironment() async throws {
-        @Dependency(\.envVars) var envVars
-        @Dependency(\.webViewPool) var pool
-
-        let config = WebViewPoolConfiguration(env: envVars)
-        #expect(config.isCI == false, "Should not detect CI environment")
-        #expect(config.isGitHubActions == false, "Should not detect GitHub Actions")
-
-        // Local environment should use normal pool size calculation
-        await pool.waitForFullInitialization()
-        let stats = await pool.getStatistics()
-        let poolSize = stats.available + stats.inUse
-
-        // Local development typically has more resources
-        #expect(poolSize >= 2, "Local should have reasonable pool size")
-    }
-
-    @Test(
-        "CI with large document batch",
-        .dependency(\.envVars, {
-            var env = EnvironmentVariables.local
-            env["CI"] = "true"
-            env["GITHUB_ACTIONS"] = "true"
             env["WEBVIEW_POOL_SIZE"] = "2"
-            env["WEBVIEW_POOL_SILENT"] = "true"
             return env
         }())
     )
-    func testCILargeBatch() async throws {
-        @Dependency(\.webViewPool) var pool
+    func testBatchProcessingInCI() async throws {
+        let documentCount = 5
+        let htmlDocuments = (1...documentCount).map { i in
+            "<html><body><h1>Document \(i)</h1><p>Content for document \(i)</p></body></html>"
+        }
 
-        // Simulate processing many documents with limited CI pool
-        let documentCount = 10
-        var processedCount = 0
+        let outputDir = URL.temporaryDirectory.appendingPathComponent("ci-batch-test")
+        defer {
+            try? FileManager.default.removeItem(at: outputDir)
+        }
 
+        // Process documents with limited resources (simulating CI)
+        try await htmlDocuments.print(to: outputDir, configuration: .a4)
+
+        // Verify all documents were processed
+        let files = try FileManager.default.contentsOfDirectory(at: outputDir, includingPropertiesForKeys: nil)
+        #expect(files.count == documentCount, "All documents should be processed in CI")
+
+        // Verify each PDF has content
+        for file in files {
+            let pdfData = try Data(contentsOf: file)
+            #expect(pdfData.count > 0, "Each PDF should have content")
+        }
+    }
+
+    @Test(
+        "Large HTML document in CI",
+        .dependency(\.envVars, {
+            var env = EnvironmentVariables.local
+            env["CI"] = "true"
+            env["WEBVIEW_POOL_SIZE"] = "1"
+            return env
+        }())
+    )
+    func testLargeHtmlInCI() async throws {
+        // Generate large HTML content
+        let largeContent = String(repeating: "<p>This is a paragraph with some content to make the document larger. ", count: 1000)
+        let html = "<html><body><h1>Large Document Test</h1>\(largeContent)</body></html>"
+
+        let output = URL.temporaryDirectory
+            .appendingPathComponent("large-ci-test")
+            .appendingPathExtension("pdf")
+
+        defer {
+            try? FileManager.default.removeItem(at: output)
+        }
+
+        // Should handle large documents even with limited resources
+        try await html.print(to: output, configuration: .a4)
+
+        #expect(FileManager.default.fileExists(atPath: output.path), "Large PDF should be created in CI")
+
+        // Verify PDF has substantial content
+        let pdfData = try Data(contentsOf: output)
+        #expect(pdfData.count > 10000, "Large PDF should have substantial content")
+    }
+
+    @Test(
+        "Concurrent PDF generation in CI",
+        .dependency(\.envVars, {
+            var env = EnvironmentVariables.local
+            env["CI"] = "true"
+            env["WEBVIEW_POOL_SIZE"] = "2"
+            return env
+        }())
+    )
+    func testConcurrentGenerationInCI() async throws {
+        let taskCount = 4
+        let outputDir = URL.temporaryDirectory.appendingPathComponent("concurrent-ci-test")
+
+        defer {
+            try? FileManager.default.removeItem(at: outputDir)
+        }
+
+        try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+
+        // Run concurrent PDF generation tasks
         await withTaskGroup(of: Bool.self) { group in
-            for i in 1...documentCount {
-                group.addTask { [pool] in
+            for i in 1...taskCount {
+                group.addTask {
                     do {
-                        // Try to acquire with short timeout (CI is resource-constrained)
-                        let view = try await pool.acquireWithRetry(2, 0.5)
+                        let html = "<html><body><h1>Concurrent Task \(i)</h1><p>Generated concurrently in CI</p></body></html>"
+                        let output = outputDir.appendingPathComponent("task-\(i).pdf")
 
-                        // Simulate PDF generation
-                        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
-
-                        await pool.releaseWebView(view)
-                        print("[CI Batch] Processed document \(i)")
-                        return true
+                        try await html.print(to: output, configuration: .a4)
+                        return FileManager.default.fileExists(atPath: output.path)
                     } catch {
-                        print("[CI Batch] Failed document \(i): \(error)")
+                        print("Task \(i) failed: \(error)")
                         return false
                     }
                 }
             }
 
+            var successCount = 0
             for await success in group {
                 if success {
-                    processedCount += 1
+                    successCount += 1
                 }
             }
+
+            #expect(successCount == taskCount, "All concurrent tasks should succeed in CI")
         }
-
-        // Even with limited pool, should process all documents
-        #expect(processedCount == documentCount, "CI should handle all documents despite limited pool")
-    }
-
-    @Test(
-        "Pool size calculation for various CI configurations",
-        .dependency(\.envVars, EnvironmentVariables.local)
-    )
-    func testCIPoolSizeCalculations() {
-        // Test various CI hardware configurations
-        let configurations: [(name: String, cpus: Int, memory: UInt64, expected: Int)] = [
-            ("GitHub Actions Standard", 2, 7 * 1024 * 1024 * 1024, 2),
-            ("GitHub Actions Large", 4, 14 * 1024 * 1024 * 1024, 2),
-            ("Minimal CI", 1, 2 * 1024 * 1024 * 1024, 1),
-            ("High-end CI", 8, 32 * 1024 * 1024 * 1024, 2)
-        ]
-
-        for config in configurations {
-            let poolSize = WebViewPoolClient.calculatePoolSize(
-                cpuCount: config.cpus,
-                memoryBytes: config.memory,
-                isCI: true
-            )
-
-            #expect(
-                poolSize == config.expected,
-                "\(config.name): Expected \(config.expected), got \(poolSize)"
-            )
-        }
-
-        // Compare with non-CI calculation
-        let normalSize = WebViewPoolClient.calculatePoolSize(
-            cpuCount: 8,
-            memoryBytes: 32 * 1024 * 1024 * 1024,
-            isCI: false
-        )
-
-        let ciSize = WebViewPoolClient.calculatePoolSize(
-            cpuCount: 8,
-            memoryBytes: 32 * 1024 * 1024 * 1024,
-            isCI: true
-        )
-
-        #expect(ciSize < normalSize, "CI should use smaller pool than normal")
     }
 }

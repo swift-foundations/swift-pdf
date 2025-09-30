@@ -212,16 +212,16 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 
 // MARK: - Convenience Initializers
 
-extension PrintingError {
-
-    /// Create an error from a WebViewPoolActor.Error
-    /// Pass the actual timeout value if available instead of using default
-    static func from(poolError: WebViewPoolActor.Error, timeoutSeconds: TimeInterval = 300) -> PrintingError {
-        switch poolError {
-        case .timeout:
-            return .webViewAcquisitionTimeout(timeoutSeconds: timeoutSeconds)
-        case .cancelled:
-            return .cancelled(message: nil)
-        }
-    }
-}
+//extension PrintingError {
+//
+//    /// Create an error from a WebViewPoolActor.Error
+//    /// Pass the actual timeout value if available instead of using default
+//    static func from(poolError: WebViewPoolActor.Error, timeoutSeconds: TimeInterval = 300) -> PrintingError {
+//        switch poolError {
+//        case .timeout:
+//            return .webViewAcquisitionTimeout(timeoutSeconds: timeoutSeconds)
+//        case .cancelled:
+//            return .cancelled(message: nil)
+//        }
+//    }
+//}

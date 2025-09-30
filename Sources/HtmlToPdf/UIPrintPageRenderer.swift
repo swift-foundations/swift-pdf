@@ -218,15 +218,20 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
     @MainActor
     public func print(documentTimeout: TimeInterval? = nil, webViewAcquisitionTimeout: TimeInterval = 300) async throws {
         @Dependency(\.webViewPool) var webViewPool
-        let webView = try await webViewPool.acquireWithRetry(8, webViewAcquisitionTimeout / 8)
-        webView.navigationDelegate = self
-        
-        do {
-            return try await withCheckedThrowingContinuation { continuation in
+
+        // Use withResource pattern for proper resource management
+        let pool = try await webViewPool.pool
+        try await pool.withResource(
+            timeout: .seconds(webViewAcquisitionTimeout)
+        ) { resource in
+            let webView = resource.webView
+            webView.navigationDelegate = self
+
+            try await withCheckedThrowingContinuation { continuation in
                 self.continuation = continuation
                 self.webView = webView
                 webView.loadHTMLString(self.document.html, baseURL: self.configuration.baseURL)
-                
+
                 if let timeout = documentTimeout {
                     timeoutTask = Task { [weak self] in
                         do {
@@ -239,7 +244,6 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
                             self.continuation = nil
                             let timeoutError = PrintingError.webViewRenderingTimeout(timeoutSeconds: timeout)
                             continuation.resume(throwing: timeoutError)
-                            await self.cleanup(webView: webView)
                         } catch {
                             // Task was cancelled, which is expected behavior
                             if !error.isCancellationError {
@@ -251,10 +255,6 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
                     timeoutTask = nil
                 }
             }
-        } catch {
-            // If an error occurs, make sure to release the webView
-            await cleanup(webView: webView)
-            throw error
         }
     }
     
@@ -275,7 +275,8 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
             } catch {
                 continuation.resume(throwing: error)
             }
-            await cleanup(webView: webView)
+            // No need to cleanup - ResourcePool handles it via withResource
+            webView.navigationDelegate = nil
         }
     }
 
@@ -287,15 +288,9 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
             self.timeoutTask?.cancel()
 
             continuation.resume(throwing: PrintingError.webViewNavigationFailed(underlyingError: error))
-            await cleanup(webView: webView)
+            // No need to cleanup - ResourcePool handles it via withResource
+            webView.navigationDelegate = nil
         }
-    }
-    
-    @MainActor
-    private func cleanup(webView: WKWebView) async {
-        @Dependency(\.webViewPool) var webViewPool
-        webView.navigationDelegate = nil
-        await webViewPool.releaseWebView(webView)
     }
 }
 
