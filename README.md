@@ -86,18 +86,21 @@ The package uses a globally shared WebView resource pool for efficient concurren
 
 ### Performance Benchmarks
 
-| Test                      | Count    | Duration | Throughput   | Avg/PDF   |
-|---------------------------|----------|----------|--------------|-----------|
-| 100 Simple                | 100      | 0.08s    | 1,289/sec    | 0.78ms    |
-| 1,000 Simple              | 1,000    | 0.71s    | 1,401/sec    | 0.71ms    |
-| 10,000 Simple             | 10,000   | 7.21s    | 1,386/sec    | 0.72ms    |
-| 100 Complex               | 100      | 0.15s    | 659/sec      | 1.52ms    |
-| 1,000 Complex             | 1,000    | 1.37s    | 728/sec      | 1.37ms    |
+| Test                      | Count    | Duration | Throughput   | Avg/PDF   | Notes                    |
+|---------------------------|----------|----------|--------------|-----------|--------------------------|
+| 100 Simple                | 100      | 0.08s    | 1,289/sec    | 0.78ms    |                          |
+| 1,000 Simple              | 1,000    | 0.71s    | 1,401/sec    | 0.71ms    |                          |
+| 10,000 Simple             | 10,000   | 7.21s    | 1,386/sec    | 0.72ms    |                          |
+| 100,000 Simple            | 100,000  | 89.97s   | 1,111/sec    | 0.90ms    | 100 subdirectories       |
+| 100 Complex               | 100      | 0.15s    | 659/sec      | 1.52ms    |                          |
+| 1,000 Complex             | 1,000    | 1.37s    | 728/sec      | 1.37ms    |                          |
 
 **Test Environment:** macOS 26.0, Apple Silicon (8 cores), Swift 6.0+
 
 **Simple document:** `<html><body><p>{{ID}}</p></body></html>`
 **Complex document:** Multi-section HTML with CSS styling, tables, and structured content
+
+**Note on large-scale tests:** Tests generating 100K+ PDFs automatically distribute files across subdirectories (1,000 files per directory) to maintain optimal file system performance and prevent degradation from large directory sizes.
 
 ### Resource Pool Benefits
 

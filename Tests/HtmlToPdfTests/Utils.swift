@@ -33,6 +33,29 @@ extension FileManager {
             try removeItem(at: fileURL)
         }
     }
+
+    /// Clean up any leftover test directories from interrupted tests
+    /// This is useful when tests timeout or are interrupted before cleanup can run
+    static func cleanupTestDirectories() {
+        let fm = FileManager.default
+        let tempDir = fm.temporaryDirectory.appendingPathComponent("html-to-pdf")
+
+        guard fm.fileExists(atPath: tempDir.path) else { return }
+
+        do {
+            let subdirs = try fm.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
+            print("🧹 Cleaning up \(subdirs.count) leftover test directories...")
+
+            for subdir in subdirs {
+                try? fm.removeItem(at: subdir)
+            }
+
+            try? fm.removeItem(at: tempDir)
+            print("✅ Cleanup complete")
+        } catch {
+            print("⚠️ Cleanup failed: \(error)")
+        }
+    }
 }
 
 extension AsyncStream<URL> {

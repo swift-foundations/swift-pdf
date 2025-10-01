@@ -29,6 +29,7 @@ struct StressTests {
         setenv("OS_ACTIVITY_MODE", "disable", 1)
 
         let count = 1_000_000
+        let filesPerDirectory = 1_000 // Keep directories manageable
         let output = URL.output()
 
         defer {
@@ -67,10 +68,20 @@ struct StressTests {
         let tracker = ProgressTracker(totalCount: count)
         let startTime = Date()
 
-        // Create minimal HTML documents (fast to process)
+        // Create subdirectories to avoid file system degradation
+        // 1M files split into 1000 directories of 1000 files each
+        let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
+        for dirIndex in 0..<numDirectories {
+            let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+            try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
+        }
+
+        // Create minimal HTML documents with subdirectory paths
         let documents = (1...count).map { i in
-            Document(
-                fileUrl: output.appendingPathComponent("doc-\(i).pdf"),
+            let dirIndex = (i - 1) / filesPerDirectory
+            let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+            return Document(
+                fileUrl: subdirUrl.appendingPathComponent("doc-\(i).pdf"),
                 html: "<html><body><p>\(i)</p></body></html>"
             )
         }
@@ -79,6 +90,7 @@ struct StressTests {
         print("║           1 MILLION PDF GENERATION TEST                  ║")
         print("╚═══════════════════════════════════════════════════════════╝")
         print("Total documents: \(count.formatted())")
+        print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
         print("Pool size: determined by environment")
         print("Starting generation...\n")
 
@@ -101,9 +113,14 @@ struct StressTests {
         let duration = Date().timeIntervalSince(startTime)
         _ = await tracker.completed
 
-        // Verify all files were created
-        let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-        #expect(files.count == count, "Should create all \(count) PDFs")
+        // Verify all files were created by counting across all subdirectories
+        var totalFiles = 0
+        let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+        for subdir in subdirs where subdir.hasDirectoryPath {
+            let files = try FileManager.default.contentsOfDirectory(at: subdir, includingPropertiesForKeys: nil)
+            totalFiles += files.count
+        }
+        #expect(totalFiles == count, "Should create all \(count) PDFs")
 
         // Calculate stats
         let throughput = Double(count) / duration
@@ -119,7 +136,8 @@ struct StressTests {
         print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
         print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
         print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
-        print("Files created:   \(files.count.formatted())")
+        print("Files created:   \(totalFiles.formatted())")
+        print("Subdirectories:  \(subdirs.count)")
         print("╚═══════════════════════════════════════════════════════════╝\n")
 
         // Verify reasonable throughput (at least 100 PDFs/sec)
@@ -129,6 +147,7 @@ struct StressTests {
     @Test("Generate 100,000 PDFs", .timeLimit(.minutes(30)))
     func test100kPDFs() async throws {
         let count = 100_000
+        let filesPerDirectory = 1_000 // Keep directories manageable
         let output = URL.output()
 
         defer {
@@ -167,16 +186,26 @@ struct StressTests {
         let tracker = ProgressTracker(totalCount: count)
         let startTime = Date()
 
-        // Create minimal HTML documents (fast to process)
+        // Create subdirectories to avoid file system degradation
+        let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
+        for dirIndex in 0..<numDirectories {
+            let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+            try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
+        }
+
+        // Create minimal HTML documents with subdirectory paths
         let documents = (1...count).map { i in
-            Document(
-                fileUrl: output.appendingPathComponent("doc-\(i).pdf"),
+            let dirIndex = (i - 1) / filesPerDirectory
+            let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+            return Document(
+                fileUrl: subdirUrl.appendingPathComponent("doc-\(i).pdf"),
                 html: "<html><body><p>\(i)</p></body></html>"
             )
         }
 
         print("Starting 100k PDF generation test...")
         print("Total documents: \(count)")
+        print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
         print("Pool size: determined by environment")
 
         // Configure for high throughput
@@ -198,9 +227,14 @@ struct StressTests {
         let duration = Date().timeIntervalSince(startTime)
         _ = await tracker.completed
 
-        // Verify all files were created
-        let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-        #expect(files.count == count, "Should create all \(count) PDFs")
+        // Verify all files were created by counting across all subdirectories
+        var totalFiles = 0
+        let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+        for subdir in subdirs where subdir.hasDirectoryPath {
+            let files = try FileManager.default.contentsOfDirectory(at: subdir, includingPropertiesForKeys: nil)
+            totalFiles += files.count
+        }
+        #expect(totalFiles == count, "Should create all \(count) PDFs")
 
         // Print final statistics
         print("\n✅ 100k PDF Stress Test Complete!")
@@ -209,7 +243,8 @@ struct StressTests {
         print("Duration:        \(String(format: "%.2f", duration))s")
         print("Throughput:      \(String(format: "%.0f", Double(count) / duration)) PDFs/sec")
         print("Avg per PDF:     \(String(format: "%.2f", duration * 1000 / Double(count)))ms")
-        print("Files created:   \(files.count)")
+        print("Files created:   \(totalFiles)")
+        print("Subdirectories:  \(subdirs.count)")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     }
 
