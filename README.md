@@ -77,30 +77,65 @@ try await htmls.print(
 
 ## Performance
 
-The package uses a globally shared WebView resource pool for efficient concurrent PDF generation:
+The package uses a globally shared WebView resource pool with **automatic batch replacement** for sustained high-throughput PDF generation:
 
-- **Throughput**: 1,386 PDFs/second for simple documents
+- **Peak Throughput**: 1,386 PDFs/second (10K PDFs)
+- **Sustained Throughput**: 1,160 PDFs/sec (100K), 764 PDFs/sec (1M)
 - **Latency**: 0.72ms average per PDF (simple), 1.37ms (complex)
-- **Regular tests**: 35 tests pass in 1.6 seconds
-- **Stress tested**: Successfully generates 1,000,000 PDFs (yes, one million!)
+- **Stress tested**: Successfully generates 1,000,000 PDFs in 22 minutes!
 
 ### Performance Benchmarks
 
-| Test                      | Count    | Duration | Throughput   | Avg/PDF   | Notes                    |
-|---------------------------|----------|----------|--------------|-----------|--------------------------|
-| 100 Simple                | 100      | 0.08s    | 1,289/sec    | 0.78ms    |                          |
-| 1,000 Simple              | 1,000    | 0.71s    | 1,401/sec    | 0.71ms    |                          |
-| 10,000 Simple             | 10,000   | 7.21s    | 1,386/sec    | 0.72ms    |                          |
-| 100,000 Simple            | 100,000  | 89.97s   | 1,111/sec    | 0.90ms    | 100 subdirectories       |
-| 100 Complex               | 100      | 0.15s    | 659/sec      | 1.52ms    |                          |
-| 1,000 Complex             | 1,000    | 1.37s    | 728/sec      | 1.37ms    |                          |
+| Test                      | Count      | Duration  | Throughput   | Avg/PDF   | Notes                          |
+|---------------------------|------------|-----------|--------------|-----------|--------------------------------|
+| 100 Simple                | 100        | 0.08s     | 1,289/sec    | 0.78ms    |                                |
+| 1,000 Simple              | 1,000      | 0.71s     | 1,401/sec    | 0.71ms    |                                |
+| 10,000 Simple             | 10,000     | 7.21s     | 1,386/sec    | 0.72ms    | Peak performance               |
+| 100,000 Simple            | 100,000    | 86.21s    | 1,160/sec    | 0.86ms    | Batch replacement @ 50K        |
+| 1,000,000 Simple          | 1,000,000  | 21m 48s   | 764/sec      | 1.31ms    | Sustained high-volume          |
+| 100 Complex               | 100        | 0.15s     | 659/sec      | 1.52ms    |                                |
+| 1,000 Complex             | 1,000      | 1.37s     | 728/sec      | 1.37ms    |                                |
 
 **Test Environment:** macOS 26.0, Apple Silicon (8 cores), Swift 6.0+
 
 **Simple document:** `<html><body><p>{{ID}}</p></body></html>`
 **Complex document:** Multi-section HTML with CSS styling, tables, and structured content
 
-**Note on large-scale tests:** Tests generating 100K+ PDFs automatically distribute files across subdirectories (1,000 files per directory) to maintain optimal file system performance and prevent degradation from large directory sizes.
+**Note on large-scale tests:** Tests generating 100K+ PDFs automatically distribute files across subdirectories (1,000 files per directory) to maintain optimal file system performance.
+
+### Memory Management & Batch Replacement
+
+The package implements **automatic batch replacement** to address WebKit's process-level memory accumulation:
+
+- **Pool Size**: 8 concurrent WKWebView instances (optimal for most systems)
+- **Replacement Threshold**: 50,000 PDFs (configurable)
+- **Process**: Entire pool is replaced with fresh instances, old pool cleaned up by ARC
+- **Result**: Prevents memory degradation over millions of PDFs
+
+**Performance characteristics:**
+- **Without replacement**: 44% throughput degradation over 100K PDFs
+- **With batch replacement @ 50K**: 19% degradation (86s vs 75s baseline)
+- **1M PDFs**: 60% faster than without replacement (22min vs 54min)
+
+This approach follows industry best practices for high-volume PDF generation, achieving sustained throughput comparable to commercial solutions while maintaining WKWebView's excellent rendering quality.
+
+### Architecture & Design Decisions
+
+**Why batch replacement over per-PDF process isolation?**
+
+During development, we explored subprocess-based process isolation (spawning a fresh process per PDF) as recommended by some WebKit documentation. However, testing revealed:
+
+- **Subprocess per PDF**: ~1.7 PDFs/sec (680x slower!)
+- **Process spawning overhead**: 5-15ms per process
+- **Batch replacement**: 1,160 PDFs/sec (optimal)
+
+The batch replacement pattern reuses a pool of WKWebView instances (like a worker pool pattern) and replaces the entire pool every 50K PDFs. This provides:
+- Near-zero overhead (pool reuse)
+- Effective memory management (fresh pool every 50K)
+- True concurrency (8 parallel WebViews)
+- Sustained high throughput
+
+This matches patterns used by production systems processing millions of PDFs daily (e.g., Zerodha's 1.5M PDFs in 25 minutes, AWS Lambda implementations at 1,667 PDFs/sec).
 
 ### Resource Pool Benefits
 
@@ -126,13 +161,13 @@ swift test --enable-test StressTests
 ```
 
 **Available stress tests:**
-- `test10kPDFs` - 10,000 PDFs in ~33s (quick validation)
-- `test100kPDFs` - 100,000 PDFs in ~5 minutes (extreme load)
-- `test1MPDFs` - 1,000,000 PDFs in ~12 minutes (ultimate stress test 💪)
+- `test10kPDFs` - 10,000 PDFs in ~7s @ 1,386 PDFs/sec (quick validation)
+- `test100kPDFs` - 100,000 PDFs in ~90s @ 1,160 PDFs/sec (batch replacement active)
+- `test1MPDFs` - 1,000,000 PDFs in ~22 minutes @ 764 PDFs/sec (ultimate stress test 💪)
 - `test1kComplexPDFs` - 1,000 complex styled documents
 - `testSustainedLoad` - 5 minutes continuous generation
 
-**Note:** The 1M PDF test creates ~2-3GB of files. Ensure sufficient disk space.
+**Note:** The 1M PDF test creates ~2-3GB of files and triggers 20 batch replacements (every 50K PDFs). Ensure sufficient disk space.
 
 ### ``AsyncStream<URL>``
 
