@@ -90,6 +90,9 @@ extension Sequence<Document> {
                             using: resource.webView
                         )
                     }
+
+                    // Record PDF generation for batch replacement tracking
+                    try? await webViewPool.recordPDFGenerated()
                 }
             }
 
@@ -120,6 +123,9 @@ extension Sequence<Document> {
                                 using: resource.webView
                             )
                         }
+
+                        // Record PDF generation for batch replacement tracking
+                        try? await webViewPool.recordPDFGenerated()
                     }
                 }
             }

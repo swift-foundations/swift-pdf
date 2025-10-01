@@ -18,8 +18,18 @@ public struct WKWebViewResourceConfig: Sendable {
     /// Whether to use persistent data store
     public let usePersistentDataStore: Bool
 
-    public init(usePersistentDataStore: Bool = false) {
+    /// Whether to use isolated process pools (separate WKProcessPool per WebView)
+    /// - Note: On macOS 12.0+, WKProcessPool instances have no effect (deprecated)
+    /// - Shared (false): Use shared pool (recommended for macOS 12.0+)
+    /// - Isolated (true): Create separate pools (only effective on macOS < 12.0)
+    public let useIsolatedProcessPool: Bool
+
+    public init(
+        usePersistentDataStore: Bool = false,
+        useIsolatedProcessPool: Bool = false
+    ) {
         self.usePersistentDataStore = usePersistentDataStore
+        self.useIsolatedProcessPool = useIsolatedProcessPool
     }
 }
 
@@ -40,8 +50,17 @@ public final class WKWebViewResource: PoolableResource {
     public static func create(config: Config) async throws -> WKWebViewResource {
         let webViewConfig = WKWebViewConfiguration()
 
-        // Share the same process pool to reduce process spawning
-        webViewConfig.processPool = WKWebViewResourceConfig.sharedProcessPool
+        // Use shared or isolated process pool based on configuration
+        // Note: On macOS 12.0+, multiple WKProcessPool instances have no effect
+        if #available(macOS 12.0, *) {
+            // On macOS 12.0+, always use shared pool (multiple instances deprecated)
+            webViewConfig.processPool = WKWebViewResourceConfig.sharedProcessPool
+        } else {
+            // On older macOS, honor the useIsolatedProcessPool setting
+            webViewConfig.processPool = config.useIsolatedProcessPool
+                ? WKProcessPool()
+                : WKWebViewResourceConfig.sharedProcessPool
+        }
 
         // Disable GPU acceleration features we don't need for PDF
         webViewConfig.suppressesIncrementalRendering = true
@@ -85,10 +104,17 @@ public final class WKWebViewResource: PoolableResource {
     }
 
     /// Validate that the resource is still usable
+    @MainActor
     public func validate() async -> Bool {
-        // For now, always return true - WebViews are generally stable
-        // Could add more sophisticated validation later if needed
-        return true
+        // Check if WebView is still responsive
+        do {
+            // Try a simple JavaScript evaluation to check responsiveness
+            _ = try await webView.evaluateJavaScript("1 + 1")
+            return true
+        } catch {
+            // WebView is unresponsive or in error state
+            return false
+        }
     }
 
     /// Reset the resource for reuse
@@ -100,7 +126,10 @@ public final class WKWebViewResource: PoolableResource {
         // Clear navigation delegate
         webView.navigationDelegate = nil
 
-        // Check if document is ready (without loading new content)
+        // Lightweight cleanup - just verify document is ready
+        // Note: Expensive operations like loading blank HTML and clearing data stores
+        // caused 10x performance degradation. Instead, rely on resource cycling
+        // (maxUsesBeforeCycling in ResourcePool) to periodically replace WebViews.
         _ = try? await webView.evaluateJavaScript("document.readyState")
     }
 }
