@@ -17,7 +17,7 @@ extension Tag {
     "Stress Tests",
     .serialized,
     .tags(.stress),
-//    .disabled("Run manually with: swift test --filter StressTests")
+    .disabled("Run manually with: swift test --filter StressTests")
 )
 struct StressTests {
 
