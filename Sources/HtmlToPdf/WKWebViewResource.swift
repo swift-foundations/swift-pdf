@@ -36,6 +36,7 @@ public final class WKWebViewResource: PoolableResource {
     }
 
     /// Create a new WKWebView resource
+    @MainActor
     public static func create(config: Config) async throws -> WKWebViewResource {
         let webViewConfig = WKWebViewConfiguration()
 
@@ -64,8 +65,13 @@ public final class WKWebViewResource: PoolableResource {
             webViewConfig.preferences.isFraudulentWebsiteWarningEnabled = false
         }
 
+        // Suppress WebKit logging warnings
+        webViewConfig.preferences.setValue(true, forKey: "logsPageMessagesToSystemConsoleEnabled")
+        webViewConfig.preferences.setValue(false, forKey: "developerExtrasEnabled")
+
         #if os(iOS)
         webViewConfig.allowsInlineMediaPlayback = true
+        webViewConfig.suppressesIncrementalRendering = true
         #endif
 
         let webView = WKWebView(frame: .zero, configuration: webViewConfig)
@@ -86,6 +92,7 @@ public final class WKWebViewResource: PoolableResource {
     }
 
     /// Reset the resource for reuse
+    @MainActor
     public func reset() async throws {
         // Stop any ongoing loads
         webView.stopLoading()

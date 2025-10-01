@@ -13,7 +13,7 @@ import Dependencies
 import DependenciesTestSupport
 import EnvironmentVariables
 
-@Suite("CI Environment Tests")
+@Suite("CI Environment Tests", .serialized)
 struct CIEnvironmentTests {
 
     @Test(
@@ -24,7 +24,7 @@ struct CIEnvironmentTests {
             env["GITHUB_ACTIONS"] = "true"
             env["RUNNER_OS"] = "macOS"
             env["RUNNER_ARCH"] = "X64"
-            env["WEBVIEW_POOL_SIZE"] = "2"
+            env["WEBVIEW_POOL_SIZE"] = "4"
             return env
         }())
     )
@@ -53,7 +53,7 @@ struct CIEnvironmentTests {
         .dependency(\.envVars, {
             var env = EnvironmentVariables.local
             env["CI"] = "true"
-            env["WEBVIEW_POOL_SIZE"] = "2"
+            env["WEBVIEW_POOL_SIZE"] = "3"
             return env
         }())
     )
@@ -87,7 +87,7 @@ struct CIEnvironmentTests {
         .dependency(\.envVars, {
             var env = EnvironmentVariables.local
             env["CI"] = "true"
-            env["WEBVIEW_POOL_SIZE"] = "1"
+            env["WEBVIEW_POOL_SIZE"] = "2"
             return env
         }())
     )
@@ -119,12 +119,12 @@ struct CIEnvironmentTests {
         .dependency(\.envVars, {
             var env = EnvironmentVariables.local
             env["CI"] = "true"
-            env["WEBVIEW_POOL_SIZE"] = "2"
+            env["WEBVIEW_POOL_SIZE"] = "4"
             return env
         }())
     )
     func testConcurrentGenerationInCI() async throws {
-        let taskCount = 4
+        let taskCount = 8
         let outputDir = URL.temporaryDirectory.appendingPathComponent("concurrent-ci-test")
 
         defer {

@@ -1,0 +1,325 @@
+//
+//  PerformanceBenchmarks.swift
+//  swift-html-to-pdf
+//
+//  Performance benchmarks for README documentation
+//
+
+import Testing
+import Foundation
+@testable import HtmlToPdf
+
+extension Tag {
+    @Tag static var benchmark: Self
+}
+
+/// Performance benchmarks for generating README statistics
+///
+/// Run with: swift test --filter tag:benchmark
+///
+/// These tests generate consistent performance metrics for documentation.
+/// Run multiple times and report the median results.
+@Suite("Performance Benchmarks", .serialized, .tags(.benchmark))
+struct PerformanceBenchmarks {
+
+    // MARK: - Helper Types
+
+    struct BenchmarkResult {
+        let name: String
+        let count: Int
+        let duration: TimeInterval
+        let throughput: Double
+        let avgPerItem: TimeInterval
+
+        var throughputPerSec: String {
+            String(format: "%.0f", throughput)
+        }
+
+        var avgPerItemMs: String {
+            String(format: "%.2f", avgPerItem * 1000)
+        }
+
+        func printMarkdownRow() {
+            print("| \(name.padding(toLength: 25, withPad: " ", startingAt: 0)) | \(String(count).padding(toLength: 8, withPad: " ", startingAt: 0)) | \(String(format: "%.2f", duration).padding(toLength: 8, withPad: " ", startingAt: 0))s | \(throughputPerSec.padding(toLength: 12, withPad: " ", startingAt: 0)) | \(avgPerItemMs.padding(toLength: 10, withPad: " ", startingAt: 0))ms |")
+        }
+    }
+
+    // MARK: - Benchmarks
+
+    @Test("Benchmark: 100 simple PDFs")
+    func benchmark100SimplePDFs() async throws {
+        let result = try await runBenchmark(
+            name: "100 Simple PDFs",
+            count: 100,
+            html: "<html><body><p>{{ID}}</p></body></html>",
+            maxConcurrent: 8
+        )
+
+        printBenchmarkResult(result)
+    }
+
+    @Test("Benchmark: 1,000 simple PDFs")
+    func benchmark1kSimplePDFs() async throws {
+        let result = try await runBenchmark(
+            name: "1k Simple PDFs",
+            count: 1_000,
+            html: "<html><body><p>{{ID}}</p></body></html>",
+            maxConcurrent: 8
+        )
+
+        printBenchmarkResult(result)
+    }
+
+    @Test("Benchmark: 10,000 simple PDFs")
+    func benchmark10kSimplePDFs() async throws {
+        let result = try await runBenchmark(
+            name: "10k Simple PDFs",
+            count: 10_000,
+            html: "<html><body><p>{{ID}}</p></body></html>",
+            maxConcurrent: 8
+        )
+
+        printBenchmarkResult(result)
+    }
+
+    @Test("Benchmark: 100 complex PDFs")
+    func benchmark100ComplexPDFs() async throws {
+        let result = try await runBenchmark(
+            name: "100 Complex PDFs",
+            count: 100,
+            html: complexHTML,
+            maxConcurrent: 6
+        )
+
+        printBenchmarkResult(result)
+    }
+
+    @Test("Benchmark: 1,000 complex PDFs")
+    func benchmark1kComplexPDFs() async throws {
+        let result = try await runBenchmark(
+            name: "1k Complex PDFs",
+            count: 1_000,
+            html: complexHTML,
+            maxConcurrent: 6
+        )
+
+        printBenchmarkResult(result)
+    }
+
+    @Test("Benchmark: Concurrent batches")
+    func benchmarkConcurrentBatches() async throws {
+        let output = URL.output()
+        defer {
+            try? FileManager.default.removeItem(at: output)
+        }
+
+        let startTime = Date()
+
+        // Run 10 concurrent batches of 100 PDFs each
+        await withTaskGroup(of: Void.self) { group in
+            for batch in 1...10 {
+                group.addTask {
+                    let htmls = (1...100).map { i in
+                        "<html><body><p>Batch \(batch) - Doc \(i)</p></body></html>"
+                    }
+
+                    try? await htmls.print(
+                        to: output,
+                        configuration: .a4,
+                        filename: { i in "batch\(batch)-doc\(i)" }
+                    )
+                }
+            }
+
+            await group.waitForAll()
+        }
+
+        let duration = Date().timeIntervalSince(startTime)
+        let count = 1_000
+
+        let result = BenchmarkResult(
+            name: "10 Concurrent Batches",
+            count: count,
+            duration: duration,
+            throughput: Double(count) / duration,
+            avgPerItem: duration / Double(count)
+        )
+
+        printBenchmarkResult(result)
+
+        let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+        #expect(files.count == count)
+    }
+
+    @Test("Benchmark: Pool warmup time")
+    func benchmarkPoolWarmup() async throws {
+        // This measures the initial pool creation cost
+        // Note: With background warmup, this should be very fast
+
+        let startTime = Date()
+
+        let html = "<html><body><p>Test</p></body></html>"
+        let output = URL.output().appendingPathComponent("warmup.pdf")
+
+        defer {
+            try? FileManager.default.removeItem(at: output)
+        }
+
+        try await html.print(to: output, configuration: .a4)
+
+        let duration = Date().timeIntervalSince(startTime)
+
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Pool Warmup Benchmark")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("First PDF generation: \(String(format: "%.3f", duration))s")
+        print("(Includes pool initialization + first PDF)")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+    }
+
+    // MARK: - Summary Report
+
+    @Test("Generate README Performance Table", .timeLimit(.minutes(10)))
+    func generateReadmeTable() async throws {
+        print("\n")
+        print("╔═══════════════════════════════════════════════════════════════════════════╗")
+        print("║                     PERFORMANCE BENCHMARK RESULTS                         ║")
+        print("║                    Copy this table to README.md                           ║")
+        print("╚═══════════════════════════════════════════════════════════════════════════╝")
+        print()
+
+        // Run benchmarks
+        let results = [
+            try await runBenchmark(name: "100 Simple", count: 100, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8),
+            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8),
+            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8),
+            try await runBenchmark(name: "100 Complex", count: 100, html: complexHTML, maxConcurrent: 6),
+            try await runBenchmark(name: "1,000 Complex", count: 1_000, html: complexHTML, maxConcurrent: 6),
+        ]
+
+        // Print markdown table
+        print("### Performance Results")
+        print()
+        print("| Test                      | Count    | Duration | Throughput   | Avg/PDF   |")
+        print("|---------------------------|----------|----------|--------------|-----------|")
+
+        for result in results {
+            result.printMarkdownRow()
+        }
+
+        print()
+        print("**Test Environment:**")
+        print("- Platform: \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        print("- CPU Cores: \(ProcessInfo.processInfo.activeProcessorCount)")
+        print("- Pool Size: 8 WebViews (simple), 6 WebViews (complex)")
+        print("- Swift Version: \(getSwiftVersion())")
+        print()
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print()
+    }
+
+    // MARK: - Helpers
+
+    private func runBenchmark(
+        name: String,
+        count: Int,
+        html: String,
+        maxConcurrent: Int
+    ) async throws -> BenchmarkResult {
+        let output = URL.output()
+
+        defer {
+            try? FileManager.default.removeItem(at: output)
+        }
+
+        let documents = (1...count).map { i in
+            Document(
+                fileUrl: output.appendingPathComponent("doc-\(i).pdf"),
+                html: html.replacingOccurrences(of: "{{ID}}", with: "\(i)")
+            )
+        }
+
+        let config = PrintingConfiguration(
+            maxConcurrentOperations: maxConcurrent,
+            webViewAcquisitionTimeout: 120
+        )
+
+        let startTime = Date()
+
+        try await documents.print(
+            configuration: .a4,
+            printingConfiguration: config
+        )
+
+        let duration = Date().timeIntervalSince(startTime)
+
+        let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+        #expect(files.count == count, "All PDFs should be created")
+
+        return BenchmarkResult(
+            name: name,
+            count: count,
+            duration: duration,
+            throughput: Double(count) / duration,
+            avgPerItem: duration / Double(count)
+        )
+    }
+
+    private func printBenchmarkResult(_ result: BenchmarkResult) {
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Benchmark: \(result.name)")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("PDFs Generated:  \(result.count)")
+        print("Duration:        \(String(format: "%.2f", result.duration))s")
+        print("Throughput:      \(result.throughputPerSec) PDFs/sec")
+        print("Avg per PDF:     \(result.avgPerItemMs)ms")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+    }
+
+    private func getSwiftVersion() -> String {
+        #if compiler(>=6.0)
+        return "6.0+"
+        #elseif compiler(>=5.9)
+        return "5.9+"
+        #else
+        return "5.x"
+        #endif
+    }
+
+    private var complexHTML: String {
+        """
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                h1 { color: #333; border-bottom: 2px solid #0066cc; }
+                .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                td, th { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <h1>Document {{ID}}</h1>
+            <div class="section">
+                <h2>Executive Summary</h2>
+                <p>This is a complex document with multiple sections, styling, and structured data.</p>
+            </div>
+            <div class="section">
+                <h2>Data Table</h2>
+                <table>
+                    <tr><th>Metric</th><th>Value</th><th>Status</th></tr>
+                    <tr><td>Revenue</td><td>$1,234,567</td><td>✓ On track</td></tr>
+                    <tr><td>Customers</td><td>45,678</td><td>✓ Growing</td></tr>
+                    <tr><td>Retention</td><td>94.2%</td><td>✓ Excellent</td></tr>
+                </table>
+            </div>
+            <div class="section">
+                <h2>Analysis</h2>
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+            </div>
+        </body>
+        </html>
+        """
+    }
+}

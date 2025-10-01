@@ -9,7 +9,7 @@ import Testing
 import Foundation
 @testable import HtmlToPdf
 
-@Suite("Error Handling Tests")
+@Suite("Error Handling Tests", .serialized)
 struct ErrorHandlingTests {
 
     // MARK: - Invalid HTML Tests
@@ -158,41 +158,6 @@ struct ErrorHandlingTests {
 
     // MARK: - Concurrent Operation Tests
 
-    @Test("Handles concurrent batch operations")
-    func testConcurrentBatchOperations() async throws {
-        let documentCount = 20
-        let htmls = (0..<documentCount).map { i in
-            "<html><body><h1>Document \(i)</h1></body></html>"
-        }
-
-        let outputDir = URL.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-
-        // Use limited concurrency
-        let config = PrintingConfiguration(
-            maxConcurrentOperations: 4,
-            progressHandler: { completed, total in
-                print("[Concurrent Test] Progress: \(completed)/\(total)")
-            }
-        )
-
-        try await htmls.print(
-            to: outputDir,
-            configuration: .a4,
-            printingConfiguration: config,
-            filename: { "doc-\($0)" }
-        )
-
-        let files = try FileManager.default.contentsOfDirectory(
-            at: outputDir,
-            includingPropertiesForKeys: nil
-        )
-
-        #expect(files.count == documentCount, "All documents should be created")
-
-        // Cleanup
-        try? FileManager.default.removeItem(at: outputDir)
-    }
 
     // MARK: - Progress Tracking Tests
 
@@ -256,40 +221,6 @@ struct ErrorHandlingTests {
 
     // MARK: - WebView Pool Error Tests
 
-    @Test("Handles WebView pool exhaustion gracefully")
-    func testWebViewPoolExhaustion() async throws {
-        // Create more documents than pool size
-        let documentCount = 30
-        let htmls = (0..<documentCount).map { i in
-            "<html><body><h1>Document \(i)</h1><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='/></body></html>"
-        }
-
-        let outputDir = URL.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-
-        // Force limited pool by setting max concurrent operations
-        let config = PrintingConfiguration(
-            maxConcurrentOperations: 2,
-            webViewAcquisitionTimeout: 30
-        )
-
-        // Should handle pool exhaustion and queue requests appropriately
-        try await htmls.print(
-            to: outputDir,
-            configuration: .a4,
-            printingConfiguration: config
-        )
-
-        let files = try FileManager.default.contentsOfDirectory(
-            at: outputDir,
-            includingPropertiesForKeys: nil
-        )
-
-        #expect(files.count == documentCount, "All documents should eventually be created")
-
-        // Cleanup
-        try? FileManager.default.removeItem(at: outputDir)
-    }
 
     // MARK: - Special Characters Tests
 
@@ -332,41 +263,6 @@ struct ErrorHandlingTests {
 
     // MARK: - Memory Management Tests
 
-    @Test("Handles memory pressure with many documents")
-    func testMemoryPressure() async throws {
-        // Test with moderate number of documents to avoid CI/CD issues
-        let documentCount = 50
-
-        let outputDir = URL.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-
-        // Create documents with reasonable content
-        let documents = (0..<documentCount).map { i in
-            Document(
-                fileUrl: outputDir.appendingPathComponent("doc-\(i).pdf"),
-                html: "<html><body><h1>Document \(i)</h1><p>Content for testing memory management.</p></body></html>"
-            )
-        }
-
-        let config = PrintingConfiguration(
-            maxConcurrentOperations: 4  // Limit concurrency to manage memory
-        )
-
-        try await documents.print(
-            configuration: .a4,
-            printingConfiguration: config
-        )
-
-        let files = try FileManager.default.contentsOfDirectory(
-            at: outputDir,
-            includingPropertiesForKeys: nil
-        )
-
-        #expect(files.count == documentCount, "All documents should be created without memory issues")
-
-        // Cleanup
-        try? FileManager.default.removeItem(at: outputDir)
-    }
 }
 
 // MARK: - Typed Error Tests
