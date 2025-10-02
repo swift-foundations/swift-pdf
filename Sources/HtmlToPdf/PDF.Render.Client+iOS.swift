@@ -23,35 +23,6 @@ extension PDF.Render.Client {
             @Dependency(\.pdf.render.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
-        document: { document in
-            @Dependency(\.pdf.render.configuration) var config
-            let stream = try await renderDocumentsInternal([document], config: config)
-            for try await result in stream {
-                return result.url
-            }
-            throw PrintingError.pdfGenerationFailed(
-                underlyingError: NSError(
-                    domain: "HtmlToPdf",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
-                )
-            )
-        },
-        html: { html, destination in
-            @Dependency(\.pdf.render.configuration) var config
-            let document = PDF.Document(htmlString: html, destination: destination)
-            let stream = try await renderDocumentsInternal([document], config: config)
-            for try await result in stream {
-                return result.url
-            }
-            throw PrintingError.pdfGenerationFailed(
-                underlyingError: NSError(
-                    domain: "HtmlToPdf",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
-                )
-            )
-        },
         data: { html in
             @Dependency(\.pdf.render.configuration) var config
             let tempURL = URL.temporaryDirectory

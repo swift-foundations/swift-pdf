@@ -62,6 +62,9 @@ public enum PrintingError: Error, LocalizedError, Sendable {
     /// Operation was cancelled
     case cancelled(message: String?)
 
+    /// No result was produced from rendering operation
+    case noResultProduced
+
     // MARK: - LocalizedError Implementation
 
     public var errorDescription: String? {
@@ -120,6 +123,9 @@ public enum PrintingError: Error, LocalizedError, Sendable {
                 return "Operation cancelled: \(message)"
             }
             return "Operation cancelled"
+
+        case .noResultProduced:
+            return "No result was produced from rendering operation"
         }
     }
 
@@ -163,6 +169,9 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 
         case .cancelled:
             return "User or system cancelled the operation"
+
+        case .noResultProduced:
+            return "The rendering operation completed but produced no output"
         }
     }
 
@@ -206,6 +215,9 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 
         case .cancelled:
             return "Retry the operation if needed"
+
+        case .noResultProduced:
+            return "Check that the document was properly configured and retry"
         }
     }
 }

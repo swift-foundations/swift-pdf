@@ -32,12 +32,14 @@ extension PDF.Render {
     @DependencyClient
     public struct Client: @unchecked Sendable {
 
-        // MARK: - Core Rendering Operations
+        // MARK: - Primitive Operations
 
         /// Render documents to PDF files, yielding results as they complete
         ///
-        /// This is the primary rendering operation. Documents are rendered concurrently
+        /// This is the core primitive rendering operation. Documents are rendered concurrently
         /// based on configuration settings, with results streamed as each completes.
+        ///
+        /// All other rendering methods are composed from this primitive.
         ///
         /// - Parameter documents: Documents to render
         /// - Returns: Stream of results as PDFs are generated
@@ -47,30 +49,10 @@ extension PDF.Render {
             _ documents: [PDF.Document]
         ) async throws -> AsyncThrowingStream<PDF.Result, Error>
 
-        /// Render a single document to PDF
-        ///
-        /// - Parameter document: Document to render
-        /// - Returns: URL of the generated PDF
-        /// - Throws: Rendering errors
-        @DependencyEndpoint
-        public var document: @Sendable (
-            _ document: PDF.Document
-        ) async throws -> URL
-
-        /// Render HTML string to PDF file
-        ///
-        /// - Parameters:
-        ///   - html: HTML content to render
-        ///   - destination: File URL for the PDF
-        /// - Returns: URL of the generated PDF (same as destination)
-        /// - Throws: Rendering errors
-        @DependencyEndpoint
-        public var html: @Sendable (
-            _ html: String,
-            _ destination: URL
-        ) async throws -> URL
-
         /// Render HTML to PDF data (in-memory, no file I/O)
+        ///
+        /// This uses a different platform API (WKWebView.createPDF) and cannot be
+        /// composed from file-based operations without inefficiency.
         ///
         /// - Parameter html: HTML content to render
         /// - Returns: PDF data
