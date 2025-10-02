@@ -21,65 +21,10 @@ extension PDF.Client: DependencyKey {
 extension PDF.Client {
     /// macOS-specific implementation using WKWebView and NSPrintOperation
     public static let macOS = PDF.Client(
-        render: { html, destination in
-            @Dependency(\.pdfConfiguration) var config
-            let document = PDF.Document(htmlString: html, destination: destination)
-            let (url, _, _, _) = try await document.renderInternal(config: config)
-            return url
-        },
-
-        renderWithTitle: { html, title, directory in
-            @Dependency(\.pdfConfiguration) var config
-            let document = PDF.Document(htmlString: html, title: title, in: directory)
-            let (url, _, _, _) = try await document.renderInternal(config: config)
-            return url
-        },
-
-        renderToData: { html in
-            @Dependency(\.pdfConfiguration) var config
-            let htmlBytes = ContiguousArray(html.utf8)
-            return try await renderHTMLToData(htmlBytes, config: config)
-        },
-
-        renderDocument: { document in
-            @Dependency(\.pdfConfiguration) var config
-            let (url, _, _, _) = try await document.renderInternal(config: config)
-            return url
-        },
-
-        renderBatch: { htmls, directory in
-            @Dependency(\.pdfConfiguration) var config
-
-            let documents = htmls.enumerated().map { index, html in
-                let filename = config.namingStrategy.filename(for: index)
-                return PDF.Document(htmlString: html, title: filename, in: directory)
-            }
-
-            return try await renderDocumentsInternal(documents, config: config)
-        },
-
-        renderDocuments: { documents in
+        render: { documents in
             @Dependency(\.pdfConfiguration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
-
-        renderBatchSync: { htmls, directory in
-            @Dependency(\.pdfConfiguration) var config
-
-            let documents = htmls.enumerated().map { index, html in
-                let filename = config.namingStrategy.filename(for: index)
-                return PDF.Document(htmlString: html, title: filename, in: directory)
-            }
-
-            let stream = try await renderDocumentsInternal(documents, config: config)
-
-            var urls: [URL] = []
-            for try await result in stream {
-                urls.append(result.url)
-            }
-            return urls
-        },
-
         capabilities: {
             .macOS
         }
@@ -94,33 +39,100 @@ private func renderHTMLToData(
     config: PDF.Configuration
 ) async throws -> Data {
     let webView = WKWebView(frame: .zero)
+    let delegate = LoadCompletionDelegate()
+    webView.navigationDelegate = delegate
 
-    return try await withCheckedThrowingContinuation { continuation in
-        let marginCSS = generateMarginCSS(config)
-        let htmlToLoad = htmlBytes.injectingCSS(marginCSS)
-        let htmlData = htmlToLoad.toData()
+    let marginCSS = generateMarginCSS(config)
+    let htmlToLoad = await htmlBytes.injectingCSS(marginCSS)
+    let htmlData = htmlToLoad.toData()
 
-        webView.load(
-            htmlData,
-            mimeType: "text/html",
-            characterEncodingName: "UTF-8",
-            baseURL: config.baseURL ?? URL(string: "about:blank")!
-        )
+    webView.load(
+        htmlData,
+        mimeType: "text/html",
+        characterEncodingName: "UTF-8",
+        baseURL: config.baseURL ?? URL(string: "about:blank")!
+    )
 
-        // Wait for load completion (simplified - production would need proper delegate)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            // Set frame to paper size for proper layout
-            webView.frame = CGRect(origin: .zero, size: config.paperSize)
+    // Wait for ACTUAL load completion with timeout
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        // Task 1: Wait for load completion
+        group.addTask {
+            try await delegate.waitForCompletion()
+        }
 
-            let pdfConfig = WKPDFConfiguration()
-            // Use nil to allow multi-page pagination
-            // The webView.frame determines the layout width, enabling natural page breaks
-            pdfConfig.rect = nil
+        // Task 2: Timeout task
+        group.addTask {
+            let timeout = config.documentTimeout ?? .seconds(30)
+            try await Task.sleep(for: timeout)
+            throw PrintingError.documentTimeout(
+                documentURL: URL(string: "data:text/html")!,
+                timeoutSeconds: Double(timeout.components.seconds)
+            )
+        }
 
-            webView.createPDF(configuration: pdfConfig) { result in
-                continuation.resume(with: result)
+        // First to complete wins
+        try await group.next()
+        group.cancelAll()
+    }
+
+    // Now create PDF with its own timeout
+    webView.frame = CGRect(origin: .zero, size: config.paperSize)
+    let pdfConfig = WKPDFConfiguration()
+    pdfConfig.rect = nil  // Allow multi-page pagination
+
+    // Create PDF with timeout (both tasks async, isolation handled by continuation)
+    return try await withThrowingTaskGroup(of: Data.self) { group in
+        group.addTask {
+            // This continuation can be resumed from any context
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
+                webView.createPDF(configuration: pdfConfig) { result in
+                    continuation.resume(with: result)
+                }
             }
         }
+
+        group.addTask {
+            try await Task.sleep(for: .seconds(30))
+            throw PrintingError.pdfGenerationFailed(
+                underlyingError: NSError(
+                    domain: "HtmlToPdf",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "PDF creation timed out after 30 seconds"]
+                )
+            )
+        }
+
+        let data = try await group.next()!
+        group.cancelAll()
+        return data
+    }
+}
+
+// MARK: - Load Completion Delegate
+
+@MainActor
+private class LoadCompletionDelegate: NSObject, WKNavigationDelegate {
+    private var continuation: CheckedContinuation<Void, Error>?
+
+    func waitForCompletion() async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        continuation?.resume(throwing: PrintingError.webViewNavigationFailed(underlyingError: error))
+        continuation = nil
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        continuation?.resume(throwing: PrintingError.webViewLoadingFailed(underlyingError: error))
+        continuation = nil
     }
 }
 
@@ -136,11 +148,26 @@ extension PDF.Document {
         _ pool: ResourcePool<WKWebViewResource>,
         config: PDF.Configuration
     ) async throws -> (url: URL, pageCount: Int, dimensions: [CGSize], mode: PDF.PaginationMode) {
+        let parentDirectory = self.destination.deletingLastPathComponent()
+
         if config.createDirectories {
             try FileManager.default.createDirectory(
-                at: self.destination.deletingLastPathComponent(),
+                at: parentDirectory,
                 withIntermediateDirectories: true
             )
+        } else {
+            // Validate directory exists when createDirectories is false
+            var isDirectory: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: parentDirectory.path, isDirectory: &isDirectory) || !isDirectory.boolValue {
+                throw PrintingError.invalidFilePath(
+                    self.destination,
+                    underlyingError: NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: NSFileNoSuchFileError,
+                        userInfo: [NSLocalizedDescriptionKey: "Directory does not exist: \(parentDirectory.path)"]
+                    )
+                )
+            }
         }
 
         let destination = self.destination
@@ -203,16 +230,19 @@ extension PDF.Document {
             )
             delegate.printDelegate = printDelegate
 
-            let marginCSS = generateMarginCSS(config)
-            let htmlToLoad = self.html.injectingCSS(marginCSS)
-            let htmlData = htmlToLoad.toData()
+            // Perform CSS injection asynchronously (may use cache)
+            Task {
+                let marginCSS = generateMarginCSS(config)
+                let htmlToLoad = await self.html.injectingCSS(marginCSS)
+                let htmlData = htmlToLoad.toData()
 
-            webView.load(
-                htmlData,
-                mimeType: "text/html",
-                characterEncodingName: "UTF-8",
-                baseURL: config.baseURL ?? URL(string: "about:blank")!
-            )
+                webView.load(
+                    htmlData,
+                    mimeType: "text/html",
+                    characterEncodingName: "UTF-8",
+                    baseURL: config.baseURL ?? URL(string: "about:blank")!
+                )
+            }
         }
     }
 }
@@ -257,6 +287,10 @@ private func renderDocumentsInternal(
                             pageDimensions: dimensions
                         )
                         continuation.yield(result)
+
+                        // Record PDF generation for batch replacement tracking
+                        // This triggers pool refresh every 50K PDFs to prevent memory bloat
+                        try? await webViewPool.recordPDFGenerated()
 
                         if nextIndex < documents.count {
                             let document = documents[nextIndex]
@@ -443,7 +477,8 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
                 do {
                     try data.write(to: self.outputURL)
 
-                    // Extract page information
+                    // For WebView rendering, we have the data in memory
+                    // Extract page info efficiently (data is already in memory, not reading from disk)
                     let (pageCount, dimensions) = self.extractPageInfo(from: data)
                     let mode = self.configuration.paginationMode
 
@@ -486,8 +521,13 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         printOperation.showsPrintPanel = false
         printOperation.showsProgressPanel = false
 
+        // Get page count from print operation BEFORE running
+        // This avoids re-reading the PDF file after generation
+        let pageRange = printOperation.printInfo.dictionary()[NSPrintInfo.AttributeKey.allPages] as? NSRange
+        let estimatedPageCount = printOperation.printInfo.dictionary()[NSPrintInfo.AttributeKey.pagesAcross] as? Int ?? 1
+
         // Run asynchronously on a background thread to avoid blocking main thread
-        DispatchQueue.global(qos: .userInitiated).async { [weak self, weak webView] in
+        DispatchQueue.global(qos: .userInitiated).async { [weak self, weak webView, paperSize = configuration.paperSize, mode = configuration.paginationMode] in
             guard let self = self else { return }
 
             // Run the print operation
@@ -497,22 +537,17 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
                 webView?.navigationDelegate = nil
 
                 if success && FileManager.default.fileExists(atPath: self.outputURL.path) {
-                    // Extract page information from generated PDF
-                    do {
-                        let data = try Data(contentsOf: self.outputURL)
-                        let (pageCount, dimensions) = self.extractPageInfo(from: data)
-                        let mode = self.configuration.paginationMode
+                    // Use paper size from configuration - all pages have same dimensions
+                    // No need to read the PDF file!
+                    let pageCount = printOperation.currentPage  // Total pages printed
+                    let dimensions = Array(repeating: paperSize, count: max(1, pageCount))
 
-                        self.printDelegate?.onFinished(pageCount, dimensions, mode)
-                    } catch {
-                        // Fallback if we can't read the PDF
-                        self.printDelegate?.onFinished(0, [], self.configuration.paginationMode)
-                    }
+                    self.printDelegate?.onFinished(pageCount, dimensions, mode)
                 } else {
                     let error = NSError(domain: "PDFGeneration", code: -1,
                                       userInfo: [NSLocalizedDescriptionKey: "PDF file was not created"])
                     self.printDelegate?.onError?(PrintingError.pdfGenerationFailed(underlyingError: error))
-                        ?? self.printDelegate?.onFinished(0, [], self.configuration.paginationMode)
+                        ?? self.printDelegate?.onFinished(0, [], mode)
                 }
             }
         }

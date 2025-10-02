@@ -19,61 +19,10 @@ extension PDF.Client: DependencyKey {
 extension PDF.Client {
     /// iOS-specific implementation using UIPrintPageRenderer
     public static let iOS = PDF.Client(
-        render: { html, destination in
-            @Dependency(\.pdfConfiguration) var config
-            let document = PDF.Document(html: html, destination: destination)
-            return try await document.renderInternal(config: config)
-        },
-
-        renderWithTitle: { html, title, directory in
-            @Dependency(\.pdfConfiguration) var config
-            let document = PDF.Document(html: html, title: title, in: directory)
-            return try await document.renderInternal(config: config)
-        },
-
-        renderToData: { html in
-            @Dependency(\.pdfConfiguration) var config
-            return try await renderHTMLToData(html, config: config)
-        },
-
-        renderDocument: { document in
-            @Dependency(\.pdfConfiguration) var config
-            return try await document.renderInternal(config: config)
-        },
-
-        renderBatch: { htmls, directory in
-            @Dependency(\.pdfConfiguration) var config
-
-            let documents = htmls.enumerated().map { index, html in
-                let filename = config.namingStrategy.filename(for: index)
-                return PDF.Document(html: html, title: filename, in: directory)
-            }
-
-            return try await renderDocumentsInternal(documents, config: config)
-        },
-
-        renderDocuments: { documents in
+        render: { documents in
             @Dependency(\.pdfConfiguration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
-
-        renderBatchSync: { htmls, directory in
-            @Dependency(\.pdfConfiguration) var config
-
-            let documents = htmls.enumerated().map { index, html in
-                let filename = config.namingStrategy.filename(for: index)
-                return PDF.Document(html: html, title: filename, in: directory)
-            }
-
-            let stream = try await renderDocumentsInternal(documents, config: config)
-
-            var urls: [URL] = []
-            for try await result in stream {
-                urls.append(result.url)
-            }
-            return urls
-        },
-
         capabilities: {
             .iOS
         }
@@ -184,25 +133,32 @@ private func renderDocumentsInternal(
 
                 var completedCount = 0
 
-                try await withThrowingTaskGroup(of: (Int, URL, Duration).self) { taskGroup in
+                try await withThrowingTaskGroup(of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self) { taskGroup in
                     for (index, document) in documents.prefix(maxConcurrent).enumerated() {
                         taskGroup.addTask {
                             let start = ContinuousClock.now
                             let url = try await document.renderInternal(config: config)
                             let duration = ContinuousClock.now - start
-                            return (index, url, duration)
+                            // iOS doesn't easily extract page info, default to 1 page with paper size
+                            let pageCount = 1
+                            let dimensions = [config.paperSize]
+                            let mode = config.paginationMode
+                            return (index, url, pageCount, dimensions, mode, duration)
                         }
                     }
 
                     var nextIndex = maxConcurrent
 
-                    for try await (index, url, duration) in taskGroup {
+                    for try await (index, url, pageCount, dimensions, mode, duration) in taskGroup {
                         completedCount += 1
 
                         let result = PDF.Result(
                             url: url,
                             index: index,
-                            duration: duration
+                            duration: duration,
+                            paginationMode: mode,
+                            pageCount: pageCount,
+                            pageDimensions: dimensions
                         )
                         continuation.yield(result)
 
@@ -215,7 +171,10 @@ private func renderDocumentsInternal(
                                 let start = ContinuousClock.now
                                 let url = try await document.renderInternal(config: config)
                                 let duration = ContinuousClock.now - start
-                                return (capturedIndex, url, duration)
+                                let pageCount = 1
+                                let dimensions = [config.paperSize]
+                                let mode = config.paginationMode
+                                return (capturedIndex, url, pageCount, dimensions, mode, duration)
                             }
                         }
                     }

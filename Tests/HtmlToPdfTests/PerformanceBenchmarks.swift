@@ -206,22 +206,45 @@ struct PerformanceBenchmarks {
         print("╚═══════════════════════════════════════════════════════════════════════════╝")
         print()
 
-        // Run benchmarks
-        let results = [
-            try await runBenchmark(name: "100 Simple", count: 100, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8),
-            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8),
-            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8),
-            try await runBenchmark(name: "100 Complex", count: 100, html: complexHTML, maxConcurrent: 6),
-            try await runBenchmark(name: "1,000 Complex", count: 1_000, html: complexHTML, maxConcurrent: 6),
+        // Run benchmarks for PAGINATED mode (print-ready)
+        let paginatedResults = [
+            try await runBenchmark(name: "100 Simple", count: 100, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .paginated),
+            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .paginated),
+            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .paginated),
+            try await runBenchmark(name: "100 Complex", count: 100, html: complexHTML, maxConcurrent: 6, mode: .paginated),
+            try await runBenchmark(name: "1,000 Complex", count: 1_000, html: complexHTML, maxConcurrent: 6, mode: .paginated),
         ]
 
-        // Print markdown table
-        print("### Performance Results")
+        // Run benchmarks for CONTINUOUS mode (fast)
+        let continuousResults = [
+            try await runBenchmark(name: "100 Simple", count: 100, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .continuous),
+            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .continuous),
+            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .continuous),
+        ]
+
+        // Print markdown table for PAGINATED mode
+        print("### Performance Results - Paginated Mode (Print-Ready)")
+        print()
+        print("Paginated mode uses NSPrintOperation for proper multi-page documents (invoices, reports).")
         print()
         print("| Test                      | Count    | Duration | Throughput   | Avg/PDF   |")
         print("|---------------------------|----------|----------|--------------|-----------|")
 
-        for result in results {
+        for result in paginatedResults {
+            result.printMarkdownRow()
+        }
+
+        print()
+
+        // Print markdown table for CONTINUOUS mode
+        print("### Performance Results - Continuous Mode (Fast)")
+        print()
+        print("Continuous mode uses WKWebView.createPDF for single-page documents (web captures, articles).")
+        print()
+        print("| Test                      | Count    | Duration | Throughput   | Avg/PDF   |")
+        print("|---------------------------|----------|----------|--------------|-----------|")
+
+        for result in continuousResults {
             result.printMarkdownRow()
         }
 
@@ -231,6 +254,11 @@ struct PerformanceBenchmarks {
         print("- CPU Cores: \(ProcessInfo.processInfo.activeProcessorCount)")
         print("- Pool Size: 8 WebViews (simple), 6 WebViews (complex)")
         print("- Swift Version: \(getSwiftVersion())")
+        print()
+        print("**Performance Comparison:**")
+        print("- Continuous mode is ~3-4x faster than paginated mode")
+        print("- Choose continuous for web captures, articles (single tall page)")
+        print("- Choose paginated for invoices, reports (proper page breaks)")
         print()
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print()
@@ -242,11 +270,13 @@ struct PerformanceBenchmarks {
         name: String,
         count: Int,
         html: String,
-        maxConcurrent: Int
+        maxConcurrent: Int,
+        mode: PDF.PaginationMode = .paginated
     ) async throws -> BenchmarkResult {
         try await withDependencies {
             $0.pdf = .liveValue
             $0.pdfConfiguration = .default
+            $0.pdfConfiguration.paginationMode = mode
             $0.pdfConfiguration.concurrency = maxConcurrent
             $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(120)
         } operation: {

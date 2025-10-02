@@ -12,71 +12,50 @@ import Foundation
 extension PDF {
     /// Client for rendering HTML to PDF
     ///
-    /// Usage:
+    /// This client exposes a single primitive operation: rendering documents to a stream.
+    /// All convenience methods are provided as extensions that compose this primitive.
+    ///
+    /// ## Core Primitive
+    ///
     /// ```swift
     /// @Dependency(\.pdf) var pdf
     ///
+    /// let documents = [
+    ///     PDF.Document(htmlString: html1, destination: url1),
+    ///     PDF.Document(htmlString: html2, destination: url2)
+    /// ]
+    ///
+    /// for try await result in try await pdf.render(documents) {
+    ///     print("Generated \(result.url) in \(result.duration)")
+    /// }
+    /// ```
+    ///
+    /// ## Convenience Methods
+    ///
+    /// For common use cases, use the convenience extensions:
+    ///
+    /// ```swift
     /// // Single document
     /// let url = try await pdf.render(html, to: fileURL)
     ///
-    /// // Batch rendering with progress
-    /// for try await result in try await pdf.renderBatch(htmls, to: directory) {
-    ///     print("Generated \(result.url)")
-    /// }
+    /// // Batch with collected results
+    /// let urls = try await pdf.renderSync(documents)
     /// ```
     public struct Client: Sendable {
 
-        // MARK: - Single Document Operations
+        // MARK: - Core Primitive
 
-        /// Render HTML string to PDF file
+        /// Render documents to PDF files, yielding results as they complete
+        ///
+        /// This is the single primitive operation. All other methods are built on top of this.
+        ///
+        /// - Parameter documents: Documents to render
+        /// - Returns: Stream of results as PDFs are generated
+        /// - Throws: Rendering errors
         @DependencyEndpoint
         public var render: @Sendable (
-            _ html: String,
-            _ destination: URL
-        ) async throws -> URL
-
-        /// Render HTML string to PDF file with title
-        @DependencyEndpoint
-        public var renderWithTitle: @Sendable (
-            _ html: String,
-            _ title: String,
-            _ directory: URL
-        ) async throws -> URL
-
-        /// Render HTML to PDF data (no file I/O)
-        @DependencyEndpoint
-        public var renderToData: @Sendable (
-            _ html: String
-        ) async throws -> Data
-
-        /// Render document to PDF
-        @DependencyEndpoint
-        public var renderDocument: @Sendable (
-            _ document: Document
-        ) async throws -> URL
-
-        // MARK: - Batch Operations
-
-        /// Render multiple HTML strings to directory
-        /// Returns AsyncSequence for progressive results
-        @DependencyEndpoint
-        public var renderBatch: @Sendable (
-            _ htmls: [String],
-            _ directory: URL
-        ) async throws -> AsyncThrowingStream<Result, Error>
-
-        /// Render multiple documents
-        @DependencyEndpoint
-        public var renderDocuments: @Sendable (
             _ documents: [Document]
         ) async throws -> AsyncThrowingStream<Result, Error>
-
-        /// Render batch and collect all URLs (waits for completion)
-        @DependencyEndpoint
-        public var renderBatchSync: @Sendable (
-            _ htmls: [String],
-            _ directory: URL
-        ) async throws -> [URL]
 
         // MARK: - Platform Capabilities
 
@@ -85,22 +64,10 @@ extension PDF {
         public var capabilities: @Sendable () -> Capabilities = { .mock }
 
         public init(
-            render: @escaping @Sendable (String, URL) async throws -> URL,
-            renderWithTitle: @escaping @Sendable (String, String, URL) async throws -> URL,
-            renderToData: @escaping @Sendable (String) async throws -> Data,
-            renderDocument: @escaping @Sendable (Document) async throws -> URL,
-            renderBatch: @escaping @Sendable ([String], URL) async throws -> AsyncThrowingStream<Result, Error>,
-            renderDocuments: @escaping @Sendable ([Document]) async throws -> AsyncThrowingStream<Result, Error>,
-            renderBatchSync: @escaping @Sendable ([String], URL) async throws -> [URL],
+            render: @escaping @Sendable ([Document]) async throws -> AsyncThrowingStream<Result, Error>,
             capabilities: @escaping @Sendable () -> Capabilities
         ) {
             self.render = render
-            self.renderWithTitle = renderWithTitle
-            self.renderToData = renderToData
-            self.renderDocument = renderDocument
-            self.renderBatch = renderBatch
-            self.renderDocuments = renderDocuments
-            self.renderBatchSync = renderBatchSync
             self.capabilities = capabilities
         }
     }
@@ -111,12 +78,6 @@ extension PDF {
 extension PDF.Client: TestDependencyKey {
     public static let testValue = PDF.Client(
         render: unimplemented("PDF.Client.render"),
-        renderWithTitle: unimplemented("PDF.Client.renderWithTitle"),
-        renderToData: unimplemented("PDF.Client.renderToData"),
-        renderDocument: unimplemented("PDF.Client.renderDocument"),
-        renderBatch: unimplemented("PDF.Client.renderBatch"),
-        renderDocuments: unimplemented("PDF.Client.renderDocuments"),
-        renderBatchSync: unimplemented("PDF.Client.renderBatchSync"),
         capabilities: unimplemented("PDF.Client.capabilities")
     )
 }
