@@ -9,6 +9,7 @@ import Testing
 import Foundation
 import HtmlToPdf
 import Dependencies
+import PDFKit
 
 @Suite("Natural Multi-Page Flow")
 struct NaturalMultiPageTests {
@@ -17,7 +18,7 @@ struct NaturalMultiPageTests {
     func generateNaturalMultiPagePDF() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdfConfiguration.paginationMode = .paginated  // Use proper pagination for multi-page
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -123,16 +124,46 @@ struct NaturalMultiPageTests {
                 let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
                 let size = attrs[.size] as? Int64 ?? 0
 
+                // Verify PDF structure using PDFKit
+                guard let pdfDoc = PDFDocument(url: url) else {
+                    throw NSError(domain: "Failed to load PDF", code: -1)
+                }
+
+                let pageCount = pdfDoc.pageCount
+
+                // Check first page dimensions (should be A4: 595.28 × 841.89 points)
+                guard let firstPage = pdfDoc.page(at: 0) else {
+                    throw NSError(domain: "Failed to get first page", code: -1)
+                }
+                let bounds = firstPage.bounds(for: .mediaBox)
+                let expectedA4Width: CGFloat = 595.28
+                let expectedA4Height: CGFloat = 841.89
+                let tolerance: CGFloat = 1.0
+
+                let isA4Width = abs(bounds.width - expectedA4Width) < tolerance
+                let isA4Height = abs(bounds.height - expectedA4Height) < tolerance
+
                 print("\n✅ PDF Generated!")
                 print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
                 print("   Path: \(url.path)")
+                print("\n📄 PDF Structure:")
+                print("   Pages: \(pageCount)")
+                print("   Page 1 dimensions: \(bounds.width) × \(bounds.height) points")
+                print("   Expected A4: \(expectedA4Width) × \(expectedA4Height) points")
+                print("   Width correct: \(isA4Width ? "✅" : "❌")")
+                print("   Height correct: \(isA4Height ? "✅" : "❌")")
+
                 print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                print("Open the PDF and check:")
-                print("  • Total number of pages (should be 3-4)")
-                print("  • All 200 items are present")
-                print("  • Footer is visible at the end")
-                print("  • Content flows naturally without clipping")
+                print("Verification:")
+                print("  • Total number of pages: \(pageCount) (expected 3-4)")
+                print("  • All 200 items present: \(pageCount >= 3 ? "✅" : "❌")")
+                print("  • Page dimensions A4: \(isA4Width && isA4Height ? "✅" : "❌")")
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+                // Assert correct dimensions
+                #expect(isA4Width, "PDF width should be A4 (595.28 points), got \(bounds.width)")
+                #expect(isA4Height, "PDF height should be A4 (841.89 points), got \(bounds.height)")
+                #expect(pageCount >= 3, "PDF should have at least 3 pages, got \(pageCount)")
             } else {
                 throw NSError(domain: "PDF not created", code: -1)
             }

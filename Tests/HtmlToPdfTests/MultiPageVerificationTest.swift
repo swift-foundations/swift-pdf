@@ -17,7 +17,7 @@ struct MultiPageVerificationTests {
     func generateMultiPagePDF() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdfConfiguration = .multiPage  // Use NSPrintOperation for correct multi-page dimensions
         } operation: {
             @Dependency(\.pdf) var pdf
 
