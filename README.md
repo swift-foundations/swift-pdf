@@ -113,13 +113,13 @@ Control printing behavior and resource management with `PDF.Configuration`:
 
 ```swift
 // Default configuration - suitable for most use cases
-try await htmls.print(
+try await html.print(
     to: directory,
     printingConfiguration: .default
 )
 
 // Large batch configuration - optimized for millions of documents
-try await htmls.print(
+try await html.print(
     to: directory,
     printingConfiguration: .largeBatch
 )
@@ -134,7 +134,7 @@ let config = PrintingConfiguration(
         print("Progress: \(completed)/\(total)")
     }
 )
-try await htmls.print(
+try await html.print(
     to: directory,
     printingConfiguration: config
 )

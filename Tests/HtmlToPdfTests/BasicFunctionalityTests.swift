@@ -19,7 +19,7 @@ struct BasicFunctionalityTests {
     func testSinglePDFGeneration() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -43,7 +43,7 @@ struct BasicFunctionalityTests {
     func testPDFWithTitle() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -90,7 +90,7 @@ struct BasicFunctionalityTests {
     func testSmallBatch() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -104,7 +104,7 @@ struct BasicFunctionalityTests {
             // Test batch from strings
             let htmls = [String](repeating: .html, count: count)
             var urls: [URL] = []
-            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(htmls, to: output) {
                 urls.append(result.url)
             }
 
@@ -146,7 +146,7 @@ struct BasicFunctionalityTests {
     func testComplexHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -172,7 +172,7 @@ struct BasicFunctionalityTests {
     func testRenderToData() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -211,7 +211,7 @@ struct BasicFunctionalityTests {
     func testBaseURLConfiguration() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.baseURL = URL(string: "https://example.com")
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -242,7 +242,7 @@ struct BasicFunctionalityTests {
     func testUSLetterPaperSize() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.paperSize = .letter
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -264,7 +264,7 @@ struct BasicFunctionalityTests {
     func testA3PaperSize() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.paperSize = .a3
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -286,7 +286,7 @@ struct BasicFunctionalityTests {
     func testMinimalMargins() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.margins = .minimal
         } operation: {
             @Dependency(\.pdf) var pdf

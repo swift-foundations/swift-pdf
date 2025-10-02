@@ -23,7 +23,7 @@ extension PDF.Render.Client {
     /// - Throws: Rendering errors
     ///
     /// Files are named using the configured `namingStrategy`.
-    public func htmls(
+    public func html(
         _ htmls: [String],
         to directory: URL
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {

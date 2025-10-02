@@ -28,7 +28,7 @@ struct StressTests {
     func test1MPDFs() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 8
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
         } operation: {
@@ -149,7 +149,7 @@ struct StressTests {
     func test100kPDFs() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 8
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
         } operation: {
@@ -253,7 +253,7 @@ struct StressTests {
     func test1kComplexPDFs() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 6
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
         } operation: {
@@ -305,7 +305,7 @@ struct StressTests {
             print("Starting 1k complex PDF generation test...")
 
             var urls: [URL] = []
-            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(htmls, to: output) {
                 urls.append(result.url)
             }
 
@@ -329,7 +329,7 @@ struct StressTests {
     func testSustainedLoad() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 

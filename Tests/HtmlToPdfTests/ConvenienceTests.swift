@@ -17,7 +17,7 @@ struct ConvenienceTests {
     func testTopLevelConvenience() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -40,7 +40,7 @@ struct ConvenienceTests {
     func testCapabilityLevelConvenience() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -63,7 +63,7 @@ struct ConvenienceTests {
     func testExplicitClientAccess() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -86,7 +86,7 @@ struct ConvenienceTests {
     func testHTMLBatchConvenienceLevels() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -104,7 +104,7 @@ struct ConvenienceTests {
 
             // Level 2: Capability-level
             var urls2: [URL] = []
-            for try await result in try await pdf.render.htmls(htmls, to: output) {
+            for try await result in try await pdf.render.html(htmls, to: output) {
                 urls2.append(result.url)
             }
             #expect(urls2.count == 3, "Capability-level htmls should work")
@@ -114,7 +114,7 @@ struct ConvenienceTests {
 
             // Level 3: Explicit client
             var urls3: [URL] = []
-            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(htmls, to: output) {
                 urls3.append(result.url)
             }
             #expect(urls3.count == 3, "Explicit client htmls should work")
@@ -125,7 +125,7 @@ struct ConvenienceTests {
     func testDataRenderingLevels() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -149,7 +149,7 @@ struct ConvenienceTests {
     func testDocumentArrayLevels() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 

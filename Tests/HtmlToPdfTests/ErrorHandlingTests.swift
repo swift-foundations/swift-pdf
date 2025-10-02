@@ -19,7 +19,7 @@ struct ErrorHandlingTests {
     func testMalformedHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -42,7 +42,7 @@ struct ErrorHandlingTests {
     func testEmptyHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -64,7 +64,7 @@ struct ErrorHandlingTests {
     func testLargeHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.documentTimeout = .seconds(60) // 60 seconds for large document
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -92,7 +92,7 @@ struct ErrorHandlingTests {
     func testInvalidFilePath() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.createDirectories = false
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -114,7 +114,7 @@ struct ErrorHandlingTests {
     func testDirectoryCreation() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.createDirectories = true
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -146,7 +146,7 @@ struct ErrorHandlingTests {
     func testWebViewPoolTimeout() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 1  // Very limited pool
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(1)  // Short timeout
         } operation: {
@@ -166,7 +166,7 @@ struct ErrorHandlingTests {
                     group.addTask { @Sendable in
                         await withDependencies {
                             $0.pdf = .liveValue
-                            $0.pdf.render.configuration = .default
+                            // $0.pdf.render.configuration = .default
                             $0.pdf.render.configuration.concurrency = 1
                             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(1)
                         } operation: {
@@ -194,7 +194,7 @@ struct ErrorHandlingTests {
     func testWebViewPoolUnderLoad() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 2
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(30)
         } operation: {
@@ -213,7 +213,7 @@ struct ErrorHandlingTests {
             }
 
             var urls: [URL] = []
-            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(htmls, to: output) {
                 urls.append(result.url)
             }
 
@@ -227,7 +227,7 @@ struct ErrorHandlingTests {
     func testDocumentTimeout() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.documentTimeout = .milliseconds(1) // Very short timeout
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -272,7 +272,7 @@ struct ErrorHandlingTests {
     func testSpecialCharactersInFilename() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -337,7 +337,7 @@ struct PrintingErrorTests {
     func testResourcePoolErrorHandling() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 

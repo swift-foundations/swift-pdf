@@ -181,7 +181,7 @@ struct PerformanceBenchmarks {
     func benchmarkConcurrentBatches() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -199,7 +199,7 @@ struct PerformanceBenchmarks {
                     group.addTask { @Sendable in
                         try? await withDependencies {
                             $0.pdf = .liveValue
-                            $0.pdf.render.configuration = .default
+                            // $0.pdf.render.configuration = .default
                             $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
@@ -207,7 +207,7 @@ struct PerformanceBenchmarks {
                                 "<html><body><p>Batch \(batch) - Doc \(i)</p></body></html>"
                             }
                             var urls: [URL] = []
-                            for try await result in try await batchPdf.render.client.htmls(htmls, to: outputDir) {
+                            for try await result in try await batchPdf.render.client.html(htmls, to: outputDir) {
                                 urls.append(result.url)
                             }
                         }
@@ -251,7 +251,7 @@ struct PerformanceBenchmarks {
     func benchmarkPoolWarmup() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -412,7 +412,7 @@ struct PerformanceBenchmarks {
     ) async throws -> BenchmarkResult {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.paginationMode = mode
             $0.pdf.render.configuration.concurrency = maxConcurrent
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
@@ -445,7 +445,7 @@ struct PerformanceBenchmarks {
             let startTime = Date()
 
             // Render with per-PDF timing
-            let stream = try await pdf.render.client.htmls(htmls, to: output)
+            let stream = try await pdf.render.client.html(htmls, to: output)
             for try await result in stream {
                 durations.append(Double(result.duration.components.seconds) +
                                Double(result.duration.components.attoseconds) / 1_000_000_000_000_000_000)

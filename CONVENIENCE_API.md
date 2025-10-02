@@ -14,12 +14,12 @@ try await pdf.documents(docs)
 // Level 2: Mid-level (capability-focused)
 try await pdf.render.html(html, url)
 try await pdf.render.documents(docs)
-try await pdf.render.htmls(htmls, to: dir)
+try await pdf.render.html(htmls, to: dir)
 
 // Level 3: Explicit (full control)
 try await pdf.render.client.html(html, url)
 try await pdf.render.client.documents(docs)
-try await pdf.render.client.htmls(htmls, to: dir)
+try await pdf.render.client.html(htmls, to: dir)
 ```
 
 ## Level 1: Top-Level Convenience (Shortest)
@@ -57,7 +57,7 @@ let url = try await pdf.render.html(html, destination)
 let data = try await pdf.render.data(html)
 
 // HTML batch rendering (stream)
-for try await result in try await pdf.render.htmls(htmls, to: directory) {
+for try await result in try await pdf.render.html(htmls, to: directory) {
     print("Generated: \(result.url)")
 }
 
@@ -94,7 +94,7 @@ let url = try await pdf.render.client.html(html, destination)
 let data = try await pdf.render.client.data(html)
 
 // HTML batch rendering (stream)
-for try await result in try await pdf.render.client.htmls(htmls, to: directory) {
+for try await result in try await pdf.render.client.html(htmls, to: directory) {
     print("Generated: \(result.url)")
 }
 
@@ -140,12 +140,12 @@ All batch methods return `AsyncThrowingStream<PDF.Result, Error>` for progressiv
 ```swift
 // Collect stream into array
 var urls: [URL] = []
-for try await result in try await pdf.render.client.htmls(htmls, to: directory) {
+for try await result in try await pdf.render.client.html(htmls, to: directory) {
     urls.append(result.url)
 }
 
 // Or using reduce
-let urls = try await pdf.render.client.htmls(htmls, to: directory)
+let urls = try await pdf.render.client.html(htmls, to: directory)
     .reduce(into: [] as [URL]) { $0.append($1.url) }
 ```
 

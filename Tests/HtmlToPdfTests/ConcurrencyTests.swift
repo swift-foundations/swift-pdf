@@ -19,7 +19,7 @@ struct ConcurrencyTests {
     func testLargeBatch() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 4
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(60)
         } operation: {
@@ -39,7 +39,7 @@ struct ConcurrencyTests {
             }
             let tracker = ProgressTracker()
 
-            let stream = try await pdf.render.client.htmls(htmls, to: output)
+            let stream = try await pdf.render.client.html(htmls, to: output)
 
             for try await _ in stream {
                 await tracker.increment()
@@ -59,7 +59,7 @@ struct ConcurrencyTests {
     func testConcurrentOperations() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -76,13 +76,13 @@ struct ConcurrencyTests {
                     group.addTask { @Sendable in
                         try? await withDependencies {
                             $0.pdf = .liveValue
-                            $0.pdf.render.configuration = .default
+                            // $0.pdf.render.configuration = .default
                             $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
                             let htmls = [String](repeating: .html, count: 10)
                             var urls: [URL] = []
-                            for try await result in try await batchPdf.render.client.htmls(htmls, to: outputDir) {
+                            for try await result in try await batchPdf.render.client.html(htmls, to: outputDir) {
                                 urls.append(result.url)
                             }
                         }
@@ -100,7 +100,7 @@ struct ConcurrencyTests {
     func testRapidSequentialOperations() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -128,7 +128,7 @@ struct ConcurrencyTests {
     func testConcurrencyLimit() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 2  // Very limited concurrency
         } operation: {
             @Dependency(\.pdf) var pdf
@@ -142,7 +142,7 @@ struct ConcurrencyTests {
             }
 
             var urls: [URL] = []
-            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(htmls, to: output) {
                 urls.append(result.url)
             }
 
@@ -159,7 +159,7 @@ struct ConcurrencyTests {
     func testMixedDocumentSizes() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 5
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(60)
         } operation: {
@@ -211,7 +211,7 @@ struct ConcurrencyTests {
     func testResourceCleanup() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.render.configuration = .default
+            // $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -228,7 +228,7 @@ struct ConcurrencyTests {
                 } operation: {
                     let htmls = [String](repeating: .html, count: 10)
                     var urls: [URL] = []
-                    for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+                    for try await result in try await pdf.render.client.html(htmls, to: output) {
                         urls.append(result.url)
                     }
                 }

@@ -70,7 +70,7 @@ extension PDF.Render {
 
     /// Render multiple HTML strings to a directory
     ///
-    /// Convenience method that forwards to `client.htmls()`.
+    /// Convenience method that forwards to `client.html()`.
     /// Returns results as a stream for progressive processing.
     ///
     /// - Parameters:
@@ -78,11 +78,11 @@ extension PDF.Render {
     ///   - directory: Directory to save PDFs in
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
-    public func htmls(
+    public func html(
         _ htmls: [String],
         to directory: URL
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await client.htmls(htmls, to: directory)
+        try await client.html(htmls, to: directory)
     }
 
     // MARK: - Platform Capabilities
