@@ -36,31 +36,18 @@ extension PDF.Render {
 
         /// Render documents to PDF files, yielding results as they complete
         ///
-        /// This is the core primitive rendering operation. Documents are rendered concurrently
+        /// This is the sole primitive rendering operation. Documents are rendered concurrently
         /// based on configuration settings, with results streamed as each completes.
         ///
         /// All other rendering methods are composed from this primitive.
         ///
-        /// - Parameter documents: Documents to render
+        /// - Parameter documents: Documents to render (any sequence)
         /// - Returns: Stream of results as PDFs are generated
         /// - Throws: Rendering errors
         @DependencyEndpoint
         public var documents: @Sendable (
-            _ documents: [PDF.Document]
+            _ documents: any Sequence<PDF.Document>
         ) async throws -> AsyncThrowingStream<PDF.Result, Error>
-
-        /// Render HTML to PDF data (in-memory, no file I/O)
-        ///
-        /// This uses a different platform API (WKWebView.createPDF) and cannot be
-        /// composed from file-based operations without inefficiency.
-        ///
-        /// - Parameter html: HTML content as UTF-8 bytes
-        /// - Returns: PDF data
-        /// - Throws: Rendering errors
-        @DependencyEndpoint
-        public var data: @Sendable (
-            _ html: ContiguousArray<UInt8>
-        ) async throws -> Data
 
         // MARK: - Platform Capabilities
 

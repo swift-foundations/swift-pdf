@@ -31,11 +31,11 @@ extension PDF {
     /// }
     /// ```
     ///
-    /// - Parameter documents: Documents to render
+    /// - Parameter documents: Documents to render (any sequence)
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
     public func documents(
-        _ documents: [PDF.Document]
+        _ documents: some Sequence<PDF.Document>
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
         try await render.documents(documents)
     }

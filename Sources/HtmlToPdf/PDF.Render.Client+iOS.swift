@@ -23,29 +23,6 @@ extension PDF.Render.Client {
             @Dependency(\.pdf.render.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
-        data: { htmlBytes in
-            @Dependency(\.pdf.render.configuration) var config
-            let tempURL = URL.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("pdf")
-
-            defer {
-                try? FileManager.default.removeItem(at: tempURL)
-            }
-
-            let document = PDF.Document(htmlBytes: htmlBytes, destination: tempURL)
-            let stream = try await renderDocumentsInternal([document], config: config)
-            for try await _ in stream {
-                return try Data(contentsOf: tempURL)
-            }
-            throw PrintingError.pdfGenerationFailed(
-                underlyingError: NSError(
-                    domain: "HtmlToPdf",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
-                )
-            )
-        },
         capabilities: {
             .iOS
         }
@@ -53,15 +30,6 @@ extension PDF.Render.Client {
 }
 
 // MARK: - Internal Implementation
-
-@MainActor
-private func renderHTMLToData(
-    _ html: String,
-    config: PDF.Configuration
-) async throws -> Data {
-    let printFormatter = UIMarkupTextPrintFormatter(markupText: html)
-    return try await renderToDataWithFormatter(printFormatter, config: config)
-}
 
 @MainActor
 private func renderToDataWithFormatter(
@@ -145,19 +113,23 @@ extension PDF.Document {
 }
 
 private func renderDocumentsInternal(
-    _ documents: [PDF.Document],
+    _ documents: some Sequence<PDF.Document>,
     config: PDF.Configuration
 ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-    AsyncThrowingStream<PDF.Result, Error> { continuation in
+    // Materialize sequence for indexing and count operations (before Task to avoid Sendable issues)
+    let documentsArray = Array(documents)
+
+    return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task { @MainActor in
             do {
+
                 let maxConcurrent = config.concurrency ??
                     Swift.min(ProcessInfo.processInfo.activeProcessorCount, 4)
 
                 var completedCount = 0
 
                 try await withThrowingTaskGroup(of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self) { taskGroup in
-                    for (index, document) in documents.prefix(maxConcurrent).enumerated() {
+                    for (index, document) in documentsArray.prefix(maxConcurrent).enumerated() {
                         taskGroup.addTask {
                             let start = ContinuousClock.now
                             let url = try await document.renderInternal(config: config)
@@ -185,8 +157,8 @@ private func renderDocumentsInternal(
                         )
                         continuation.yield(result)
 
-                        if nextIndex < documents.count {
-                            let document = documents[nextIndex]
+                        if nextIndex < documentsArray.count {
+                            let document = documentsArray[nextIndex]
                             let capturedIndex = nextIndex
                             nextIndex += 1
 

@@ -143,29 +143,6 @@ extension PDF.Render.Client {
             @Dependency(\.pdf.render.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
-        data: { htmlBytes in
-            @Dependency(\.pdf.render.configuration) var config
-            let tempURL = URL.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("pdf")
-
-            defer {
-                try? FileManager.default.removeItem(at: tempURL)
-            }
-
-            let document = PDF.Document(htmlBytes: htmlBytes, destination: tempURL)
-            let stream = try await renderDocumentsInternal([document], config: config)
-            for try await _ in stream {
-                return try Data(contentsOf: tempURL)
-            }
-            throw PrintingError.pdfGenerationFailed(
-                underlyingError: NSError(
-                    domain: "HtmlToPdf",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
-                )
-            )
-        },
         capabilities: {
             .macOS
         }
@@ -173,109 +150,6 @@ extension PDF.Render.Client {
 }
 
 // MARK: - Internal Implementation
-
-@MainActor
-private func renderHTMLToData(
-    _ htmlBytes: ContiguousArray<UInt8>,
-    config: PDF.Configuration
-) async throws -> Data {
-    let webView = WKWebView(frame: .zero)
-    let delegate = LoadCompletionDelegate()
-    webView.navigationDelegate = delegate
-
-    let marginCSS = generateMarginCSS(config)
-    let htmlToLoad = await htmlBytes.injectingCSS(marginCSS)
-    let htmlData = htmlToLoad.toData()
-
-    webView.load(
-        htmlData,
-        mimeType: "text/html",
-        characterEncodingName: "UTF-8",
-        baseURL: config.baseURL ?? URL(string: "about:blank")!
-    )
-
-    // Wait for ACTUAL load completion with timeout
-    try await withThrowingTaskGroup(of: Void.self) { group in
-        // Task 1: Wait for load completion
-        group.addTask {
-            try await delegate.waitForCompletion()
-        }
-
-        // Task 2: Timeout task
-        group.addTask {
-            let timeout = config.documentTimeout ?? .seconds(30)
-            try await Task.sleep(for: timeout)
-            throw PrintingError.documentTimeout(
-                documentURL: URL(string: "data:text/html")!,
-                timeoutSeconds: Double(timeout.components.seconds)
-            )
-        }
-
-        // First to complete wins
-        try await group.next()
-        group.cancelAll()
-    }
-
-    // Now create PDF with its own timeout
-    webView.frame = CGRect(origin: .zero, size: config.paperSize)
-    let pdfConfig = WKPDFConfiguration()
-    pdfConfig.rect = nil  // Allow multi-page pagination
-
-    // Create PDF with timeout (both tasks async, isolation handled by continuation)
-    return try await withThrowingTaskGroup(of: Data.self) { group in
-        group.addTask {
-            // This continuation can be resumed from any context
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
-                webView.createPDF(configuration: pdfConfig) { result in
-                    continuation.resume(with: result)
-                }
-            }
-        }
-
-        group.addTask {
-            try await Task.sleep(for: .seconds(30))
-            throw PrintingError.pdfGenerationFailed(
-                underlyingError: NSError(
-                    domain: "HtmlToPdf",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "PDF creation timed out after 30 seconds"]
-                )
-            )
-        }
-
-        let data = try await group.next()!
-        group.cancelAll()
-        return data
-    }
-}
-
-// MARK: - Load Completion Delegate
-
-@MainActor
-private class LoadCompletionDelegate: NSObject, WKNavigationDelegate {
-    private var continuation: CheckedContinuation<Void, Error>?
-
-    func waitForCompletion() async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-        }
-    }
-
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        continuation?.resume()
-        continuation = nil
-    }
-
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        continuation?.resume(throwing: PrintingError.webViewNavigationFailed(underlyingError: error))
-        continuation = nil
-    }
-
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        continuation?.resume(throwing: PrintingError.webViewLoadingFailed(underlyingError: error))
-        continuation = nil
-    }
-}
 
 extension PDF.Document {
     @MainActor
@@ -375,12 +249,16 @@ extension PDF.Document {
 }
 
 private func renderDocumentsInternal(
-    _ documents: [PDF.Document],
+    _ documents: some Sequence<PDF.Document>,
     config: PDF.Configuration
 ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-    AsyncThrowingStream<PDF.Result, Error> { continuation in
+    // Materialize sequence for indexing and count operations (before Task to avoid Sendable issues)
+    let documentsArray = Array(documents)
+
+    return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task {
             do {
+
                 // Get the pool ONCE at the beginning, not for every document
                 // Pool access doesn't require main actor
                 @Dependency(\.webViewPool) var webViewPool
@@ -391,7 +269,7 @@ private func renderDocumentsInternal(
                 var completedCount = 0
 
                 try await withThrowingTaskGroup(of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self) { taskGroup in
-                    for (index, document) in documents.prefix(maxConcurrent).enumerated() {
+                    for (index, document) in documentsArray.prefix(maxConcurrent).enumerated() {
                         taskGroup.addTask {
                             let start = ContinuousClock.now
                             // renderWithPool handles main actor isolation internally for WebView operations
@@ -420,8 +298,8 @@ private func renderDocumentsInternal(
                         // This triggers pool refresh every 50K PDFs to prevent memory bloat
                         try? await webViewPool.recordPDFGenerated()
 
-                        if nextIndex < documents.count {
-                            let document = documents[nextIndex]
+                        if nextIndex < documentsArray.count {
+                            let document = documentsArray[nextIndex]
                             let capturedIndex = nextIndex
                             nextIndex += 1
 

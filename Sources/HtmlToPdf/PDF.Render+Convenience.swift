@@ -15,11 +15,11 @@ extension PDF.Render {
     ///
     /// Convenience method that forwards to `client.documents()`.
     ///
-    /// - Parameter documents: Documents to render
+    /// - Parameter documents: Documents to render (any sequence)
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
     public func documents(
-        _ documents: [PDF.Document]
+        _ documents: some Sequence<PDF.Document>
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
         try await client.documents(documents)
     }
@@ -53,19 +53,6 @@ extension PDF.Render {
         try await client.html(html, destination)
     }
 
-    /// Render HTML to PDF data (in-memory, no file I/O)
-    ///
-    /// Convenience method that forwards to `client.data()`.
-    ///
-    /// - Parameter html: HTML content to render
-    /// - Returns: PDF data
-    /// - Throws: Rendering errors
-    public func data(
-        _ html: String
-    ) async throws -> Data {
-        try await client.data(html)
-    }
-
     // MARK: - Batch Operations
 
     /// Render multiple HTML strings to a directory
@@ -74,15 +61,41 @@ extension PDF.Render {
     /// Returns results as a stream for progressive processing.
     ///
     /// - Parameters:
-    ///   - htmls: Array of HTML strings to render
+    ///   - htmls: HTML strings to render (any sequence)
     ///   - directory: Directory to save PDFs in
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
     public func html(
-        _ htmls: [String],
+        _ htmls: some Sequence<String>,
         to directory: URL
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
         try await client.html(htmls, to: directory)
+    }
+
+    // MARK: - Data Operations
+
+    /// Render multiple HTML strings to PDF data, yielding results as they complete
+    ///
+    /// Convenience method that forwards to `client.data()`.
+    ///
+    /// - Parameter htmlStrings: HTML strings to render (any sequence)
+    /// - Returns: Stream of PDF data as each completes
+    /// - Throws: Rendering errors
+    public func data(
+        _ htmlStrings: some Sequence<String>
+    ) async throws -> AsyncThrowingStream<Data, Error> {
+        try await client.data(htmlStrings)
+    }
+
+    /// Render a single HTML string to PDF data
+    ///
+    /// Convenience method that forwards to `client.data()`.
+    ///
+    /// - Parameter htmlString: HTML content to render
+    /// - Returns: PDF data
+    /// - Throws: Rendering errors
+    public func data(_ htmlString: String) async throws -> Data {
+        try await client.data(htmlString)
     }
 
     // MARK: - Platform Capabilities
