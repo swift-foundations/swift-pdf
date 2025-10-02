@@ -116,5 +116,34 @@ extension String {
 
 }
 
+// MARK: - Test Progress Tracking
 
+actor ProgressTracker {
+    var completed = 0
+    var lastReportedAt = Date()
+    var lastReportedCompleted = 0
+    let reportInterval: TimeInterval
+    let totalCount: Int
+
+    init(totalCount: Int, reportInterval: TimeInterval = 5.0) {
+        self.totalCount = totalCount
+        self.reportInterval = reportInterval
+    }
+
+    func recordCompletion() -> Int {
+        completed += 1
+
+        let now = Date()
+        if now.timeIntervalSince(lastReportedAt) >= reportInterval {
+            let interval = now.timeIntervalSince(lastReportedAt)
+            let delta = completed - lastReportedCompleted
+            let rate = Double(delta) / interval
+            print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
+            lastReportedAt = now
+            lastReportedCompleted = completed
+        }
+
+        return completed
+    }
+}
 

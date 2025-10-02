@@ -8,6 +8,7 @@
 import Testing
 import Foundation
 import Dependencies
+import PDFTestSupport
 @testable import HtmlToPdf
 
 extension Tag {
@@ -529,5 +530,87 @@ struct PerformanceBenchmarks {
         </body>
         </html>
         """
+    }
+
+    // MARK: - Adaptive Throughput Optimization
+
+    @Test("Find optimal concurrency for maximum throughput", .timeLimit(.minutes(60)))
+    func testAdaptiveThroughputOptimization() async throws {
+        struct ConcurrencyResult: Sendable {
+            let concurrency: Int
+            let throughput: Double
+            let duration: TimeInterval
+            let avgMs: Double
+        }
+
+        let testCount = 5000  // Sample size for each concurrency level
+        let concurrencyLevels = [4, 8, 12, 16, 20, 24, 28, 32, 40, 48]
+
+        print("\n╔════════════════════════════════════════════════════════════╗")
+        print("║     ADAPTIVE THROUGHPUT OPTIMIZATION TEST                 ║")
+        print("╚════════════════════════════════════════════════════════════╝")
+        print("Sample size per test: \(testCount) PDFs")
+        print("Testing concurrency levels: \(concurrencyLevels)")
+        print("Starting optimization...\n")
+
+        var results: [ConcurrencyResult] = []
+
+        for concurrency in concurrencyLevels {
+            try await withDependencies {
+                $0.pdf.render.configuration.concurrency = .fixed(concurrency)
+                $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
+            } operation: {
+                try await withTemporaryDirectory { output in
+                    setenv("OS_ACTIVITY_MODE", "disable", 1)
+
+                    let documents = (1...testCount).map { i in
+                        PDF.Document(
+                            htmlString: "<html><body><p>\(i)</p></body></html>",
+                            title: "doc-\(i)",
+                            in: output
+                        )
+                    }
+
+                    let startTime = Date()
+                    let stream = try await pdf.render.client.documents(documents)
+
+                    var count = 0
+                    for try await _ in stream {
+                        count += 1
+                    }
+
+                    let duration = Date().timeIntervalSince(startTime)
+                    let throughput = Double(testCount) / duration
+                    let avgMs = duration * 1000 / Double(testCount)
+
+                    let result = ConcurrencyResult(
+                        concurrency: concurrency,
+                        throughput: throughput,
+                        duration: duration,
+                        avgMs: avgMs
+                    )
+                    results.append(result)
+
+                    print("✓ Concurrency \(String(format: "%2d", concurrency)): \(String(format: "%5.0f", throughput)) PDFs/sec  (\(String(format: "%.2f", duration))s, \(String(format: "%.3f", avgMs))ms avg)")
+                }
+            }
+        }
+
+        // Find optimal concurrency
+        let optimal = results.max(by: { $0.throughput < $1.throughput })!
+
+        print("\n╔════════════════════════════════════════════════════════════╗")
+        print("║                   OPTIMIZATION RESULTS                     ║")
+        print("╚════════════════════════════════════════════════════════════╝")
+        print("Optimal concurrency: \(optimal.concurrency) WebViews")
+        print("Peak throughput:     \(String(format: "%.0f", optimal.throughput)) PDFs/sec")
+        print("Avg per PDF:         \(String(format: "%.3f", optimal.avgMs))ms")
+        print("\nAll results (sorted by throughput):")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        for result in results.sorted(by: { $0.throughput > $1.throughput }) {
+            let marker = result.concurrency == optimal.concurrency ? "🏆" : "  "
+            print("\(marker) \(String(format: "%2d", result.concurrency)) WebViews: \(String(format: "%5.0f", result.throughput)) PDFs/sec")
+        }
+        print("╚════════════════════════════════════════════════════════════╝\n")
     }
 }

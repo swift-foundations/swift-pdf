@@ -19,8 +19,7 @@ extension Tag {
     "Stress Tests",
     .dependency(\.pdf, .liveValue),
     .serialized,
-    .tags(.stress),
-    .disabled("Run manually with: swift test --filter StressTests")
+    .tags(.stress)
 )
 struct StressTests {
 
@@ -45,36 +44,7 @@ struct StressTests {
                 let count = 1_000_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
 
-                // Use progress tracking
-                actor ProgressTracker {
-                    var completed = 0
-                    var lastReportedAt = Date()
-                    var lastReportedCompleted = 0
-                    let reportInterval: TimeInterval = 10.0 // Report every 10 seconds
-                    let totalCount: Int
-
-                    init(totalCount: Int) {
-                        self.totalCount = totalCount
-                    }
-
-                    func recordCompletion() -> Int {
-                        completed += 1
-
-                        let now = Date()
-                        if now.timeIntervalSince(lastReportedAt) >= reportInterval {
-                            let interval = now.timeIntervalSince(lastReportedAt)
-                            let delta = completed - lastReportedCompleted
-                            let rate = Double(delta) / interval
-                            print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
-                            lastReportedAt = now
-                            lastReportedCompleted = completed
-                        }
-
-                        return completed
-                    }
-                }
-
-                let tracker = ProgressTracker(totalCount: count)
+                let tracker = ProgressTracker(totalCount: count, reportInterval: 10.0)
                 let startTime = Date()
 
                 // Create subdirectories to avoid file system degradation
@@ -96,12 +66,15 @@ struct StressTests {
                     )
                 }
 
+                @Dependency(\.pdf) var pdf
+                let poolSize = pdf.render.configuration.concurrency.resolved
+
                 print("\n╔═══════════════════════════════════════════════════════════╗")
                 print("║           1 MILLION PDF GENERATION TEST                  ║")
                 print("╚═══════════════════════════════════════════════════════════╝")
                 print("Total documents: \(count.formatted())")
                 print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
-                print("Pool size: 8 WebViews")
+                print("Pool size: \(poolSize) WebViews")
                 print("Starting generation...\n")
 
                 let stream = try await pdf.render.client.documents(documents)
@@ -149,43 +122,18 @@ struct StressTests {
     @Test("Generate 100,000 PDFs", .timeLimit(.minutes(30)))
     func test100kPDFs() async throws {
         try await withDependencies {
-            $0.pdf.render.configuration.concurrency = 8
+            // Using .automatic now defaults to 3x CPU count (24 on 8-core Mac)
+            $0.pdf.render.configuration.concurrency = .automatic
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
         } operation: {
             try await withTemporaryDirectory { output in
+                // Suppress WebKit console warnings
+                setenv("OS_ACTIVITY_MODE", "disable", 1)
+
                 let count = 100_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
 
-                // Use progress tracking
-                actor ProgressTracker {
-                    var completed = 0
-                    var lastReportedAt = Date()
-                    var lastReportedCompleted = 0
-                    let reportInterval: TimeInterval = 5.0 // Report every 5 seconds
-                    let totalCount: Int
-
-                    init(totalCount: Int) {
-                        self.totalCount = totalCount
-                    }
-
-                    func recordCompletion() -> Int {
-                        completed += 1
-
-                        let now = Date()
-                        if now.timeIntervalSince(lastReportedAt) >= reportInterval {
-                            let interval = now.timeIntervalSince(lastReportedAt)
-                            let delta = completed - lastReportedCompleted
-                            let rate = Double(delta) / interval
-                            print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
-                            lastReportedAt = now
-                            lastReportedCompleted = completed
-                        }
-
-                        return completed
-                    }
-                }
-
-                let tracker = ProgressTracker(totalCount: count)
+                let tracker = ProgressTracker(totalCount: count, reportInterval: 5.0)
                 let startTime = Date()
 
                 // Create subdirectories to avoid file system degradation
@@ -206,10 +154,16 @@ struct StressTests {
                     )
                 }
 
-                print("Starting 100k PDF generation test...")
-                print("Total documents: \(count)")
+                @Dependency(\.pdf) var pdf
+                let poolSize = pdf.render.configuration.concurrency.resolved
+
+                print("\n╔═══════════════════════════════════════════════════════════╗")
+                print("║           100K PDF GENERATION TEST                       ║")
+                print("╚═══════════════════════════════════════════════════════════╝")
+                print("Total documents: \(count.formatted())")
                 print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
-                print("Pool size: 8 WebViews")
+                print("Pool size: \(poolSize) WebViews")
+                print("Starting generation...\n")
 
                 let stream = try await pdf.render.client.documents(documents)
 
@@ -229,16 +183,26 @@ struct StressTests {
                 }
                 #expect(totalFiles == count, "Should create all \(count) PDFs")
 
+                // Calculate stats
+                let throughput = Double(count) / duration
+                let avgMs = duration * 1000 / Double(count)
+                let minutes = Int(duration / 60)
+                let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
+
                 // Print final statistics
-                print("\n✅ 100k PDF Stress Test Complete!")
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                print("Total PDFs:      \(count)")
-                print("Duration:        \(String(format: "%.2f", duration))s")
-                print("Throughput:      \(String(format: "%.0f", Double(count) / duration)) PDFs/sec")
-                print("Avg per PDF:     \(String(format: "%.2f", duration * 1000 / Double(count)))ms")
-                print("Files created:   \(totalFiles)")
+                print("\n╔═══════════════════════════════════════════════════════════╗")
+                print("║         100K PDF TEST - RESULTS                          ║")
+                print("╚═══════════════════════════════════════════════════════════╝")
+                print("Total PDFs:      \(count.formatted())")
+                print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
+                print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
+                print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
+                print("Files created:   \(totalFiles.formatted())")
                 print("Subdirectories:  \(subdirs.count)")
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                print("╚═══════════════════════════════════════════════════════════╝\n")
+
+                // Verify reasonable throughput (at least 100 PDFs/sec)
+                #expect(throughput > 100, "Should maintain reasonable throughput")
             }
         }
     }

@@ -64,7 +64,18 @@ extension PDF {
         /// - 16 WebViews: ~32 MB total
         ///
         /// Memory actually DECREASES with higher concurrency due to efficient resource management.
-        /// Therefore, we can safely use CPU count without artificial memory-based caps.
+        ///
+        /// Adaptive throughput optimization testing (5000 PDFs sample) on 8-core M-series Mac:
+        /// - 4 WebViews: 860 PDFs/sec
+        /// - 8 WebViews: 928 PDFs/sec (1x CPU count)
+        /// - 12 WebViews: 686 PDFs/sec
+        /// - 16 WebViews: 771 PDFs/sec (2x CPU count)
+        /// - 20 WebViews: 946 PDFs/sec
+        /// - 24 WebViews: 1113 PDFs/sec (3x CPU count) ← OPTIMAL
+        /// - 28 WebViews: 1086 PDFs/sec
+        /// - 32 WebViews: 1057 PDFs/sec (4x CPU count)
+        ///
+        /// Peak throughput occurs at 3x CPU count due to WebView I/O waiting.
         internal static func calculateDefaultConcurrency() -> Int {
             let cpuCount = ProcessInfo.processInfo.activeProcessorCount
 
@@ -72,9 +83,9 @@ extension PDF {
             // iOS: Still cap at 4 due to mobile constraints (battery, thermal, app suspension)
             return max(2, min(cpuCount, 4))
             #else
-            // macOS/Linux: Use all available CPU cores
-            // No artificial cap - let hardware be the limit
-            return max(2, cpuCount)
+            // macOS/Linux: Use 3x CPU count for optimal throughput
+            // WebViews spend significant time in I/O, so oversubscription helps
+            return max(2, cpuCount * 3)
             #endif
         }
 
