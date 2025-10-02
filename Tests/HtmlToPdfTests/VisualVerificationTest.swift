@@ -11,7 +11,11 @@ import HtmlToPdf
 import Dependencies
 import DependenciesTestSupport
 
-@Suite("Visual Verification (Manual)", .dependency(\.pdf, .liveValue))
+@Suite(
+    "Visual Verification (Manual)",
+    .dependency(\.pdf, .liveValue),
+    .disabled("Run manually: swift test --filter VisualVerificationTests")
+)
 struct VisualVerificationTests {
 
     @Test("Generate rich PDF for manual verification")

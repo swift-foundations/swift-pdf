@@ -304,6 +304,54 @@ The example below will correctly render the image in the HTML, assuming the `[..
 * [coenttb/pointfree-web](https://www.github.com/coenttb/pointfree-html): Foundational tools for web development in Swift, forked from  [pointfreeco/swift-web](https://www.github.com/pointfreeco/swift-web).
 * [coenttb/pointfree-server](https://www.github.com/coenttb/pointfree-html): Foundational tools for server development in Swift, forked from  [pointfreeco/swift-web](https://www.github.com/pointfreeco/swift-web).
 
+## Print Quality Considerations
+
+### Unicode Character Rendering in Paginated Mode
+
+When using **paginated mode** (`.paginated`), certain Unicode characters like bullets (•), middots (·), and emojis may render with lower quality compared to ASCII characters. This is a limitation of the underlying `NSPrintOperation` rendering system.
+
+**What's affected:**
+- ✅ ASCII characters (hyphens `-`, pipes `|`, asterisks `*`) render crisply as vectors
+- ❌ Unicode symbols (bullets `•`, middots `·`, emojis 📄✅🎯) render as low-resolution bitmaps (~72-144 DPI)
+
+**Comparison:**
+
+| Mode | Unicode Bullets (•) | ASCII Separators (-\|) | Quality |
+|------|---------------------|------------------------|---------|
+| Paginated | Fuzzy/pixelated | Crisp/vector | Mixed |
+| Continuous | Perfect/crisp | Perfect/crisp | Excellent |
+
+**Recommendation for professional print quality:**
+
+Use ASCII separators in paginated mode:
+
+```swift
+// ❌ Fuzzy in paginated mode
+"Testing • UTF-8 • Zero-copy"
+
+// ✅ Crisp in paginated mode
+"Testing | UTF-8 | Zero-copy"
+"Testing - UTF-8 - Zero-copy"
+```
+
+**Why this happens:**
+
+`NSPrintOperation` treats Unicode symbols as "complex glyphs" requiring rasterization, while ASCII characters are handled as pure vector text. This is a fundamental limitation of the macOS print system and cannot be fixed without replacing the rendering backend.
+
+**Alternative:**
+
+If you need both Unicode characters AND multi-page layout, consider using **continuous mode** (`.continuous`) which provides perfect Unicode rendering using `WKWebView.createPDF()`:
+
+```swift
+try await withDependencies {
+    $0.pdfConfiguration.paginationMode = .continuous
+} operation: {
+    @Dependency(\.pdf) var pdf
+    try await pdf.render(html, output)
+}
+// Result: Perfect Unicode rendering, single tall page
+```
+
 ## Known Issues
 
 ### WebKit Process Assertion Warnings

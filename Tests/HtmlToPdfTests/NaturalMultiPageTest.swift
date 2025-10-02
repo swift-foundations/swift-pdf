@@ -12,12 +12,16 @@ import Dependencies
 import DependenciesTestSupport
 import PDFKit
 
-@Suite("Natural Multi-Page Flow", .dependency(\.pdf, .liveValue))
+@Suite(
+    "Natural Multi-Page Flow",
+    .dependency(\.pdf, .liveValue),
+    .disabled("Run manually: swift test --filter NaturalMultiPageTests")
+)
 struct NaturalMultiPageTests {
     @Dependency(\.pdf) var pdf
     
     @Test(
-        "Generate PDF with content that naturally spans multiple pages",
+        "Generate PDF with content that naturally spans multiple pages (Paginated Mode)",
         .dependency(\.pdf.render.configuration.paginationMode, .paginated)
     )
     func generateNaturalMultiPagePDF() async throws {
@@ -30,7 +34,7 @@ struct NaturalMultiPageTests {
                 <div style="padding: 15px; margin: 10px 0; background: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px;">
                     <h3 style="margin: 0 0 10px 0; color: #667eea;">Item #\(i)</h3>
                     <p style="margin: 5px 0;">This is test item number \(i). It contains enough text to take up vertical space and demonstrate that content flows naturally across multiple pages without requiring CSS page-break directives.</p>
-                    <p style="margin: 5px 0; font-size: 12px; color: #6c757d;">Testing ContiguousArray&lt;UInt8&gt; • UTF-8 Encoding • Zero-copy rendering</p>
+                    <p style="margin: 5px 0; font-size: 12px; color: #6c757d;">Testing ContiguousArray&lt;UInt8&gt; | UTF-8 Encoding | Zero-copy rendering</p>
                 </div>
                 """
             }.joined(separator: "\n")
@@ -101,7 +105,7 @@ struct NaturalMultiPageTests {
                         <h3>✅ Test Complete</h3>
                         <p>If you see this footer and can scroll/navigate through multiple pages, the multi-page rendering is working correctly!</p>
                         <p>Generated: \(Date().formatted())</p>
-                        <p>Total Items: 200 • Implementation: ContiguousArray&lt;UInt8&gt;</p>
+                        <p>Total Items: 200 | Implementation: ContiguousArray&lt;UInt8&gt;</p>
                     </div>
                 </div>
             </body>
@@ -155,15 +159,200 @@ struct NaturalMultiPageTests {
 
                 print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 print("Verification:")
-                print("  • Total number of pages: \(pageCount) (expected 3-4)")
-                print("  • All 200 items present: \(pageCount >= 3 ? "✅" : "❌")")
-                print("  • Page dimensions A4: \(isA4Width && isA4Height ? "✅" : "❌")")
+                print("  | Total number of pages: \(pageCount) (expected 3-4)")
+                print("  | All 200 items present: \(pageCount >= 3 ? "✅" : "❌")")
+                print("  | Page dimensions A4: \(isA4Width && isA4Height ? "✅" : "❌")")
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
                 // Assert correct dimensions
                 #expect(isA4Width, "PDF width should be A4 (595.28 points), got \(bounds.width)")
                 #expect(isA4Height, "PDF height should be A4 (841.89 points), got \(bounds.height)")
                 #expect(pageCount >= 3, "PDF should have at least 3 pages, got \(pageCount)")
+        } else {
+            throw NSError(domain: "PDF not created", code: -1)
+        }
+    }
+
+    @Test(
+        "Generate PDF with content in continuous mode (Quality Comparison)",
+        .dependency(\.pdf.render.configuration.paginationMode, .continuous)
+    )
+    func generateContinuousModePDF() async throws {
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+
+        // Same content but with bullet characters to test quality
+        let testContent = """
+        <div style="padding: 20px; margin: 20px 0; background: #f8f9fa; border-radius: 8px;">
+            <h2>Character Quality Test - Continuous Mode (WKWebView.createPDF)</h2>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Unicode Bullet (•)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; • UTF-8 Encoding • Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A • Item B • Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance • Quality • Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Pipe Character (|)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; | UTF-8 Encoding | Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A | Item B | Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance | Quality | Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Hyphen Character (-)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; - UTF-8 Encoding - Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A - Item B - Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance - Quality - Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>HTML Middot (&middot;)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; &middot; UTF-8 Encoding &middot; Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A &middot; Item B &middot; Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance &middot; Quality &middot; Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Emojis</h3>
+                <p style="font-size: 14px;">
+                    📄 Document • ✅ Success • 🎯 Target
+                </p>
+                <p style="font-size: 16px;">
+                    ⚡ Performance • 🔧 Tools • 📊 Analytics
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Mixed Content</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    <strong>Bold bullets:</strong> Testing • UTF-8 • Rendering
+                </p>
+                <p style="font-size: 12px; color: #6c757d;">
+                    <em>Italic bullets:</em> Testing • UTF-8 • Rendering
+                </p>
+                <p style="font-size: 12px; color: #6c757d;">
+                    <strong><em>Bold italic bullets:</em></strong> Testing • UTF-8 • Rendering
+                </p>
+            </div>
+        </div>
+        """
+
+        let htmlString = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Continuous Mode Quality Test</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                .header {
+                    background: linear-gradient(135deg, #00b4db 0%, #0083b0 100%);
+                    color: white;
+                    padding: 40px;
+                    text-align: center;
+                }
+
+                .header h1 {
+                    margin: 0;
+                    font-size: 48px;
+                }
+
+                .header p {
+                    margin: 10px 0 0 0;
+                    font-size: 18px;
+                    opacity: 0.9;
+                }
+
+                .content {
+                    padding: 20px;
+                    max-width: 800px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>⚡ Continuous Mode Quality Test</h1>
+                <p>WKWebView.createPDF() - Fast Rendering</p>
+            </div>
+
+            <div class="content">
+                \(testContent)
+
+                <div style="margin-top: 40px; padding: 20px; background: #e7f3ff; border-radius: 8px;">
+                    <h3>📋 Test Purpose</h3>
+                    <p>Compare character rendering quality between:</p>
+                    <ul>
+                        <li><strong>Continuous Mode:</strong> WKWebView.createPDF() (this file)</li>
+                        <li><strong>Paginated Mode:</strong> NSPrintOperation.run() (separate file)</li>
+                    </ul>
+                    <p>Check if Unicode bullets (•) render crisply in continuous mode.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        let output = desktop.appendingPathComponent("PDF_Continuous_Quality_Test.pdf")
+
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Generating Continuous Mode Quality Test")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("\nOutput location:")
+        print("  \(output.path)")
+        print("\nMode: Continuous (WKWebView.createPDF)")
+        print("Purpose: Compare rendering quality with paginated mode")
+
+        let url = try await pdf.render.client.html(htmlString, to: output)
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = attrs[.size] as? Int64 ?? 0
+
+            guard let pdfDoc = PDFDocument(url: url) else {
+                throw NSError(domain: "Failed to load PDF", code: -1)
+            }
+
+            let pageCount = pdfDoc.pageCount
+
+            print("\n✅ PDF Generated!")
+            print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
+            print("   Path: \(url.path)")
+            print("   Pages: \(pageCount)")
+            print("\n📊 Compare this with PDF_Natural_MultiPage_Test.pdf")
+            print("   to see quality differences between modes")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
         } else {
             throw NSError(domain: "PDF not created", code: -1)
         }

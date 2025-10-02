@@ -143,6 +143,10 @@ extension PDF.Render.Client {
             @Dependency(\.pdf.render.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
+        documentsResilient: { documents in
+            @Dependency(\.pdf.render.configuration) var config
+            return await renderDocumentsResilient(documents, config: config)
+        },
         capabilities: {
             .macOS
         }
@@ -324,6 +328,120 @@ private func renderDocumentsInternal(
             }
         }
     }
+}
+
+/// Resilient batch rendering - continues on individual failures
+private func renderDocumentsResilient(
+    _ documents: some Sequence<PDF.Document>,
+    config: PDF.Configuration
+) async -> AsyncStream<PDF.Render.BatchResult> {
+    let documentsArray = Array(documents)
+    let (stream, continuation) = AsyncStream.makeStream(of: PDF.Render.BatchResult.self)
+
+    Task {
+        await populateResilientBatchStream(
+            documents: documentsArray,
+            config: config,
+            continuation: continuation
+        )
+    }
+
+    return stream
+}
+
+/// Result from a single document render task
+private struct RenderTaskResult: Sendable {
+    let index: Int
+    let renderResult: Swift.Result<(url: URL, pageCount: Int, dimensions: [CGSize], mode: PDF.PaginationMode), Error>
+    let duration: Duration
+}
+
+/// Populate the resilient batch stream with results
+private func populateResilientBatchStream(
+    documents: [PDF.Document],
+    config: PDF.Configuration,
+    continuation: AsyncStream<PDF.Render.BatchResult>.Continuation
+) async {
+    @Dependency(\.webViewPool) var webViewPool
+
+    guard let pool = try? await webViewPool.pool else {
+        for (index, document) in documents.enumerated() {
+            let failed = PDF.FailedDocument(
+                document: document,
+                index: index,
+                error: PrintingError.webViewPoolExhausted(pendingRequests: documents.count),
+                duration: .zero
+            )
+            continuation.yield(.failure(failed))
+        }
+        continuation.finish()
+        return
+    }
+
+    let maxConcurrent = config.concurrency.resolved
+
+    do {
+        try await withThrowingTaskGroup(of: RenderTaskResult.self) { taskGroup in
+            for (index, document) in documents.prefix(maxConcurrent).enumerated() {
+                taskGroup.addTask {
+                    let start = ContinuousClock.now
+                    let result = await Swift.Result {
+                        try await document.renderWithPool(pool, config: config)
+                    }
+                    let duration = ContinuousClock.now - start
+                    return RenderTaskResult(index: index, renderResult: result, duration: duration)
+                }
+            }
+
+            var nextIndex = maxConcurrent
+
+            for try await taskResult in taskGroup {
+                switch taskResult.renderResult {
+                case .success(let (url, pageCount, dimensions, mode)):
+                    let pdfResult = PDF.Result(
+                        url: url,
+                        index: taskResult.index,
+                        duration: taskResult.duration,
+                        paginationMode: mode,
+                        pageCount: pageCount,
+                        pageDimensions: dimensions
+                    )
+                    continuation.yield(.success(pdfResult))
+                    try? await webViewPool.recordPDFGenerated()
+
+                case .failure(let error):
+                    let failed = PDF.FailedDocument(
+                        document: documents[taskResult.index],
+                        index: taskResult.index,
+                        error: error,
+                        duration: taskResult.duration
+                    )
+                    continuation.yield(.failure(failed))
+                }
+
+                if nextIndex < documents.count {
+                    let document = documents[nextIndex]
+                    let capturedIndex = nextIndex
+                    nextIndex += 1
+
+                    taskGroup.addTask {
+                        let start = ContinuousClock.now
+                        let result = await Swift.Result {
+                            try await document.renderWithPool(pool, config: config)
+                        }
+                        let duration = ContinuousClock.now - start
+                        return RenderTaskResult(index: capturedIndex, renderResult: result, duration: duration)
+                    }
+                }
+            }
+        }
+    } catch {
+        // This should never happen since we catch all errors internally with Swift.Result
+        // But needed for withThrowingTaskGroup syntax
+    }
+
+    continuation.finish()
+    directoryCache.clear()
 }
 
 private func generateMarginCSS(_ config: PDF.Configuration) -> ContiguousArray<UInt8> {

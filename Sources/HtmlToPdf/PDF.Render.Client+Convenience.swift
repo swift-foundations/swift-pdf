@@ -102,6 +102,11 @@ extension PDF.Render.Client {
         return AsyncThrowingStream { continuation in
             Task {
                 do {
+                    // Ensure cleanup happens on both success and error paths
+                    defer {
+                        try? FileManager.default.removeItem(at: tempDir)
+                    }
+
                     // Create temp directory
                     try FileManager.default.createDirectory(
                         at: tempDir,
@@ -118,9 +123,6 @@ extension PDF.Render.Client {
                 } catch {
                     continuation.finish(throwing: error)
                 }
-
-                // Cleanup temp directory
-                try? FileManager.default.removeItem(at: tempDir)
             }
         }
     }

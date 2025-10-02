@@ -25,6 +25,10 @@ let package = Package(
         .library(
             name: .htmlToPdf,
             targets: [.htmlToPdf]
+        ),
+        .library(
+            name: "PDFTestSupport",
+            targets: ["PDFTestSupport"]
         )
     ],
     dependencies: [
@@ -44,10 +48,18 @@ let package = Package(
                 .pointFreeHTML
             ]
         ),
+        .target(
+            name: "PDFTestSupport",
+            dependencies: [
+                .htmlToPdf,
+                .dependencies
+            ]
+        ),
         .testTarget(
             name: .htmlToPdf + "Tests",
             dependencies: [
                 .htmlToPdf,
+                .target(name: "PDFTestSupport"),
                 .product(name: "DependenciesTestSupport", package: "swift-dependencies")
             ],
             exclude: ["HtmlToPdf.xctestplan"]
