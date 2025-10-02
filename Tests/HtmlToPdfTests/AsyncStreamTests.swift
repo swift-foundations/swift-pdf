@@ -17,8 +17,8 @@ struct AsyncStreamTests {
     func testAsyncStreamProgressive() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.namingStrategy = .init { _ in UUID().uuidString }
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.namingStrategy = .init { _ in UUID().uuidString }
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -41,7 +41,7 @@ struct AsyncStreamTests {
             let tracker = CompletionTracker()
 
             let htmls = [String](repeating: .html, count: count)
-            let stream = try await pdf.renderBatch(htmls, output)
+            let stream = try await pdf.render.client.renderBatch(htmls, output)
 
             for try await result in stream {
                 await tracker.recordCompletion(url: result.url)
@@ -63,7 +63,7 @@ struct AsyncStreamTests {
     func testAsyncStreamFromDocuments() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -82,7 +82,7 @@ struct AsyncStreamTests {
                 )
             }
 
-            let stream = try await pdf.render(documents)
+            let stream = try await pdf.render.client.documents(documents)
 
             var resultCount = 0
             for try await result in stream {
@@ -101,7 +101,7 @@ struct AsyncStreamTests {
     func testConcurrentAsyncStreams() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -113,9 +113,9 @@ struct AsyncStreamTests {
             }
 
             try await withDependencies {
-                $0.pdf.configuration.namingStrategy = .init { _ in "stream1-\(UUID().uuidString)" }
+                $0.pdf.render.configuration.namingStrategy = .init { _ in "stream1-\(UUID().uuidString)" }
             } operation: {
-                let stream1 = try await pdf.renderBatch([String](repeating: .html, count: count), output)
+                let stream1 = try await pdf.render.client.renderBatch([String](repeating: .html, count: count), output)
 
                 for try await result in stream1 {
                     #expect(FileManager.default.fileExists(atPath: result.url.path))
@@ -123,9 +123,9 @@ struct AsyncStreamTests {
             }
 
             try await withDependencies {
-                $0.pdf.configuration.namingStrategy = .init { _ in "stream2-\(UUID().uuidString)" }
+                $0.pdf.render.configuration.namingStrategy = .init { _ in "stream2-\(UUID().uuidString)" }
             } operation: {
-                let stream2 = try await pdf.renderBatch([String](repeating: .html, count: count), output)
+                let stream2 = try await pdf.render.client.renderBatch([String](repeating: .html, count: count), output)
 
                 for try await result in stream2 {
                     #expect(FileManager.default.fileExists(atPath: result.url.path))

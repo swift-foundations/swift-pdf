@@ -17,7 +17,7 @@ struct VisualVerificationTests {
     func generateVerificationPDF() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -241,7 +241,7 @@ struct VisualVerificationTests {
             print("\nOutput location:")
             print("  \(output.path)")
 
-            let url = try await pdf.render(htmlString, output)
+            let url = try await pdf.render.client.html(htmlString, output)
 
             if FileManager.default.fileExists(atPath: url.path) {
                 let attrs = try FileManager.default.attributesOfItem(atPath: url.path)

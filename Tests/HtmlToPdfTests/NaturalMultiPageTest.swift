@@ -18,7 +18,7 @@ struct NaturalMultiPageTests {
     func generateNaturalMultiPagePDF() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paginationMode = .paginated  // Use proper pagination for multi-page
+            $0.pdf.render.configuration.paginationMode = .paginated  // Use proper pagination for multi-page
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -118,7 +118,7 @@ struct NaturalMultiPageTests {
             print("\nExpected: 3-4 pages of content")
             print("Items: 200 test items")
 
-            let url = try await pdf.render(htmlString, output)
+            let url = try await pdf.render.client.html(htmlString, output)
 
             if FileManager.default.fileExists(atPath: url.path) {
                 let attrs = try FileManager.default.attributesOfItem(atPath: url.path)

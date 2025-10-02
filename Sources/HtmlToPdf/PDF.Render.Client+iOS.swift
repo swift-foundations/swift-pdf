@@ -1,5 +1,5 @@
 //
-//  PDF.Client+iOS.swift
+//  PDF.Render.Client+iOS.swift
 //  swift-html-to-pdf
 //
 //  iOS-specific implementation using UIPrintPageRenderer
@@ -12,16 +12,68 @@ import Foundation
 import UIKit
 import WebKit
 
-extension PDF.Client: DependencyKey {
+extension PDF.Render.Client: DependencyKey {
     public static let liveValue: Self = .iOS
 }
 
-extension PDF.Client {
+extension PDF.Render.Client {
     /// iOS-specific implementation using UIPrintPageRenderer
-    public static let iOS = PDF.Client(
-        render: { documents in
-            @Dependency(\.pdf.configuration) var config
+    public static let iOS = PDF.Render.Client(
+        documents: { documents in
+            @Dependency(\.pdf.render.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
+        },
+        document: { document in
+            @Dependency(\.pdf.render.configuration) var config
+            let stream = try await renderDocumentsInternal([document], config: config)
+            for try await result in stream {
+                return result.url
+            }
+            throw PrintingError.pdfGenerationFailed(
+                underlyingError: NSError(
+                    domain: "HtmlToPdf",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
+                )
+            )
+        },
+        html: { html, destination in
+            @Dependency(\.pdf.render.configuration) var config
+            let document = PDF.Document(htmlString: html, destination: destination)
+            let stream = try await renderDocumentsInternal([document], config: config)
+            for try await result in stream {
+                return result.url
+            }
+            throw PrintingError.pdfGenerationFailed(
+                underlyingError: NSError(
+                    domain: "HtmlToPdf",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
+                )
+            )
+        },
+        data: { html in
+            @Dependency(\.pdf.render.configuration) var config
+            let tempURL = URL.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("pdf")
+
+            defer {
+                try? FileManager.default.removeItem(at: tempURL)
+            }
+
+            let document = PDF.Document(htmlString: html, destination: tempURL)
+            let stream = try await renderDocumentsInternal([document], config: config)
+            for try await _ in stream {
+                return try Data(contentsOf: tempURL)
+            }
+            throw PrintingError.pdfGenerationFailed(
+                underlyingError: NSError(
+                    domain: "HtmlToPdf",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
+                )
+            )
         },
         capabilities: {
             .iOS

@@ -19,7 +19,7 @@ struct ErrorHandlingTests {
     func testMalformedHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -29,9 +29,9 @@ struct ErrorHandlingTests {
                 .appendingPathExtension("pdf")
 
             // Should still generate a PDF even with malformed HTML
-            _ = try await pdf.render(malformedHTML, output)
+            let result = try await pdf.render.client.html(malformedHTML, output)
 
-            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created even with malformed HTML")
+            #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created even with malformed HTML")
 
             // Cleanup
             try? FileManager.default.removeItem(at: output)
@@ -42,7 +42,7 @@ struct ErrorHandlingTests {
     func testEmptyHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -51,9 +51,9 @@ struct ErrorHandlingTests {
                 .appendingPathComponent("empty-test")
                 .appendingPathExtension("pdf")
 
-            try await pdf.render(emptyHTML, output)
+            let result = try await pdf.render.client.html(emptyHTML, output)
 
-            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created even with empty HTML")
+            #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created even with empty HTML")
 
             // Cleanup
             try? FileManager.default.removeItem(at: output)
@@ -64,8 +64,8 @@ struct ErrorHandlingTests {
     func testLargeHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.documentTimeout = .seconds(60) // 60 seconds for large document
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.documentTimeout = .seconds(60) // 60 seconds for large document
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -77,9 +77,9 @@ struct ErrorHandlingTests {
                 .appendingPathComponent("large-test")
                 .appendingPathExtension("pdf")
 
-            _ = try await pdf.render(largeHTML, output)
+            let result = try await pdf.render.client.html(largeHTML, output)
 
-            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created for large HTML")
+            #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created for large HTML")
 
             // Cleanup
             try? FileManager.default.removeItem(at: output)
@@ -92,8 +92,8 @@ struct ErrorHandlingTests {
     func testInvalidFilePath() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.createDirectories = false
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.createDirectories = false
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -101,7 +101,7 @@ struct ErrorHandlingTests {
             let invalidPath = URL(fileURLWithPath: "/invalid/path/that/does/not/exist/test.pdf")
 
             do {
-                try await pdf.render(html, invalidPath)
+                try await pdf.render.client.html(html, invalidPath)
                 Issue.record("Should have thrown an error for invalid path")
             } catch {
                 // Expected to fail
@@ -114,8 +114,8 @@ struct ErrorHandlingTests {
     func testDirectoryCreation() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.createDirectories = true
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.createDirectories = true
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -127,9 +127,9 @@ struct ErrorHandlingTests {
                 .appendingPathComponent("test.pdf")
 
             // Should create all intermediate directories
-            _ = try await pdf.render(html, nestedPath)
+            let result = try await pdf.render.client.html(html, nestedPath)
 
-            #expect(FileManager.default.fileExists(atPath: nestedPath.path))
+            #expect(FileManager.default.fileExists(atPath: result.path))
 
             // Cleanup - remove the top-level created directory
             let topLevelDir = nestedPath
@@ -146,9 +146,9 @@ struct ErrorHandlingTests {
     func testWebViewPoolTimeout() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.concurrency = 1  // Very limited pool
-            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(1)  // Short timeout
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.concurrency = 1  // Very limited pool
+            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(1)  // Short timeout
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -166,14 +166,15 @@ struct ErrorHandlingTests {
                     group.addTask { @Sendable in
                         await withDependencies {
                             $0.pdf = .liveValue
-                            $0.pdf.configuration = .default
-                            $0.pdf.configuration.concurrency = 1
-                            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(1)
+                            $0.pdf.render.configuration = .default
+                            $0.pdf.render.configuration.concurrency = 1
+                            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(1)
                         } operation: {
                             @Dependency(\.pdf) var taskPdf
                             do {
                                 let html = "<html><body><h1>Document \(i)</h1></body></html>"
-                                _ = try await taskPdf.render(html, title: "doc-\(i)", in: outputDir)
+                                let doc = PDF.Document(htmlString: html, title: "doc-\(i)", in: outputDir)
+                                _ = try await taskPdf.render.client.document(doc)
                             } catch {
                                 // Some operations may timeout, which is expected
                             }
@@ -193,9 +194,9 @@ struct ErrorHandlingTests {
     func testWebViewPoolUnderLoad() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.concurrency = 2
-            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(30)
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.concurrency = 2
+            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(30)
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -211,7 +212,7 @@ struct ErrorHandlingTests {
                 "<html><body><h1>Document \(i)</h1></body></html>"
             }
 
-            let urls = try await pdf.renderBatchSync(htmls, output)
+            let urls = try await pdf.render.client.renderBatchSync(htmls, output)
 
             #expect(urls.count == count, "All documents should complete despite pool queueing")
         }
@@ -223,8 +224,8 @@ struct ErrorHandlingTests {
     func testDocumentTimeout() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.documentTimeout = .milliseconds(1) // Very short timeout
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.documentTimeout = .milliseconds(1) // Very short timeout
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -249,11 +250,11 @@ struct ErrorHandlingTests {
                 .appendingPathExtension("pdf")
 
             do {
-                try await pdf.render(complexHTML, output)
+                let result = try await pdf.render.client.html(complexHTML, output)
                 // If we get here, the timeout might not have worked, but the document might be simple enough
                 // Check if file was created
-                if FileManager.default.fileExists(atPath: output.path) {
-                    try? FileManager.default.removeItem(at: output)
+                if FileManager.default.fileExists(atPath: result.path) {
+                    try? FileManager.default.removeItem(at: result)
                 }
             } catch {
                 // Expected to timeout
@@ -268,7 +269,7 @@ struct ErrorHandlingTests {
     func testSpecialCharactersInFilename() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -289,7 +290,8 @@ struct ErrorHandlingTests {
                 .appendingPathComponent(UUID().uuidString)
 
             for name in specialNames {
-                _ = try await pdf.render(html, title: name, in: outputDir)
+                let doc = PDF.Document(htmlString: html, title: name, in: outputDir)
+                _ = try await pdf.render.client.document(doc)
             }
 
             let files = try FileManager.default.contentsOfDirectory(
@@ -332,7 +334,7 @@ struct PrintingErrorTests {
     func testResourcePoolErrorHandling() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -347,8 +349,8 @@ struct PrintingErrorTests {
             }
 
             // Should still succeed even with resource constraints
-            _ = try await pdf.render(html, output)
-            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created despite resource constraints")
+            let result = try await pdf.render.client.html(html, output)
+            #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created despite resource constraints")
         }
     }
 }

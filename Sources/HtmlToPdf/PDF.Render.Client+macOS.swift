@@ -1,5 +1,5 @@
 //
-//  PDF.Client+macOS.swift
+//  PDF.Render.Client+macOS.swift
 //  swift-html-to-pdf
 //
 //  macOS-specific implementation using WKWebView
@@ -16,13 +16,15 @@ import PDFKit
 
 extension PDF: DependencyKey {
     public static let liveValue = PDF(
-        client: .macOS,
-        configuration: .default
+        render: .liveValue
     )
 }
 
-extension PDF.Client: DependencyKey {
-    public static let liveValue: Self = .macOS
+extension PDF.Render: DependencyKey {
+    public static let liveValue = PDF.Render(
+        client: .macOS,
+        configuration: .default
+    )
 }
 
 // MARK: - Directory Cache
@@ -134,12 +136,64 @@ private func getPrintInfoCache() -> PrintInfoCache {
 
 // MARK: - Client Implementation
 
-extension PDF.Client {
+extension PDF.Render.Client {
     /// macOS-specific implementation using WKWebView and NSPrintOperation
-    public static let macOS = PDF.Client(
-        render: { documents in
-            @Dependency(\.pdf.configuration) var config
+    public static let macOS = PDF.Render.Client(
+        documents: { documents in
+            @Dependency(\.pdf.render.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
+        },
+        document: { document in
+            @Dependency(\.pdf.render.configuration) var config
+            let stream = try await renderDocumentsInternal([document], config: config)
+            for try await result in stream {
+                return result.url
+            }
+            throw PrintingError.pdfGenerationFailed(
+                underlyingError: NSError(
+                    domain: "HtmlToPdf",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
+                )
+            )
+        },
+        html: { html, destination in
+            @Dependency(\.pdf.render.configuration) var config
+            let document = PDF.Document(htmlString: html, destination: destination)
+            let stream = try await renderDocumentsInternal([document], config: config)
+            for try await result in stream {
+                return result.url
+            }
+            throw PrintingError.pdfGenerationFailed(
+                underlyingError: NSError(
+                    domain: "HtmlToPdf",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
+                )
+            )
+        },
+        data: { html in
+            @Dependency(\.pdf.render.configuration) var config
+            let tempURL = URL.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("pdf")
+
+            defer {
+                try? FileManager.default.removeItem(at: tempURL)
+            }
+
+            let document = PDF.Document(htmlString: html, destination: tempURL)
+            let stream = try await renderDocumentsInternal([document], config: config)
+            for try await _ in stream {
+                return try Data(contentsOf: tempURL)
+            }
+            throw PrintingError.pdfGenerationFailed(
+                underlyingError: NSError(
+                    domain: "HtmlToPdf",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "No results returned from render operation"]
+                )
+            )
         },
         capabilities: {
             .macOS

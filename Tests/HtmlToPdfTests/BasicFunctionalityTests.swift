@@ -19,7 +19,7 @@ struct BasicFunctionalityTests {
     func testSinglePDFGeneration() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -30,7 +30,7 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let result = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created")
 
@@ -43,7 +43,7 @@ struct BasicFunctionalityTests {
     func testPDFWithTitle() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -55,7 +55,8 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: directory)
             }
 
-            let result = try await pdf.render(html, title: filename, in: directory)
+            let doc = PDF.Document(htmlString: html, title: filename, in: directory)
+            let result = try await pdf.render.client.document(doc)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with correct filename should exist")
         }
@@ -65,8 +66,8 @@ struct BasicFunctionalityTests {
     func testCustomConfiguration() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paperSize = .a4.landscape
-            $0.pdf.configuration.margins = .wide
+            $0.pdf.render.configuration.paperSize = .a4.landscape
+            $0.pdf.render.configuration.margins = .wide
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -77,7 +78,7 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let result = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with custom config should be created")
         }
@@ -89,7 +90,7 @@ struct BasicFunctionalityTests {
     func testSmallBatch() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -102,7 +103,7 @@ struct BasicFunctionalityTests {
 
             // Test batch from strings
             let htmls = [String](repeating: .html, count: count)
-            let urls = try await pdf.renderBatchSync(htmls, output)
+            let urls = try await pdf.render.client.renderBatchSync(htmls, output)
 
             #expect(urls.count == count, "Should create \(count) PDF files from strings")
 
@@ -125,7 +126,7 @@ struct BasicFunctionalityTests {
             }
 
             var resultCount = 0
-            for try await _ in try await pdf.render(documents) {
+            for try await _ in try await pdf.render.client.documents(documents) {
                 resultCount += 1
             }
 
@@ -142,7 +143,7 @@ struct BasicFunctionalityTests {
     func testComplexHTML() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -153,7 +154,7 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let result = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "Complex HTML PDF should be created")
 
@@ -168,12 +169,12 @@ struct BasicFunctionalityTests {
     func testRenderToData() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
             let html = String.html
-            let data = try await pdf.renderToData(html)
+            let data = try await pdf.render.client.data(html)
 
             #expect(data.count > 1000, "PDF data should have substantial content")
             // PDF files start with "%PDF" (0x25 0x50 0x44 0x46)
@@ -188,7 +189,7 @@ struct BasicFunctionalityTests {
         } operation: {
             @Dependency(\.pdf) var pdf
 
-            let caps = pdf.capabilities()
+            let caps = pdf.render.client.capabilities()
             #if os(macOS)
             #expect(caps.supportsWebViewPooling == true, "macOS should support WebView pooling")
             #expect(caps.supportsBackgroundRendering == true, "macOS should support background rendering")
@@ -207,8 +208,8 @@ struct BasicFunctionalityTests {
     func testBaseURLConfiguration() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.baseURL = URL(string: "https://example.com")
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.baseURL = URL(string: "https://example.com")
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -228,7 +229,7 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let result = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with baseURL should be created")
         }
@@ -238,8 +239,8 @@ struct BasicFunctionalityTests {
     func testUSLetterPaperSize() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.paperSize = .letter
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.paperSize = .letter
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -250,7 +251,7 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let result = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "US Letter PDF should be created")
         }
@@ -260,8 +261,8 @@ struct BasicFunctionalityTests {
     func testA3PaperSize() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.paperSize = .a3
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.paperSize = .a3
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -272,7 +273,7 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let result = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "A3 PDF should be created")
         }
@@ -282,8 +283,8 @@ struct BasicFunctionalityTests {
     func testMinimalMargins() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.margins = .minimal
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.margins = .minimal
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -294,7 +295,7 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let result = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with minimal margins should be created")
         }

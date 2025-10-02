@@ -28,9 +28,9 @@ struct StressTests {
     func test1MPDFs() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.concurrency = 8
-            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(600)
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.concurrency = 8
+            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -104,7 +104,7 @@ struct StressTests {
             print("Pool size: 8 WebViews")
             print("Starting generation...\n")
 
-            let stream = try await pdf.render(documents)
+            let stream = try await pdf.render.client.documents(documents)
 
             for try await _ in stream {
                 _ = await tracker.recordCompletion()
@@ -149,9 +149,9 @@ struct StressTests {
     func test100kPDFs() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.concurrency = 8
-            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(300)
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.concurrency = 8
+            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -218,7 +218,7 @@ struct StressTests {
             print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
             print("Pool size: 8 WebViews")
 
-            let stream = try await pdf.render(documents)
+            let stream = try await pdf.render.client.documents(documents)
 
             for try await _ in stream {
                 _ = await tracker.recordCompletion()
@@ -253,9 +253,9 @@ struct StressTests {
     func test1kComplexPDFs() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
-            $0.pdf.configuration.concurrency = 6
-            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(120)
+            $0.pdf.render.configuration = .default
+            $0.pdf.render.configuration.concurrency = 6
+            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -304,7 +304,7 @@ struct StressTests {
 
             print("Starting 1k complex PDF generation test...")
 
-            _ = try await pdf.renderBatchSync(htmls, output)
+            _ = try await pdf.render.client.renderBatchSync(htmls, output)
 
             let duration = Date().timeIntervalSince(startTime)
 
@@ -326,7 +326,7 @@ struct StressTests {
     func testSustainedLoad() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration = .default
+            $0.pdf.render.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -365,7 +365,7 @@ struct StressTests {
                                 let html = "<html><body><p>PDF \(count)</p></body></html>"
                                 let destination = outputDir.appendingPathComponent("sustained-\(count).pdf")
 
-                                _ = try await pdf.render(html, destination)
+                                _ = try await pdf.render.client.html(html, destination)
 
                                 // Brief pause to simulate realistic workload
                                 try? await Task.sleep(for: .milliseconds(100))

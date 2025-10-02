@@ -18,7 +18,7 @@ struct PaginationModeTests {
     func paginatedModeLongContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paginationMode = .paginated
+            $0.pdf.render.configuration.paginationMode = .paginated
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -36,7 +36,7 @@ struct PaginationModeTests {
             </html>
             """
 
-            let url = try await pdf.render(html, output)
+            let url = try await pdf.render.client.html(html, output)
 
             // Verify multiple pages were created
             guard let pdfDoc = PDFDocument(url: url) else {
@@ -59,7 +59,7 @@ struct PaginationModeTests {
     func continuousModeLongContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paginationMode = .continuous
+            $0.pdf.render.configuration.paginationMode = .continuous
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -77,7 +77,7 @@ struct PaginationModeTests {
             </html>
             """
 
-            let url = try await pdf.render(html, output)
+            let url = try await pdf.render.client.html(html, output)
 
             // Verify single page was created
             guard let pdfDoc = PDFDocument(url: url) else {
@@ -100,7 +100,7 @@ struct PaginationModeTests {
     func automaticModeShortContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paginationMode = .automatic()
+            $0.pdf.render.configuration.paginationMode = .automatic()
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -116,7 +116,7 @@ struct PaginationModeTests {
             </html>
             """
 
-            let url = try await pdf.render(html, output)
+            let url = try await pdf.render.client.html(html, output)
 
             guard let pdfDoc = PDFDocument(url: url) else {
                 throw NSError(domain: "Failed to load PDF", code: -1)
@@ -132,7 +132,7 @@ struct PaginationModeTests {
     func automaticModeLongContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paginationMode = .automatic(heuristic: .contentLength(threshold: 1.5))
+            $0.pdf.render.configuration.paginationMode = .automatic(heuristic: .contentLength(threshold: 1.5))
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -150,7 +150,7 @@ struct PaginationModeTests {
             </html>
             """
 
-            let url = try await pdf.render(html, output)
+            let url = try await pdf.render.client.html(html, output)
 
             guard let pdfDoc = PDFDocument(url: url) else {
                 throw NSError(domain: "Failed to load PDF", code: -1)
@@ -175,8 +175,8 @@ struct PaginationModeTests {
         // Test paginated mode with margins
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paginationMode = .paginated
-            $0.pdf.configuration.margins = .wide  // 72pt margins
+            $0.pdf.render.configuration.paginationMode = .paginated
+            $0.pdf.render.configuration.margins = .wide  // 72pt margins
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -184,16 +184,16 @@ struct PaginationModeTests {
             defer { try? FileManager.default.removeItem(at: output) }
 
             let html = "<html><body><p>Test margins in paginated mode</p></body></html>"
-            _ = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
-            #expect(FileManager.default.fileExists(atPath: output.path), "Paginated PDF with margins should be created")
+            #expect(FileManager.default.fileExists(atPath: result.path), "Paginated PDF with margins should be created")
         }
 
         // Test continuous mode with margins
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdf.configuration.paginationMode = .continuous
-            $0.pdf.configuration.margins = .wide  // 72pt margins
+            $0.pdf.render.configuration.paginationMode = .continuous
+            $0.pdf.render.configuration.margins = .wide  // 72pt margins
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -201,9 +201,9 @@ struct PaginationModeTests {
             defer { try? FileManager.default.removeItem(at: output) }
 
             let html = "<html><body><p>Test margins in continuous mode</p></body></html>"
-            _ = try await pdf.render(html, output)
+            let result = try await pdf.render.client.html(html, output)
 
-            #expect(FileManager.default.fileExists(atPath: output.path), "Continuous PDF with margins should be created")
+            #expect(FileManager.default.fileExists(atPath: result.path), "Continuous PDF with margins should be created")
         }
     }
 }
