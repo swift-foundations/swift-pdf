@@ -40,11 +40,76 @@ try await [
 .print(to: directory)
 ```
 
+## Pagination Modes
+
+HtmlToPdf supports different pagination styles to match your use case:
+
+### Paginated PDFs (Print-Ready)
+
+Split content into multiple pages with proper dimensions - perfect for printing:
+
+```swift
+try await withDependencies {
+    $0.pdfConfiguration.paginationMode = .paginated
+} operation: {
+    @Dependency(\.pdf) var pdf
+    try await pdf.render(invoice, output)
+}
+// Result: Multiple A4 pages (595 × 842 pt each)
+```
+
+### Continuous PDFs (Screen Viewing)
+
+Single tall page containing all content - ideal for web viewing:
+
+```swift
+try await withDependencies {
+    $0.pdfConfiguration.paginationMode = .continuous
+} operation: {
+    @Dependency(\.pdf) var pdf
+    try await pdf.render(article, output)
+}
+// Result: Single tall page (595 × content-height pt)
+```
+
+### Automatic Detection
+
+Let the system choose the best approach based on content analysis:
+
+```swift
+try await withDependencies {
+    $0.pdfConfiguration.paginationMode = .automatic()
+} operation: {
+    @Dependency(\.pdf) var pdf
+    let result = try await pdf.render(html, output)
+    print("Generated \(result.pageCount) pages")
+}
+// Automatically uses:
+// - Continuous mode for short content (fast)
+// - Paginated mode for long content (print-ready)
+```
+
+### Configuration Presets
+
+```swift
+// Default: Paginated mode (print-ready)
+$0.pdfConfiguration = .default
+
+// Fast continuous mode
+$0.pdfConfiguration = .continuous
+
+// Smart auto-detection
+$0.pdfConfiguration = .smart
+
+// Multi-page (alias for paginated)
+$0.pdfConfiguration = .multiPage
+```
+
 ## Configuration Options
 
-### PrintingConfiguration
+### PDF Configuration
 
-Control printing behavior and resource management with `PrintingConfiguration`:
+Control printing behavior and resource management with `PDF.Configuration`:
 
 ```swift
 // Default configuration - suitable for most use cases

@@ -116,10 +116,8 @@ extension WebViewPoolClient: DependencyKey {
 
             // Create configuration
             let usePersistentDataStore = env["WEBVIEW_PERSISTENT_DATA_STORE"]?.lowercased() == "true"
-            let useIsolatedProcessPool = env["WEBVIEW_ISOLATED_PROCESS_POOL"]?.lowercased() == "true"
             let config = WKWebViewResourceConfig(
-                usePersistentDataStore: usePersistentDataStore,
-                useIsolatedProcessPool: useIsolatedProcessPool
+                usePersistentDataStore: usePersistentDataStore
             )
 
             // Create pool with warmup

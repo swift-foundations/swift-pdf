@@ -7,6 +7,7 @@
 
 import Testing
 import Foundation
+import Dependencies
 @testable import HtmlToPdf
 
 @Suite("Error Handling Tests", .serialized)
@@ -16,253 +17,292 @@ struct ErrorHandlingTests {
 
     @Test("Handles malformed HTML gracefully")
     func testMalformedHTML() async throws {
-        let malformedHTML = "<html><body><h1>Unclosed tag<body></html>"
-        let output = URL.temporaryDirectory
-            .appendingPathComponent("malformed-test")
-            .appendingPathExtension("pdf")
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+        } operation: {
+            @Dependency(\.pdf) var pdf
 
-        // Should still generate a PDF even with malformed HTML
-        try await malformedHTML.print(to: output, configuration: .a4)
+            let malformedHTML = "<html><body><h1>Unclosed tag<body></html>"
+            let output = URL.temporaryDirectory
+                .appendingPathComponent("malformed-test")
+                .appendingPathExtension("pdf")
 
-        #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created even with malformed HTML")
+            // Should still generate a PDF even with malformed HTML
+            _ = try await pdf.render(malformedHTML, output)
 
-        // Cleanup
-        try? FileManager.default.removeItem(at: output)
+            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created even with malformed HTML")
+
+            // Cleanup
+            try? FileManager.default.removeItem(at: output)
+        }
     }
 
     @Test("Handles empty HTML")
     func testEmptyHTML() async throws {
-        let emptyHTML = ""
-        let output = URL.temporaryDirectory
-            .appendingPathComponent("empty-test")
-            .appendingPathExtension("pdf")
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+        } operation: {
+            @Dependency(\.pdf) var pdf
 
-        try await emptyHTML.print(to: output, configuration: .a4)
+            let emptyHTML = ""
+            let output = URL.temporaryDirectory
+                .appendingPathComponent("empty-test")
+                .appendingPathExtension("pdf")
 
-        #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created even with empty HTML")
+            try await pdf.render(emptyHTML, output)
 
-        // Cleanup
-        try? FileManager.default.removeItem(at: output)
+            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created even with empty HTML")
+
+            // Cleanup
+            try? FileManager.default.removeItem(at: output)
+        }
     }
 
     @Test("Handles extremely large HTML")
     func testLargeHTML() async throws {
-        // Generate large HTML content (1MB+)
-        let largeContent = String(repeating: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>", count: 10000)
-        let largeHTML = "<html><body>\(largeContent)</body></html>"
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.documentTimeout = .seconds(60) // 60 seconds for large document
+        } operation: {
+            @Dependency(\.pdf) var pdf
 
-        let output = URL.temporaryDirectory
-            .appendingPathComponent("large-test")
-            .appendingPathExtension("pdf")
+            // Generate large HTML content (1MB+)
+            let largeContent = String(repeating: "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>", count: 10000)
+            let largeHTML = "<html><body>\(largeContent)</body></html>"
 
-        // Use custom config with longer timeout
-        let config = PrintingConfiguration(
-            documentTimeout: 60  // 60 seconds for large document
-        )
+            let output = URL.temporaryDirectory
+                .appendingPathComponent("large-test")
+                .appendingPathExtension("pdf")
 
-        try await largeHTML.print(
-            to: output,
-            configuration: .a4,
-            printingConfiguration: config
-        )
+            _ = try await pdf.render(largeHTML, output)
 
-        #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created for large HTML")
+            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created for large HTML")
 
-        // Cleanup
-        try? FileManager.default.removeItem(at: output)
+            // Cleanup
+            try? FileManager.default.removeItem(at: output)
+        }
     }
 
     // MARK: - File System Error Tests
 
     @Test("Handles invalid file path")
     func testInvalidFilePath() async throws {
-        let html = "<html><body>Test</body></html>"
-        let invalidPath = URL(fileURLWithPath: "/invalid/path/that/does/not/exist/test.pdf")
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.createDirectories = false
+        } operation: {
+            @Dependency(\.pdf) var pdf
 
-        do {
-            try await html.print(to: invalidPath, configuration: .a4, createDirectories: false)
-            Issue.record("Should have thrown an error for invalid path")
-        } catch {
-            // Expected to fail
-            #expect(error.localizedDescription.contains("exist") || error.localizedDescription.contains("write"))
+            let html = "<html><body>Test</body></html>"
+            let invalidPath = URL(fileURLWithPath: "/invalid/path/that/does/not/exist/test.pdf")
+
+            do {
+                try await pdf.render(html, invalidPath)
+                Issue.record("Should have thrown an error for invalid path")
+            } catch {
+                // Expected to fail
+                #expect(error.localizedDescription.contains("exist") || error.localizedDescription.contains("write"))
+            }
         }
     }
 
     @Test("Creates directories when requested")
     func testDirectoryCreation() async throws {
-        let html = "<html><body>Test</body></html>"
-        let nestedPath = URL.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathComponent("nested")
-            .appendingPathComponent("directories")
-            .appendingPathComponent("test.pdf")
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.createDirectories = true
+        } operation: {
+            @Dependency(\.pdf) var pdf
 
-        // Should create all intermediate directories
-        try await html.print(to: nestedPath, configuration: .a4, createDirectories: true)
+            let html = "<html><body>Test</body></html>"
+            let nestedPath = URL.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathComponent("nested")
+                .appendingPathComponent("directories")
+                .appendingPathComponent("test.pdf")
 
-        #expect(FileManager.default.fileExists(atPath: nestedPath.path))
+            // Should create all intermediate directories
+            _ = try await pdf.render(html, nestedPath)
 
-        // Cleanup - remove the top-level created directory
-        let topLevelDir = nestedPath
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        try? FileManager.default.removeItem(at: topLevelDir)
+            #expect(FileManager.default.fileExists(atPath: nestedPath.path))
+
+            // Cleanup - remove the top-level created directory
+            let topLevelDir = nestedPath
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            try? FileManager.default.removeItem(at: topLevelDir)
+        }
+    }
+
+    // MARK: - WebView Pool Error Tests
+
+    @Test("Handles WebView pool resource timeout")
+    func testWebViewPoolTimeout() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.concurrency = 1  // Very limited pool
+            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(1)  // Short timeout
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let output = URL.temporaryDirectory
+                .appendingPathComponent("pool-timeout-test")
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            // Launch many concurrent operations to exhaust the pool
+            await withTaskGroup(of: Void.self) { group in
+                for i in 1...10 {
+                    let outputDir = output
+                    group.addTask { @Sendable in
+                        await withDependencies {
+                            $0.pdf = .liveValue
+                            $0.pdf.configuration = .default
+                            $0.pdf.configuration.concurrency = 1
+                            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(1)
+                        } operation: {
+                            @Dependency(\.pdf) var taskPdf
+                            do {
+                                let html = "<html><body><h1>Document \(i)</h1></body></html>"
+                                _ = try await taskPdf.render(html, title: "doc-\(i)", in: outputDir)
+                            } catch {
+                                // Some operations may timeout, which is expected
+                            }
+                        }
+                    }
+                }
+                await group.waitForAll()
+            }
+
+            // At least some PDFs should be created despite pool pressure
+            let files = (try? FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)) ?? []
+            #expect(files.count > 0, "Some PDFs should be created despite pool pressure")
+        }
+    }
+
+    @Test("Handles WebView pool under heavy concurrent load")
+    func testWebViewPoolUnderLoad() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.concurrency = 2
+            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(30)
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let count = 20
+            let output = URL.output()
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            // Launch more concurrent operations than the pool size
+            let htmls = (1...count).map { i in
+                "<html><body><h1>Document \(i)</h1></body></html>"
+            }
+
+            let urls = try await pdf.renderBatchSync(htmls, output)
+
+            #expect(urls.count == count, "All documents should complete despite pool queueing")
+        }
     }
 
     // MARK: - Timeout Tests
 
     @Test("Respects document timeout")
     func testDocumentTimeout() async throws {
-        // Create HTML that takes time to render (complex content)
-        let complexHTML = """
-        <html>
-        <head>
-            <style>
-                @media print {
-                    .page-break { page-break-after: always; }
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.documentTimeout = .milliseconds(1) // Very short timeout
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            // Create HTML that takes time to render (complex content)
+            let complexHTML = """
+            <html>
+            <head>
+                <style>
+                    @media print {
+                        .page-break { page-break-after: always; }
+                    }
+                </style>
+            </head>
+            <body>
+                \(String(repeating: "<div class='page-break'><h1>Page</h1></div>", count: 100))
+            </body>
+            </html>
+            """
+
+            let output = URL.temporaryDirectory
+                .appendingPathComponent("timeout-test")
+                .appendingPathExtension("pdf")
+
+            do {
+                try await pdf.render(complexHTML, output)
+                // If we get here, the timeout might not have worked, but the document might be simple enough
+                // Check if file was created
+                if FileManager.default.fileExists(atPath: output.path) {
+                    try? FileManager.default.removeItem(at: output)
                 }
-            </style>
-        </head>
-        <body>
-            \(String(repeating: "<div class='page-break'><h1>Page</h1></div>", count: 100))
-        </body>
-        </html>
-        """
-
-        let output = URL.temporaryDirectory
-            .appendingPathComponent("timeout-test")
-            .appendingPathExtension("pdf")
-
-        // Use very short timeout to trigger error
-        let config = PrintingConfiguration(
-            documentTimeout: 0.001  // 1 millisecond - should timeout
-        )
-
-        do {
-            try await complexHTML.print(
-                to: output,
-                configuration: .a4,
-                printingConfiguration: config
-            )
-            // If we get here, the timeout might not have worked, but the document might be simple enough
-            // Check if file was created
-            if FileManager.default.fileExists(atPath: output.path) {
-                try? FileManager.default.removeItem(at: output)
+            } catch {
+                // Expected to timeout
+                #expect(error.localizedDescription.contains("timeout") || error.localizedDescription.contains("timed out"))
             }
-        } catch {
-            // Expected to timeout
-            #expect(error.localizedDescription.contains("timeout") || error.localizedDescription.contains("timed out"))
         }
     }
-
-    // MARK: - Concurrent Operation Tests
-
-
-    // MARK: - Progress Tracking Tests
-
-    @Test("Tracks progress accurately")
-    func testProgressTracking() async throws {
-        let documentCount = 5
-        let htmls = (0..<documentCount).map { i in
-            "<html><body><h1>Document \(i)</h1></body></html>"
-        }
-
-        let outputDir = URL.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-
-        // Use a thread-safe collection for progress updates
-        final class ProgressCollector: @unchecked Sendable {
-            private let lock = NSLock()
-            private var updates: [(Int, Int)] = []
-
-            func addUpdate(_ completed: Int, _ total: Int) {
-                lock.lock()
-                defer { lock.unlock() }
-                updates.append((completed, total))
-            }
-
-            func getUpdates() -> [(Int, Int)] {
-                lock.lock()
-                defer { lock.unlock() }
-                return updates
-            }
-        }
-
-        let collector = ProgressCollector()
-
-        let config = PrintingConfiguration(
-            progressHandler: { completed, total in
-                // Directly add to collector without async Task
-                collector.addUpdate(completed, total)
-            }
-        )
-
-        try await htmls.print(
-            to: outputDir,
-            configuration: .a4,
-            printingConfiguration: config
-        )
-
-        let progressUpdates = collector.getUpdates()
-
-        // Should have received progress updates
-        #expect(progressUpdates.count > 0, "Should receive progress updates")
-
-        // Last update should show all documents completed
-        if let lastUpdate = progressUpdates.last {
-            #expect(lastUpdate.0 == documentCount, "Should complete all documents")
-            #expect(lastUpdate.1 == documentCount, "Total should match document count")
-        }
-
-        // Cleanup
-        try? FileManager.default.removeItem(at: outputDir)
-    }
-
-    // MARK: - WebView Pool Error Tests
-
 
     // MARK: - Special Characters Tests
 
     @Test("Handles special characters in filenames")
     func testSpecialCharactersInFilename() async throws {
-        let html = "<html><body><h1>Special Characters Test</h1></body></html>"
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+        } operation: {
+            @Dependency(\.pdf) var pdf
 
-        let specialNames = [
-            "test with spaces",
-            "test/with/slashes",
-            "test:with:colons",
-            "test?with?questions",
-            "test<with>brackets",
-            "test|with|pipes",
-            "test*with*asterisks",
-            "test\"with\"quotes"
-        ]
+            let html = "<html><body><h1>Special Characters Test</h1></body></html>"
 
-        let outputDir = URL.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
+            let specialNames = [
+                "test with spaces",
+                "test/with/slashes",
+                "test:with:colons",
+                "test?with?questions",
+                "test<with>brackets",
+                "test|with|pipes",
+                "test*with*asterisks",
+                "test\"with\"quotes"
+            ]
 
-        for name in specialNames {
-            try await html.print(
-                title: name,
-                to: outputDir,
-                configuration: .a4
+            let outputDir = URL.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+
+            for name in specialNames {
+                _ = try await pdf.render(html, title: name, in: outputDir)
+            }
+
+            let files = try FileManager.default.contentsOfDirectory(
+                at: outputDir,
+                includingPropertiesForKeys: nil
             )
+
+            #expect(files.count == specialNames.count, "All files should be created with sanitized names")
+
+            // Cleanup
+            try? FileManager.default.removeItem(at: outputDir)
         }
-
-        let files = try FileManager.default.contentsOfDirectory(
-            at: outputDir,
-            includingPropertiesForKeys: nil
-        )
-
-        #expect(files.count == specialNames.count, "All files should be created with sanitized names")
-
-        // Cleanup
-        try? FileManager.default.removeItem(at: outputDir)
     }
-
-    // MARK: - Memory Management Tests
-
 }
 
 // MARK: - Typed Error Tests
@@ -290,18 +330,25 @@ struct PrintingErrorTests {
 
     @Test("Error handling with resource pool")
     func testResourcePoolErrorHandling() async throws {
-        // Test timeout scenario with very short timeout
-        let html = "<html><body><h1>Test Document</h1></body></html>"
-        let output = URL.temporaryDirectory
-            .appendingPathComponent("timeout-test")
-            .appendingPathExtension("pdf")
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdf.configuration = .default
+        } operation: {
+            @Dependency(\.pdf) var pdf
 
-        defer {
-            try? FileManager.default.removeItem(at: output)
+            // Test timeout scenario with very short timeout
+            let html = "<html><body><h1>Test Document</h1></body></html>"
+            let output = URL.temporaryDirectory
+                .appendingPathComponent("timeout-test")
+                .appendingPathExtension("pdf")
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            // Should still succeed even with resource constraints
+            _ = try await pdf.render(html, output)
+            #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created despite resource constraints")
         }
-
-        // Should still succeed even with resource constraints
-        try await html.print(to: output, configuration: .a4)
-        #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created despite resource constraints")
     }
 }
