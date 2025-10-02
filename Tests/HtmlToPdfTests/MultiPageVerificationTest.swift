@@ -9,19 +9,19 @@ import Testing
 import Foundation
 import HtmlToPdf
 import Dependencies
+import DependenciesTestSupport
 
-@Suite("Multi-Page Verification")
+@Suite("Multi-Page Verification", .dependency(\.pdf, .liveValue))
 struct MultiPageVerificationTests {
-
-    @Test("Generate multi-page PDF with proper page breaks")
+    @Dependency(\.pdf) var pdf
+    
+    @Test(
+        "Generate multi-page PDF with proper page breaks",
+        .dependency(\.pdf.render.configuration, .multiPage)
+    )
     func generateMultiPagePDF() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            $0.pdf.render.configuration = .multiPage  // Use NSPrintOperation for correct multi-page dimensions
-        } operation: {
-            @Dependency(\.pdf) var pdf
 
-            let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
 
             // Create HTML with enough content to naturally flow across multiple pages
             // Each section is ~500px tall, and A4 is ~842px, so we need substantial content
@@ -263,9 +263,8 @@ struct MultiPageVerificationTests {
                 print("  • All special characters visible on page 3")
                 print("  • Final checklist visible on page 5")
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-            } else {
-                throw NSError(domain: "PDF not created", code: -1)
-            }
+        } else {
+            throw NSError(domain: "PDF not created", code: -1)
         }
     }
 }

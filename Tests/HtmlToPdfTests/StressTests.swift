@@ -16,24 +16,23 @@ extension Tag {
 
 @Suite(
     "Stress Tests",
+    .dependency(\.pdf, .liveValue),
     .serialized,
     .tags(.stress),
     .disabled("Run manually with: swift test --filter StressTests")
 )
 struct StressTests {
 
+    @Dependency(\.pdf) var pdf
+    
     // MARK: - Extreme Load Tests
 
     @Test("Generate 1,000,000 PDFs", .timeLimit(.minutes(120)))
     func test1MPDFs() async throws {
         try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 8
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
         } operation: {
-            @Dependency(\.pdf) var pdf
-
             // Suppress WebKit console warnings
             setenv("OS_ACTIVITY_MODE", "disable", 1)
 
@@ -148,13 +147,9 @@ struct StressTests {
     @Test("Generate 100,000 PDFs", .timeLimit(.minutes(30)))
     func test100kPDFs() async throws {
         try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 8
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
         } operation: {
-            @Dependency(\.pdf) var pdf
-
             let count = 100_000
             let filesPerDirectory = 1_000 // Keep directories manageable
             let output = URL.output()
@@ -252,13 +247,9 @@ struct StressTests {
     @Test("Generate 1,000 PDFs with complex HTML", .timeLimit(.minutes(5)))
     func test1kComplexPDFs() async throws {
         try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.concurrency = 6
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
         } operation: {
-            @Dependency(\.pdf) var pdf
-
             let count = 1_000
             let output = URL.output()
 
@@ -327,74 +318,68 @@ struct StressTests {
 
     @Test("Sustained load test - 5 minutes continuous generation")
     func testSustainedLoad() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
-        } operation: {
-            @Dependency(\.pdf) var pdf
-
-            let duration: TimeInterval = 300 // 5 minutes
-            let output = URL.output()
-
-            defer {
-                try? FileManager.default.removeItem(at: output)
+        let duration: TimeInterval = 300 // 5 minutes
+        let output = URL.output()
+        
+        defer {
+            try? FileManager.default.removeItem(at: output)
+        }
+        
+        actor Counter {
+            var count = 0
+            func increment() -> Int {
+                count += 1
+                return count
             }
-
-            actor Counter {
-                var count = 0
-                func increment() -> Int {
-                    count += 1
-                    return count
-                }
-                func get() -> Int { count }
-            }
-
-            let counter = Counter()
-            let startTime = Date()
-
-            print("Starting sustained load test (5 minutes)...")
-
-            // Generate PDFs continuously for 5 minutes
-            await withTaskGroup(of: Void.self) { group in
-                // Launch multiple concurrent generators
-                for batch in 1...10 {
-                    let testDuration = duration
-                    let start = startTime
-                    let outputDir = output
-                    group.addTask { @Sendable in
-                        while Date().timeIntervalSince(start) < testDuration {
-                            do {
-                                let count = await counter.increment()
-                                let html = "<html><body><p>PDF \(count)</p></body></html>"
-                                let destination = outputDir.appendingPathComponent("sustained-\(count).pdf")
-
-                                _ = try await pdf.render.client.html(html, destination)
-
-                                // Brief pause to simulate realistic workload
-                                try? await Task.sleep(for: .milliseconds(100))
-                            } catch {
-                                print("Error in batch \(batch): \(error)")
-                            }
+            func get() -> Int { count }
+        }
+        
+        let counter = Counter()
+        let startTime = Date()
+        
+        print("Starting sustained load test (5 minutes)...")
+        
+        // Generate PDFs continuously for 5 minutes
+        await withTaskGroup(of: Void.self) { group in
+            // Launch multiple concurrent generators
+            for batch in 1...10 {
+                let testDuration = duration
+                let start = startTime
+                let outputDir = output
+                group.addTask { @Sendable in
+                    while Date().timeIntervalSince(start) < testDuration {
+                        do {
+                            let count = await counter.increment()
+                            let html = "<html><body><p>PDF \(count)</p></body></html>"
+                            let destination = outputDir.appendingPathComponent("sustained-\(count).pdf")
+                            
+                            _ = try await pdf.render.client.html(html, destination)
+                            
+                            // Brief pause to simulate realistic workload
+                            try? await Task.sleep(for: .milliseconds(100))
+                        } catch {
+                            print("Error in batch \(batch): \(error)")
                         }
                     }
                 }
-
-                await group.waitForAll()
             }
-
-            let totalDuration = Date().timeIntervalSince(startTime)
-            let totalGenerated = await counter.get()
-
-            let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-
-            print("\n✅ Sustained Load Test Complete!")
-            print("Duration: \(String(format: "%.2f", totalDuration))s")
-            print("PDFs generated: \(totalGenerated)")
-            print("Average rate: \(String(format: "%.1f", Double(totalGenerated) / totalDuration)) PDFs/sec")
-            print("Files created: \(files.count)")
-
-            #expect(totalGenerated > 100, "Should generate substantial number of PDFs")
-            #expect(files.count == totalGenerated, "All PDFs should be created")
+            
+            await group.waitForAll()
         }
+        
+        let totalDuration = Date().timeIntervalSince(startTime)
+        let totalGenerated = await counter.get()
+        
+        let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+        
+        print("\n✅ Sustained Load Test Complete!")
+        print("Duration: \(String(format: "%.2f", totalDuration))s")
+        print("PDFs generated: \(totalGenerated)")
+        print("Average rate: \(String(format: "%.1f", Double(totalGenerated) / totalDuration)) PDFs/sec")
+        print("Files created: \(files.count)")
+        
+        #expect(totalGenerated > 100, "Should generate substantial number of PDFs")
+        #expect(files.count == totalGenerated, "All PDFs should be created")
+        
     }
 }

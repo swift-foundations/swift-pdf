@@ -9,19 +9,16 @@ import Testing
 import Foundation
 import HtmlToPdf
 import Dependencies
+import DependenciesTestSupport
 
-@Suite("Visual Verification (Manual)")
+@Suite("Visual Verification (Manual)", .dependency(\.pdf, .liveValue))
 struct VisualVerificationTests {
 
     @Test("Generate rich PDF for manual verification")
     func generateVerificationPDF() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
-        } operation: {
-            @Dependency(\.pdf) var pdf
+        @Dependency(\.pdf) var pdf
 
-            let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
 
             // Test 1: Rich HTML with ContiguousArray<UInt8>
             let htmlString = """
@@ -258,9 +255,8 @@ struct VisualVerificationTests {
                 print("  • Special characters display (emoji, math symbols)")
                 print("  • Typography and spacing look good")
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-            } else {
-                throw NSError(domain: "PDF not created", code: -1)
-            }
+        } else {
+            throw NSError(domain: "PDF not created", code: -1)
         }
     }
 }

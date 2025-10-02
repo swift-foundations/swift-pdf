@@ -20,9 +20,9 @@ extension Tag {
 ///
 /// These tests generate consistent performance metrics for documentation.
 /// Run multiple times and report the median results.
-@Suite("Performance Benchmarks", .serialized, .tags(.benchmark))
+@Suite("Performance Benchmarks", .dependency(\.pdf, .liveValue), .serialized, .tags(.benchmark))
 struct PerformanceBenchmarks {
-
+    @Dependency(\.pdf) var pdf
     // MARK: - Helper Types
 
     private actor PeakMemoryTracker {
@@ -179,105 +179,93 @@ struct PerformanceBenchmarks {
 
     @Test("Benchmark: Concurrent batches")
     func benchmarkConcurrentBatches() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
-        } operation: {
-            @Dependency(\.pdf) var pdf
-
-            let output = URL.output()
-            defer {
-                try? FileManager.default.removeItem(at: output)
-            }
-
-            let startTime = Date()
-
-            // Run 10 concurrent batches of 100 PDFs each
-            await withTaskGroup(of: Void.self) { group in
-                for batch in 1...10 {
-                    let outputDir = output
-                    group.addTask { @Sendable in
-                        try? await withDependencies {
-                            $0.pdf = .liveValue
-                            // $0.pdf.render.configuration = .default
-                            $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
-                        } operation: {
-                            @Dependency(\.pdf) var batchPdf
-                            let htmls = (1...100).map { i in
-                                "<html><body><p>Batch \(batch) - Doc \(i)</p></body></html>"
-                            }
-                            var urls: [URL] = []
-                            for try await result in try await batchPdf.render.client.html(htmls, to: outputDir) {
-                                urls.append(result.url)
-                            }
+        let output = URL.output()
+        defer {
+            try? FileManager.default.removeItem(at: output)
+        }
+        
+        let startTime = Date()
+        
+        // Run 10 concurrent batches of 100 PDFs each
+        await withTaskGroup(of: Void.self) { group in
+            for batch in 1...10 {
+                let outputDir = output
+                group.addTask { @Sendable in
+                    try? await withDependencies {
+                        $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
+                    } operation: {
+                        @Dependency(\.pdf) var batchPdf
+                        let htmls = (1...100).map { i in
+                            "<html><body><p>Batch \(batch) - Doc \(i)</p></body></html>"
+                        }
+                        var urls: [URL] = []
+                        for try await result in try await batchPdf.render.client.html(htmls, to: outputDir) {
+                            urls.append(result.url)
                         }
                     }
                 }
-
-                await group.waitForAll()
             }
-
-            let duration = Date().timeIntervalSince(startTime)
-            let count = 1_000
-            let memBefore = MemorySnapshot.current()
-            let memAfter = MemorySnapshot.current()
-
-            let result = BenchmarkResult(
-                name: "10 Concurrent Batches",
-                count: count,
-                mode: .continuous,
-                concurrency: 10,
-                duration: duration,
-                throughput: Double(count) / duration,
-                avgPerItem: duration / Double(count),
-                memoryBefore: memBefore,
-                memoryAfter: memAfter,
-                peakMemory: memAfter,
-                minDuration: 0,
-                maxDuration: 0,
-                p50Duration: 0,
-                p95Duration: 0,
-                p99Duration: 0
-            )
-
-            printBenchmarkResult(result)
-
-            let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-            #expect(files.count == count)
+            
+            await group.waitForAll()
         }
+        
+        let duration = Date().timeIntervalSince(startTime)
+        let count = 1_000
+        let memBefore = MemorySnapshot.current()
+        let memAfter = MemorySnapshot.current()
+        
+        let result = BenchmarkResult(
+            name: "10 Concurrent Batches",
+            count: count,
+            mode: .continuous,
+            concurrency: 10,
+            duration: duration,
+            throughput: Double(count) / duration,
+            avgPerItem: duration / Double(count),
+            memoryBefore: memBefore,
+            memoryAfter: memAfter,
+            peakMemory: memAfter,
+            minDuration: 0,
+            maxDuration: 0,
+            p50Duration: 0,
+            p95Duration: 0,
+            p99Duration: 0
+        )
+        
+        printBenchmarkResult(result)
+        
+        let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+        #expect(files.count == count)
+        
     }
 
     @Test("Benchmark: Pool warmup time")
     func benchmarkPoolWarmup() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
-        } operation: {
-            @Dependency(\.pdf) var pdf
-
-            // This measures the initial pool creation cost
-            // Note: With background warmup, this should be very fast
-
-            let startTime = Date()
-
-            let html = "<html><body><p>Test</p></body></html>"
-            let output = URL.output().appendingPathComponent("warmup.pdf")
-
-            defer {
-                try? FileManager.default.removeItem(at: output)
-            }
-
-            _ = try await pdf.render.client.html(html, output)
-
-            let duration = Date().timeIntervalSince(startTime)
-
-            print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("Pool Warmup Benchmark")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("First PDF generation: \(String(format: "%.3f", duration))s")
-            print("(Includes pool initialization + first PDF)")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        
+        
+        // This measures the initial pool creation cost
+        // Note: With background warmup, this should be very fast
+        
+        let startTime = Date()
+        
+        let html = "<html><body><p>Test</p></body></html>"
+        let output = URL.output().appendingPathComponent("warmup.pdf")
+        
+        defer {
+            try? FileManager.default.removeItem(at: output)
         }
+        
+        _ = try await pdf.render.client.html(html, output)
+        
+        let duration = Date().timeIntervalSince(startTime)
+        
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Pool Warmup Benchmark")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("First PDF generation: \(String(format: "%.3f", duration))s")
+        print("(Includes pool initialization + first PDF)")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        
     }
 
     // MARK: - Summary Report
@@ -411,14 +399,10 @@ struct PerformanceBenchmarks {
         mode: PDF.PaginationMode = .paginated
     ) async throws -> BenchmarkResult {
         try await withDependencies {
-            $0.pdf = .liveValue
-            // $0.pdf.render.configuration = .default
             $0.pdf.render.configuration.paginationMode = mode
             $0.pdf.render.configuration.concurrency = maxConcurrent
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
         } operation: {
-            @Dependency(\.pdf) var pdf
-
             let output = URL.output()
 
             defer {

@@ -9,20 +9,20 @@ import Testing
 import Foundation
 import HtmlToPdf
 import Dependencies
+import DependenciesTestSupport
 import PDFKit
 
-@Suite("Natural Multi-Page Flow")
+@Suite("Natural Multi-Page Flow", .dependency(\.pdf, .liveValue))
 struct NaturalMultiPageTests {
-
-    @Test("Generate PDF with content that naturally spans multiple pages")
+    @Dependency(\.pdf) var pdf
+    
+    @Test(
+        "Generate PDF with content that naturally spans multiple pages",
+        .dependency(\.pdf.render.configuration.paginationMode, .paginated)
+    )
     func generateNaturalMultiPagePDF() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            $0.pdf.render.configuration.paginationMode = .paginated  // Use proper pagination for multi-page
-        } operation: {
-            @Dependency(\.pdf) var pdf
 
-            let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
 
             // Generate lots of content - should naturally span 3-4 pages on A4
             let items = (1...200).map { i in
@@ -164,9 +164,8 @@ struct NaturalMultiPageTests {
                 #expect(isA4Width, "PDF width should be A4 (595.28 points), got \(bounds.width)")
                 #expect(isA4Height, "PDF height should be A4 (841.89 points), got \(bounds.height)")
                 #expect(pageCount >= 3, "PDF should have at least 3 pages, got \(pageCount)")
-            } else {
-                throw NSError(domain: "PDF not created", code: -1)
-            }
+        } else {
+            throw NSError(domain: "PDF not created", code: -1)
         }
     }
 }
