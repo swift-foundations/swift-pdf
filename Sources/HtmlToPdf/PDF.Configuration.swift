@@ -53,6 +53,17 @@ extension PDF {
         /// Default is `.automatic`, which calculates optimal concurrency based on CPU count and available memory.
         public var concurrency: ConcurrencyStrategy = .automatic
 
+        /// Enable adaptive throughput optimization
+        ///
+        /// When enabled, the system monitors throughput in real-time and automatically:
+        /// - Detects performance degradation (>15% drop from peak)
+        /// - Triggers early pool replacement to restore performance
+        /// - Adapts to workload characteristics dynamically
+        ///
+        /// This is particularly beneficial for long-running batch operations (>10K PDFs).
+        /// Default is `false` for backward compatibility.
+        public var adaptiveThroughputOptimization: Bool = false
+
         /// Timeout per document (nil = no timeout)
         public var documentTimeout: Duration?
 
@@ -101,6 +112,7 @@ extension PDF {
             baseURL: URL? = nil,
             paginationMode: PaginationMode = .continuous,
             concurrency: ConcurrencyStrategy = .automatic,
+            adaptiveThroughputOptimization: Bool = false,
             documentTimeout: Duration? = nil,
             batchTimeout: Duration? = nil,
             webViewAcquisitionTimeout: Duration = .seconds(300),
@@ -112,6 +124,7 @@ extension PDF {
             self.baseURL = baseURL
             self.paginationMode = paginationMode
             self.concurrency = concurrency
+            self.adaptiveThroughputOptimization = adaptiveThroughputOptimization
             self.documentTimeout = documentTimeout
             self.batchTimeout = batchTimeout
             self.webViewAcquisitionTimeout = webViewAcquisitionTimeout

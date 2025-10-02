@@ -125,6 +125,8 @@ struct StressTests {
             // Using .automatic now defaults to 3x CPU count (24 on 8-core Mac)
             $0.pdf.render.configuration.concurrency = .automatic
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
+            // Enable adaptive throughput optimization
+            $0.pdf.render.configuration.adaptiveThroughputOptimization = true
         } operation: {
             try await withTemporaryDirectory { output in
                 // Suppress WebKit console warnings
@@ -163,6 +165,7 @@ struct StressTests {
                 print("Total documents: \(count.formatted())")
                 print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
                 print("Pool size: \(poolSize) WebViews")
+                print("Adaptive optimization: ENABLED")
                 print("Starting generation...\n")
 
                 let stream = try await pdf.render.client.documents(documents)
