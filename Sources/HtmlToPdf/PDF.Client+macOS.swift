@@ -28,9 +28,10 @@ extension PDF.Client: DependencyKey {
 // MARK: - Directory Cache
 
 /// Thread-safe cache for validated directories to avoid redundant file system checks
-@MainActor
+/// Uses NSLock for low-overhead synchronization instead of actor (avoids async overhead)
 private final class DirectoryCache: @unchecked Sendable {
     private var validated: Set<String> = []
+    private let lock = NSLock()
 
     func ensureDirectory(
         at url: URL,
@@ -38,18 +39,24 @@ private final class DirectoryCache: @unchecked Sendable {
     ) throws {
         let path = url.path
 
-        // Fast path: already validated
-        if validated.contains(path) {
+        // Fast path: check cache with lock
+        lock.lock()
+        let isValidated = validated.contains(path)
+        lock.unlock()
+
+        if isValidated {
             return
         }
 
-        // Slow path: check and possibly create
+        // Slow path: check and possibly create (file I/O)
         if createIfNeeded {
             try FileManager.default.createDirectory(
                 at: url,
                 withIntermediateDirectories: true
             )
+            lock.lock()
             validated.insert(path)
+            lock.unlock()
         } else {
             // Validate directory exists when createDirectories is false
             var isDirectory: ObjCBool = false
@@ -63,17 +70,67 @@ private final class DirectoryCache: @unchecked Sendable {
                     )
                 )
             }
+            lock.lock()
             validated.insert(path)
+            lock.unlock()
         }
     }
 
     func clear() {
+        lock.lock()
         validated.removeAll()
+        lock.unlock()
     }
 }
 
 /// Shared directory cache for the rendering session
 private let directoryCache = DirectoryCache()
+
+// MARK: - NSPrintInfo Cache
+
+/// Pre-configured NSPrintInfo cache to avoid repeated setup overhead
+@MainActor
+private final class PrintInfoCache: @unchecked Sendable {
+    private var cache: [String: NSPrintInfo] = [:]
+
+    func get(for config: PDF.Configuration) -> NSPrintInfo {
+        let key = cacheKey(for: config)
+
+        if let cached = cache[key] {
+            // Return a copy to avoid shared mutable state
+            return cached.copy() as! NSPrintInfo
+        }
+
+        // Create and cache new print info
+        let printInfo = NSPrintInfo.shared.copy() as! NSPrintInfo
+        printInfo.paperSize = config.paperSize
+        printInfo.topMargin = config.margins.top
+        printInfo.leftMargin = config.margins.left
+        printInfo.bottomMargin = config.margins.bottom
+        printInfo.rightMargin = config.margins.right
+        printInfo.jobDisposition = .save
+
+        cache[key] = printInfo
+        return printInfo.copy() as! NSPrintInfo
+    }
+
+    private func cacheKey(for config: PDF.Configuration) -> String {
+        // Create cache key from relevant print properties
+        "\(config.paperSize.width)x\(config.paperSize.height)_\(config.margins.top)_\(config.margins.left)_\(config.margins.bottom)_\(config.margins.right)"
+    }
+}
+
+/// Shared print info cache accessor
+@MainActor
+private func getPrintInfoCache() -> PrintInfoCache {
+    struct Static {
+        @MainActor
+        static let cache: PrintInfoCache = {
+            PrintInfoCache()
+        }()
+    }
+    return Static.cache
+}
 
 // MARK: - Client Implementation
 
@@ -195,8 +252,8 @@ private class LoadCompletionDelegate: NSObject, WKNavigationDelegate {
     }
 }
 
-@MainActor
 extension PDF.Document {
+    @MainActor
     func renderInternal(config: PDF.Configuration) async throws -> (url: URL, pageCount: Int, dimensions: [CGSize], mode: PDF.PaginationMode) {
         @Dependency(\.webViewPool) var webViewPool
         let pool = try await webViewPool.pool
@@ -209,7 +266,7 @@ extension PDF.Document {
     ) async throws -> (url: URL, pageCount: Int, dimensions: [CGSize], mode: PDF.PaginationMode) {
         let parentDirectory = self.destination.deletingLastPathComponent()
 
-        // Use cached directory validation - avoids redundant file system checks
+        // Directory validation with synchronous lock-based cache (low overhead)
         try directoryCache.ensureDirectory(
             at: parentDirectory,
             createIfNeeded: config.createDirectories
@@ -297,9 +354,10 @@ private func renderDocumentsInternal(
     config: PDF.Configuration
 ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
     AsyncThrowingStream<PDF.Result, Error> { continuation in
-        Task { @MainActor in
+        Task {
             do {
                 // Get the pool ONCE at the beginning, not for every document
+                // Pool access doesn't require main actor
                 @Dependency(\.webViewPool) var webViewPool
                 let pool = try await webViewPool.pool
 
@@ -312,6 +370,7 @@ private func renderDocumentsInternal(
                     for (index, document) in documents.prefix(maxConcurrent).enumerated() {
                         taskGroup.addTask {
                             let start = ContinuousClock.now
+                            // renderWithPool handles main actor isolation internally for WebView operations
                             let (url, pageCount, dimensions, mode) = try await document.renderWithPool(pool, config: config)
                             let duration = ContinuousClock.now - start
                             return (index, url, pageCount, dimensions, mode, duration)
@@ -414,6 +473,20 @@ private actor PageInfoContinuationHandler {
     }
 }
 
+/// Extract page info from PDF data (thread-safe, can run off main actor)
+private func extractPageInfoFromData(_ pdfData: Data) -> (pageCount: Int, dimensions: [CGSize]) {
+    guard let pdfDoc = PDFDocument(data: pdfData) else {
+        return (0, [])
+    }
+
+    let pageCount = pdfDoc.pageCount
+    let dimensions = (0..<pageCount).compactMap { index -> CGSize? in
+        pdfDoc.page(at: index)?.bounds(for: .mediaBox).size
+    }
+
+    return (pageCount, dimensions)
+}
+
 private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
     private let outputURL: URL
     var printDelegate: PrintDelegate?
@@ -511,18 +584,25 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
 
             switch result {
             case .success(let data):
-                do {
-                    try data.write(to: self.outputURL)
+                // Move file I/O and page extraction off main actor to reduce contention
+                Task.detached(priority: .userInitiated) { [outputURL = self.outputURL, paginationMode = self.configuration.paginationMode] in
+                    do {
+                        // File write on background thread
+                        try data.write(to: outputURL)
 
-                    // For WebView rendering, we have the data in memory
-                    // Extract page info efficiently (data is already in memory, not reading from disk)
-                    let (pageCount, dimensions) = self.extractPageInfo(from: data)
-                    let mode = self.configuration.paginationMode
+                        // Extract page info (PDFDocument is thread-safe)
+                        let (pageCount, dimensions) = extractPageInfoFromData(data)
 
-                    self.printDelegate?.onFinished(pageCount, dimensions, mode)
-                } catch {
-                    self.printDelegate?.onError?(PrintingError.pdfGenerationFailed(underlyingError: error))
-                        ?? self.printDelegate?.onFinished(0, [], self.configuration.paginationMode)
+                        // Resume on main actor only for callback
+                        await MainActor.run {
+                            self.printDelegate?.onFinished(pageCount, dimensions, paginationMode)
+                        }
+                    } catch {
+                        await MainActor.run {
+                            self.printDelegate?.onError?(PrintingError.pdfGenerationFailed(underlyingError: error))
+                                ?? self.printDelegate?.onFinished(0, [], paginationMode)
+                        }
+                    }
                 }
             case .failure(let error):
                 self.printDelegate?.onError?(PrintingError.pdfGenerationFailed(underlyingError: error))
@@ -535,17 +615,10 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         // Slower but accurate approach using NSPrintOperation
         // Guarantees correct page dimensions for multi-page PDFs
 
-        let printInfo = NSPrintInfo.shared.copy() as! NSPrintInfo
+        // Use cached print info to avoid repeated setup overhead
+        let printInfo = getPrintInfoCache().get(for: configuration)
 
-        // Configure paper size and margins
-        printInfo.paperSize = configuration.paperSize
-        printInfo.topMargin = configuration.margins.top
-        printInfo.leftMargin = configuration.margins.left
-        printInfo.bottomMargin = configuration.margins.bottom
-        printInfo.rightMargin = configuration.margins.right
-
-        // Set to save mode (no UI)
-        printInfo.jobDisposition = .save
+        // Set output URL (not cached since it's unique per document)
         printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = self.outputURL
 
         // Create print operation from WebView
@@ -559,6 +632,7 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         printOperation.showsProgressPanel = false
 
         // Run asynchronously on a background thread to avoid blocking main thread
+        // Note: NSPrintOperation.run() has @MainActor annotation but works on background queues
         DispatchQueue.global(qos: .userInitiated).async { [weak self, weak webView, paperSize = configuration.paperSize, mode = configuration.paginationMode] in
             guard let self = self else { return }
 
@@ -583,19 +657,6 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
                 }
             }
         }
-    }
-
-    private func extractPageInfo(from pdfData: Data) -> (pageCount: Int, dimensions: [CGSize]) {
-        guard let pdfDoc = PDFDocument(data: pdfData) else {
-            return (0, [])
-        }
-
-        let pageCount = pdfDoc.pageCount
-        let dimensions = (0..<pageCount).compactMap { index -> CGSize? in
-            pdfDoc.page(at: index)?.bounds(for: .mediaBox).size
-        }
-
-        return (pageCount, dimensions)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
