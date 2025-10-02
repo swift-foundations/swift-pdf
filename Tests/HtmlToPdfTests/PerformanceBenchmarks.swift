@@ -400,7 +400,7 @@ struct PerformanceBenchmarks {
     ) async throws -> BenchmarkResult {
         try await withDependencies {
             $0.pdf.render.configuration.paginationMode = mode
-            $0.pdf.render.configuration.concurrency = maxConcurrent
+            $0.pdf.render.configuration.concurrency = .fixed(maxConcurrent)
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
         } operation: {
             let output = URL.output()

@@ -109,9 +109,8 @@ extension WebViewPoolClient: DependencyKey {
                let customSize = Int(envPoolSize), customSize > 0 {
                 poolSize = customSize
             } else {
-                // Simple calculation based on CPU count
-                let cpuCount = ProcessInfo.processInfo.activeProcessorCount
-                poolSize = max(2, min(cpuCount, 8))
+                // Use intelligent defaults based on hardware
+                poolSize = PDF.ConcurrencyStrategy.calculateDefaultConcurrency()
             }
 
             // Create configuration

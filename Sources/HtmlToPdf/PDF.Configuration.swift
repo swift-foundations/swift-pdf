@@ -9,6 +9,8 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 
+// MARK: - Configuration
+
 extension PDF {
     /// Configuration for PDF rendering
     ///
@@ -41,9 +43,15 @@ extension PDF {
 
         // MARK: - Batch Configuration
 
-        /// Maximum concurrent rendering operations
-        /// nil = use ProcessInfo.processInfo.activeProcessorCount
-        public var concurrency: Int?
+        /// Concurrency strategy for PDF rendering
+        ///
+        /// Supports multiple forms:
+        /// - Integer literal: `concurrency = 4`
+        /// - Explicit: `concurrency = .fixed(8)`
+        /// - Automatic: `concurrency = .automatic`
+        ///
+        /// Default is `.automatic`, which calculates optimal concurrency based on CPU count and available memory.
+        public var concurrency: ConcurrencyStrategy = .automatic
 
         /// Timeout per document (nil = no timeout)
         public var documentTimeout: Duration?
@@ -92,7 +100,7 @@ extension PDF {
             margins: EdgeInsets = .standard,
             baseURL: URL? = nil,
             paginationMode: PaginationMode = .continuous,
-            concurrency: Int? = nil,
+            concurrency: ConcurrencyStrategy = .automatic,
             documentTimeout: Duration? = nil,
             batchTimeout: Duration? = nil,
             webViewAcquisitionTimeout: Duration = .seconds(300),
@@ -146,37 +154,19 @@ extension PDF.Configuration {
     /// Optimized for large batch processing (auto-detect with speed preference)
     public static let largeBatch = PDF.Configuration(
         paginationMode: .automatic(heuristic: .preferSpeed),
-        concurrency: 16,
+        concurrency: .automatic,
         batchTimeout: .seconds(86400), // 24 hours
         webViewAcquisitionTimeout: .seconds(600)
     )
 
     /// Optimized for current platform
     public static var platformOptimized: Self {
-        #if os(macOS)
-        return .init(
+        .init(
             paperSize: .a4,
             margins: .standard,
-            concurrency: 16,
+            concurrency: .automatic,
             webViewAcquisitionTimeout: .seconds(300)
         )
-        #elseif canImport(UIKit)
-        return .init(
-            paperSize: .a4,
-            margins: .standard,
-            concurrency: 4,
-            webViewAcquisitionTimeout: .seconds(600)
-        )
-        #elseif os(Linux)
-        return .init(
-            paperSize: .a4,
-            margins: .standard,
-            concurrency: 32,
-            webViewAcquisitionTimeout: .seconds(120)
-        )
-        #else
-        return .default
-        #endif
     }
 }
 

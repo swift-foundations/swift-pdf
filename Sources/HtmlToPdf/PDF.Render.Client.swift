@@ -54,12 +54,12 @@ extension PDF.Render {
         /// This uses a different platform API (WKWebView.createPDF) and cannot be
         /// composed from file-based operations without inefficiency.
         ///
-        /// - Parameter html: HTML content to render
+        /// - Parameter html: HTML content as UTF-8 bytes
         /// - Returns: PDF data
         /// - Throws: Rendering errors
         @DependencyEndpoint
         public var data: @Sendable (
-            _ html: String
+            _ html: ContiguousArray<UInt8>
         ) async throws -> Data
 
         // MARK: - Platform Capabilities

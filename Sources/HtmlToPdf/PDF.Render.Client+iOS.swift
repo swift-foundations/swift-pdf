@@ -23,7 +23,7 @@ extension PDF.Render.Client {
             @Dependency(\.pdf.render.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
-        data: { html in
+        data: { htmlBytes in
             @Dependency(\.pdf.render.configuration) var config
             let tempURL = URL.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
@@ -33,7 +33,7 @@ extension PDF.Render.Client {
                 try? FileManager.default.removeItem(at: tempURL)
             }
 
-            let document = PDF.Document(htmlString: html, destination: tempURL)
+            let document = PDF.Document(htmlBytes: htmlBytes, destination: tempURL)
             let stream = try await renderDocumentsInternal([document], config: config)
             for try await _ in stream {
                 return try Data(contentsOf: tempURL)

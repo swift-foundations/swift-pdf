@@ -74,4 +74,17 @@ extension PDF.Render.Client {
 
         return try await self.documents(documents)
     }
+
+    // MARK: - Data Convenience
+
+    /// Render HTML string to PDF data (convenience)
+    ///
+    /// Convenience wrapper that converts String to ContiguousArray<UInt8>.
+    ///
+    /// - Parameter htmlString: HTML content to render
+    /// - Returns: PDF data
+    /// - Throws: Rendering errors
+    public func data(_ htmlString: String) async throws -> Data {
+        try await data(ContiguousArray(htmlString.utf8))
+    }
 }
