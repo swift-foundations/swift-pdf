@@ -39,7 +39,7 @@ struct ConcurrencyTests {
             }
             let tracker = ProgressTracker()
 
-            let stream = try await pdf.render.client.renderBatch(htmls, output)
+            let stream = try await pdf.render.client.htmls(htmls, to: output)
 
             for try await _ in stream {
                 await tracker.increment()
@@ -74,14 +74,17 @@ struct ConcurrencyTests {
                 for batch in 1...3 {
                     let outputDir = output
                     group.addTask { @Sendable in
-                        await withDependencies {
+                        try? await withDependencies {
                             $0.pdf = .liveValue
                             $0.pdf.render.configuration = .default
                             $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
                             let htmls = [String](repeating: .html, count: 10)
-                            _ = try? await batchPdf.render.client.renderBatchSync(htmls, outputDir)
+                            var urls: [URL] = []
+                            for try await result in try await batchPdf.render.client.htmls(htmls, to: outputDir) {
+                                urls.append(result.url)
+                            }
                         }
                     }
                 }
@@ -138,7 +141,10 @@ struct ConcurrencyTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let urls = try await pdf.render.client.renderBatchSync(htmls, output)
+            var urls: [URL] = []
+            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+                urls.append(result.url)
+            }
 
             #expect(urls.count == count, "Should complete all documents despite low concurrency")
 
@@ -221,7 +227,10 @@ struct ConcurrencyTests {
                     $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-\(i)" }
                 } operation: {
                     let htmls = [String](repeating: .html, count: 10)
-                    _ = try await pdf.render.client.renderBatchSync(htmls, output)
+                    var urls: [URL] = []
+                    for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+                        urls.append(result.url)
+                    }
                 }
             }
 

@@ -212,7 +212,10 @@ struct ErrorHandlingTests {
                 "<html><body><h1>Document \(i)</h1></body></html>"
             }
 
-            let urls = try await pdf.render.client.renderBatchSync(htmls, output)
+            var urls: [URL] = []
+            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+                urls.append(result.url)
+            }
 
             #expect(urls.count == count, "All documents should complete despite pool queueing")
         }

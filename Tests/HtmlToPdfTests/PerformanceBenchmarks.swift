@@ -197,7 +197,7 @@ struct PerformanceBenchmarks {
                 for batch in 1...10 {
                     let outputDir = output
                     group.addTask { @Sendable in
-                        await withDependencies {
+                        try? await withDependencies {
                             $0.pdf = .liveValue
                             $0.pdf.render.configuration = .default
                             $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
@@ -206,7 +206,10 @@ struct PerformanceBenchmarks {
                             let htmls = (1...100).map { i in
                                 "<html><body><p>Batch \(batch) - Doc \(i)</p></body></html>"
                             }
-                            _ = try? await batchPdf.render.client.renderBatchSync(htmls, outputDir)
+                            var urls: [URL] = []
+                            for try await result in try await batchPdf.render.client.htmls(htmls, to: outputDir) {
+                                urls.append(result.url)
+                            }
                         }
                     }
                 }
@@ -442,7 +445,7 @@ struct PerformanceBenchmarks {
             let startTime = Date()
 
             // Render with per-PDF timing
-            let stream = try await pdf.render.client.renderBatch(htmls, output)
+            let stream = try await pdf.render.client.htmls(htmls, to: output)
             for try await result in stream {
                 durations.append(Double(result.duration.components.seconds) +
                                Double(result.duration.components.attoseconds) / 1_000_000_000_000_000_000)

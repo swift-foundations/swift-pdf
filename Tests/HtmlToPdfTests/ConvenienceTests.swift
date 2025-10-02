@@ -82,8 +82,8 @@ struct ConvenienceTests {
         }
     }
 
-    @Test("Batch convenience levels")
-    func testBatchConvenienceLevels() async throws {
+    @Test("HTML batch convenience levels")
+    func testHTMLBatchConvenienceLevels() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
             $0.pdf.render.configuration = .default
@@ -102,23 +102,22 @@ struct ConvenienceTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            // Level 1: Top-level (batch -> batchSync for clarity)
-            let urls1 = try await pdf.batchSync(htmls, to: output)
-            #expect(urls1.count == 3, "Top-level batch should work")
-
-            // Clean for next test
-            try? FileManager.default.removeItem(at: output)
-
             // Level 2: Capability-level
-            let urls2 = try await pdf.render.renderBatchSync(htmls, to: output)
-            #expect(urls2.count == 3, "Capability-level batch should work")
+            var urls2: [URL] = []
+            for try await result in try await pdf.render.htmls(htmls, to: output) {
+                urls2.append(result.url)
+            }
+            #expect(urls2.count == 3, "Capability-level htmls should work")
 
             // Clean for next test
             try? FileManager.default.removeItem(at: output)
 
             // Level 3: Explicit client
-            let urls3 = try await pdf.render.client.renderBatchSync(htmls, to: output)
-            #expect(urls3.count == 3, "Explicit client batch should work")
+            var urls3: [URL] = []
+            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+                urls3.append(result.url)
+            }
+            #expect(urls3.count == 3, "Explicit client htmls should work")
         }
     }
 

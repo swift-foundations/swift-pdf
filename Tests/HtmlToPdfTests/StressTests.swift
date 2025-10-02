@@ -304,7 +304,10 @@ struct StressTests {
 
             print("Starting 1k complex PDF generation test...")
 
-            _ = try await pdf.render.client.renderBatchSync(htmls, output)
+            var urls: [URL] = []
+            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+                urls.append(result.url)
+            }
 
             let duration = Date().timeIntervalSince(startTime)
 

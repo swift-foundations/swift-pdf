@@ -103,7 +103,10 @@ struct BasicFunctionalityTests {
 
             // Test batch from strings
             let htmls = [String](repeating: .html, count: count)
-            let urls = try await pdf.render.client.renderBatchSync(htmls, output)
+            var urls: [URL] = []
+            for try await result in try await pdf.render.client.htmls(htmls, to: output) {
+                urls.append(result.url)
+            }
 
             #expect(urls.count == count, "Should create \(count) PDF files from strings")
 

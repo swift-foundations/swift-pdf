@@ -68,23 +68,9 @@ extension PDF.Render {
 
     // MARK: - Batch Operations
 
-    /// Render multiple documents, collecting all URLs
-    ///
-    /// Convenience method that forwards to `client.renderSync()`.
-    /// Waits for all documents to complete before returning.
-    ///
-    /// - Parameter documents: Documents to render
-    /// - Returns: Array of URLs in the same order as input documents
-    /// - Throws: Rendering errors
-    public func renderSync(
-        _ documents: [PDF.Document]
-    ) async throws -> [URL] {
-        try await client.renderSync(documents)
-    }
-
     /// Render multiple HTML strings to a directory
     ///
-    /// Convenience method that forwards to `client.renderBatch()`.
+    /// Convenience method that forwards to `client.htmls()`.
     /// Returns results as a stream for progressive processing.
     ///
     /// - Parameters:
@@ -92,60 +78,11 @@ extension PDF.Render {
     ///   - directory: Directory to save PDFs in
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
-    public func renderBatch(
+    public func htmls(
         _ htmls: [String],
         to directory: URL
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await client.renderBatch(htmls, to: directory)
-    }
-
-    /// Render multiple HTML strings to a directory (unlabeled directory)
-    ///
-    /// Convenience method that forwards to `client.renderBatch()`.
-    ///
-    /// - Parameters:
-    ///   - htmls: Array of HTML strings to render
-    ///   - directory: Directory to save PDFs in
-    /// - Returns: Stream of results as PDFs are generated
-    /// - Throws: Rendering errors
-    public func renderBatch(
-        _ htmls: [String],
-        _ directory: URL
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await client.renderBatch(htmls, directory)
-    }
-
-    /// Render multiple HTML strings to a directory, collecting all URLs
-    ///
-    /// Convenience method that forwards to `client.renderBatchSync()`.
-    /// Waits for all documents to complete before returning.
-    ///
-    /// - Parameters:
-    ///   - htmls: Array of HTML strings to render
-    ///   - directory: Directory to save PDFs in
-    /// - Returns: Array of URLs in the same order as input
-    /// - Throws: Rendering errors
-    public func renderBatchSync(
-        _ htmls: [String],
-        to directory: URL
-    ) async throws -> [URL] {
-        try await client.renderBatchSync(htmls, to: directory)
-    }
-
-    /// Render multiple HTML strings to a directory, collecting all URLs (unlabeled directory)
-    ///
-    /// Convenience method that forwards to `client.renderBatchSync()`.
-    ///
-    /// - Parameters:
-    ///   - htmls: Array of HTML strings to render
-    ///   - directory: Directory to save PDFs in
-    /// - Returns: Array of URLs in the same order as input
-    /// - Throws: Rendering errors
-    public func renderBatchSync(
-        _ htmls: [String],
-        _ directory: URL
-    ) async throws -> [URL] {
-        try await client.renderBatchSync(htmls, directory)
+        try await client.htmls(htmls, to: directory)
     }
 
     // MARK: - Platform Capabilities

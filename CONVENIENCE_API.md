@@ -10,17 +10,16 @@ The swift-html-to-pdf API provides three levels of convenience, allowing you to 
 // Level 1: Shortest (top-level convenience)
 try await pdf.html(html, to: url)
 try await pdf.documents(docs)
-try await pdf.batch(htmls, to: dir)
 
 // Level 2: Mid-level (capability-focused)
 try await pdf.render.html(html, url)
 try await pdf.render.documents(docs)
-try await pdf.render.renderBatch(htmls, to: dir)
+try await pdf.render.htmls(htmls, to: dir)
 
 // Level 3: Explicit (full control)
 try await pdf.render.client.html(html, url)
 try await pdf.render.client.documents(docs)
-try await pdf.render.client.renderBatch(htmls, to: dir)
+try await pdf.render.client.htmls(htmls, to: dir)
 ```
 
 ## Level 1: Top-Level Convenience (Shortest)
@@ -35,14 +34,6 @@ let url = try await pdf.html(html, to: destination)
 
 // In-memory data
 let data = try await pdf.data(html)
-
-// Batch rendering (stream)
-for try await result in try await pdf.batch(htmls, to: directory) {
-    print("Generated: \(result.url)")
-}
-
-// Batch rendering (sync)
-let urls = try await pdf.batchSync(htmls, to: directory)
 
 // Documents with stream
 for try await result in try await pdf.documents(documents) {
@@ -65,13 +56,10 @@ let url = try await pdf.render.html(html, destination)
 // In-memory data
 let data = try await pdf.render.data(html)
 
-// Batch rendering (stream)
-for try await result in try await pdf.render.renderBatch(htmls, to: directory) {
+// HTML batch rendering (stream)
+for try await result in try await pdf.render.htmls(htmls, to: directory) {
     print("Generated: \(result.url)")
 }
-
-// Batch rendering (sync)
-let urls = try await pdf.render.renderBatchSync(htmls, to: directory)
 
 // Documents with stream
 for try await result in try await pdf.render.documents(documents) {
@@ -105,13 +93,10 @@ let url = try await pdf.render.client.html(html, destination)
 // In-memory data
 let data = try await pdf.render.client.data(html)
 
-// Batch rendering (stream)
-for try await result in try await pdf.render.client.renderBatch(htmls, to: directory) {
+// HTML batch rendering (stream)
+for try await result in try await pdf.render.client.htmls(htmls, to: directory) {
     print("Generated: \(result.url)")
 }
-
-// Batch rendering (sync)
-let urls = try await pdf.render.client.renderBatchSync(htmls, to: directory)
 
 // Documents with stream
 for try await result in try await pdf.render.client.documents(documents) {
@@ -147,6 +132,28 @@ try await withDependencies {
     try await pdf.html(html, to: url)
 }
 ```
+
+## Collecting Streams into Arrays
+
+All batch methods return `AsyncThrowingStream<PDF.Result, Error>` for progressive processing. If you need all URLs collected into an array, use standard Swift patterns:
+
+```swift
+// Collect stream into array
+var urls: [URL] = []
+for try await result in try await pdf.render.client.htmls(htmls, to: directory) {
+    urls.append(result.url)
+}
+
+// Or using reduce
+let urls = try await pdf.render.client.htmls(htmls, to: directory)
+    .reduce(into: [] as [URL]) { $0.append($1.url) }
+```
+
+**Benefits of streams:**
+- **Progress tracking**: Process results as they complete
+- **Early error handling**: Handle errors incrementally
+- **Memory efficiency**: No need to hold all results in memory
+- **Responsiveness**: Start processing PDFs immediately
 
 ## Choosing the Right Level
 
