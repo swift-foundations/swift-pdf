@@ -25,12 +25,70 @@ struct PerformanceBenchmarks {
 
     // MARK: - Helper Types
 
+    private actor PeakMemoryTracker {
+        private var peak: MemorySnapshot?
+
+        func update(_ current: MemorySnapshot) {
+            if let existingPeak = peak {
+                if current.residentMB > existingPeak.residentMB {
+                    peak = current
+                }
+            } else {
+                peak = current
+            }
+        }
+
+        func getPeak() -> MemorySnapshot {
+            peak ?? MemorySnapshot(residentMB: 0, virtualMB: 0)
+        }
+    }
+
+    struct MemorySnapshot: Sendable {
+        let residentMB: Double
+        let virtualMB: Double
+
+        static func current() -> MemorySnapshot {
+            var info = mach_task_basic_info()
+            var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+
+            let result = withUnsafeMutablePointer(to: &info) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                    task_info(
+                        mach_task_self_,
+                        task_flavor_t(MACH_TASK_BASIC_INFO),
+                        $0,
+                        &count
+                    )
+                }
+            }
+
+            guard result == KERN_SUCCESS else {
+                return MemorySnapshot(residentMB: 0, virtualMB: 0)
+            }
+
+            return MemorySnapshot(
+                residentMB: Double(info.resident_size) / 1_048_576,
+                virtualMB: Double(info.virtual_size) / 1_048_576
+            )
+        }
+    }
+
     struct BenchmarkResult {
         let name: String
         let count: Int
+        let mode: PDF.PaginationMode
+        let concurrency: Int
         let duration: TimeInterval
         let throughput: Double
         let avgPerItem: TimeInterval
+        let memoryBefore: MemorySnapshot
+        let memoryAfter: MemorySnapshot
+        let peakMemory: MemorySnapshot
+        let minDuration: TimeInterval
+        let maxDuration: TimeInterval
+        let p50Duration: TimeInterval
+        let p95Duration: TimeInterval
+        let p99Duration: TimeInterval
 
         var throughputPerSec: String {
             String(format: "%.0f", throughput)
@@ -40,8 +98,20 @@ struct PerformanceBenchmarks {
             String(format: "%.2f", avgPerItem * 1000)
         }
 
+        var memoryDeltaMB: Double {
+            memoryAfter.residentMB - memoryBefore.residentMB
+        }
+
+        var memoryPerPDFKB: Double {
+            (memoryDeltaMB * 1024) / Double(count)
+        }
+
         func printMarkdownRow() {
-            print("| \(name.padding(toLength: 25, withPad: " ", startingAt: 0)) | \(String(count).padding(toLength: 8, withPad: " ", startingAt: 0)) | \(String(format: "%.2f", duration).padding(toLength: 8, withPad: " ", startingAt: 0))s | \(throughputPerSec.padding(toLength: 12, withPad: " ", startingAt: 0)) | \(avgPerItemMs.padding(toLength: 10, withPad: " ", startingAt: 0))ms |")
+            print("| \(name.padding(toLength: 25, withPad: " ", startingAt: 0)) | \(String(count).padding(toLength: 8, withPad: " ", startingAt: 0)) | \(String(format: "%.2f", duration).padding(toLength: 8, withPad: " ", startingAt: 0))s | \(throughputPerSec.padding(toLength: 12, withPad: " ", startingAt: 0)) | \(avgPerItemMs.padding(toLength: 10, withPad: " ", startingAt: 0))ms | \(String(format: "%.1f", peakMemory.residentMB).padding(toLength: 8, withPad: " ", startingAt: 0))MB |")
+        }
+
+        func printDetailedRow() {
+            print("| \(name.padding(toLength: 25, withPad: " ", startingAt: 0)) | \(String(count).padding(toLength: 8, withPad: " ", startingAt: 0)) | \(String(format: "%.2f", duration).padding(toLength: 8, withPad: " ", startingAt: 0))s | \(throughputPerSec.padding(toLength: 12, withPad: " ", startingAt: 0)) | \(avgPerItemMs.padding(toLength: 8, withPad: " ", startingAt: 0))ms | \(String(format: "%.2f", p50Duration * 1000).padding(toLength: 8, withPad: " ", startingAt: 0))ms | \(String(format: "%.2f", p95Duration * 1000).padding(toLength: 8, withPad: " ", startingAt: 0))ms | \(String(format: "%.2f", p99Duration * 1000).padding(toLength: 8, withPad: " ", startingAt: 0))ms | \(String(format: "%.1f", peakMemory.residentMB).padding(toLength: 8, withPad: " ", startingAt: 0))MB |")
         }
     }
 
@@ -146,13 +216,25 @@ struct PerformanceBenchmarks {
 
             let duration = Date().timeIntervalSince(startTime)
             let count = 1_000
+            let memBefore = MemorySnapshot.current()
+            let memAfter = MemorySnapshot.current()
 
             let result = BenchmarkResult(
                 name: "10 Concurrent Batches",
                 count: count,
+                mode: .continuous,
+                concurrency: 10,
                 duration: duration,
                 throughput: Double(count) / duration,
-                avgPerItem: duration / Double(count)
+                avgPerItem: duration / Double(count),
+                memoryBefore: memBefore,
+                memoryAfter: memAfter,
+                peakMemory: memAfter,
+                minDuration: 0,
+                maxDuration: 0,
+                p50Duration: 0,
+                p95Duration: 0,
+                p99Duration: 0
             )
 
             printBenchmarkResult(result)
@@ -206,29 +288,36 @@ struct PerformanceBenchmarks {
         print("╚═══════════════════════════════════════════════════════════════════════════╝")
         print()
 
+        let simpleHTML = "<html><body><p>{{ID}}</p></body></html>"
+
         // Run benchmarks for PAGINATED mode (print-ready)
         let paginatedResults = [
-            try await runBenchmark(name: "100 Simple", count: 100, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .paginated),
+            try await runBenchmark(name: "100 Simple", count: 100, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
+            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
+            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
             try await runBenchmark(name: "100 Complex", count: 100, html: complexHTML, maxConcurrent: 6, mode: .paginated),
             try await runBenchmark(name: "1,000 Complex", count: 1_000, html: complexHTML, maxConcurrent: 6, mode: .paginated),
         ]
 
         // Run benchmarks for CONTINUOUS mode (fast)
         let continuousResults = [
-            try await runBenchmark(name: "100 Simple", count: 100, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .continuous),
-            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .continuous),
-            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: "<html><body><p>{{ID}}</p></body></html>", maxConcurrent: 8, mode: .continuous),
+            try await runBenchmark(name: "100 Simple", count: 100, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
+            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
+            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
         ]
+
+        // Calculate dynamic comparisons
+        let continuousAvg = continuousResults.map { $0.throughput }.reduce(0, +) / Double(continuousResults.count)
+        let paginatedAvg = paginatedResults.map { $0.throughput }.reduce(0, +) / Double(paginatedResults.count)
+        let speedupRatio = continuousAvg / paginatedAvg
 
         // Print markdown table for PAGINATED mode
         print("### Performance Results - Paginated Mode (Print-Ready)")
         print()
         print("Paginated mode uses NSPrintOperation for proper multi-page documents (invoices, reports).")
         print()
-        print("| Test                      | Count    | Duration | Throughput   | Avg/PDF   |")
-        print("|---------------------------|----------|----------|--------------|-----------|")
+        print("| Test                      | Count    | Duration | Throughput   | Avg/PDF   | Peak Mem |")
+        print("|---------------------------|----------|----------|--------------|-----------|----------|")
 
         for result in paginatedResults {
             result.printMarkdownRow()
@@ -241,25 +330,70 @@ struct PerformanceBenchmarks {
         print()
         print("Continuous mode uses WKWebView.createPDF for single-page documents (web captures, articles).")
         print()
-        print("| Test                      | Count    | Duration | Throughput   | Avg/PDF   |")
-        print("|---------------------------|----------|----------|--------------|-----------|")
+        print("| Test                      | Count    | Duration | Throughput   | Avg/PDF   | Peak Mem |")
+        print("|---------------------------|----------|----------|--------------|-----------|----------|")
 
         for result in continuousResults {
             result.printMarkdownRow()
         }
 
         print()
+
+        // Detailed performance breakdown
+        print("### Detailed Performance Metrics")
+        print()
+        print("| Test                      | Count    | Duration | Throughput   | Avg      | p50      | p95      | p99      | Peak Mem |")
+        print("|---------------------------|----------|----------|--------------|----------|----------|----------|----------|----------|")
+
+        for result in continuousResults + paginatedResults {
+            result.printDetailedRow()
+        }
+
+        print()
+
+        // System information
+        let physicalMemoryGB = ProcessInfo.processInfo.physicalMemory / 1_073_741_824
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
+        let cpuCount = ProcessInfo.processInfo.activeProcessorCount
+
         print("**Test Environment:**")
-        print("- Platform: \(ProcessInfo.processInfo.operatingSystemVersionString)")
-        print("- CPU Cores: \(ProcessInfo.processInfo.activeProcessorCount)")
-        print("- Pool Size: 8 WebViews (simple), 6 WebViews (complex)")
+        print("- Platform: macOS \(osVersion)")
+        print("- CPU Cores: \(cpuCount)")
+        print("- Physical Memory: \(physicalMemoryGB) GB")
         print("- Swift Version: \(getSwiftVersion())")
         print()
-        print("**Performance Comparison:**")
-        print("- Continuous mode is ~3-4x faster than paginated mode")
-        print("- Choose continuous for web captures, articles (single tall page)")
-        print("- Choose paginated for invoices, reports (proper page breaks)")
+
+        // Dynamic pool size information from actual benchmarks
+        let poolSizes = Set(continuousResults.map { $0.concurrency } + paginatedResults.map { $0.concurrency })
+        print("**Pool Configuration:**")
+        for poolSize in poolSizes.sorted() {
+            let tests = (continuousResults + paginatedResults).filter { $0.concurrency == poolSize }
+            let testNames = tests.map { $0.name }.joined(separator: ", ")
+            print("- \(poolSize) WebViews: \(testNames)")
+        }
         print()
+
+        // Dynamic performance comparison
+        print("**Performance Comparison:**")
+        print("- Continuous mode is \(String(format: "%.1f", speedupRatio))x faster than paginated mode (average)")
+        print("- Best throughput (continuous): \(String(format: "%.0f", continuousResults.map { $0.throughput }.max() ?? 0)) PDFs/sec")
+        print("- Best throughput (paginated): \(String(format: "%.0f", paginatedResults.map { $0.throughput }.max() ?? 0)) PDFs/sec")
+        print()
+
+        print("**Mode Selection Guide:**")
+        print("- **Choose Continuous** for: Web captures, articles, infographics (single tall page)")
+        print("- **Choose Paginated** for: Invoices, reports, documents for printing (proper page breaks)")
+        print()
+
+        // Memory analysis
+        let avgMemoryPaginated = paginatedResults.map { $0.peakMemory.residentMB }.reduce(0, +) / Double(paginatedResults.count)
+        let avgMemoryContinuous = continuousResults.map { $0.peakMemory.residentMB }.reduce(0, +) / Double(continuousResults.count)
+
+        print("**Memory Profile:**")
+        print("- Paginated mode peak: \(String(format: "%.1f", avgMemoryPaginated)) MB (average)")
+        print("- Continuous mode peak: \(String(format: "%.1f", avgMemoryContinuous)) MB (average)")
+        print()
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print()
     }
@@ -292,21 +426,59 @@ struct PerformanceBenchmarks {
                 html.replacingOccurrences(of: "{{ID}}", with: "\(i)")
             }
 
+            let memoryBefore = MemorySnapshot.current()
+            let peakMemoryActor = PeakMemoryTracker()
+            var durations: [TimeInterval] = []
+
+            // Track memory during execution
+            let memoryTask = Task {
+                while !Task.isCancelled {
+                    let current = MemorySnapshot.current()
+                    await peakMemoryActor.update(current)
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
+
             let startTime = Date()
 
-            _ = try await pdf.renderBatchSync(htmls, output)
+            // Render with per-PDF timing
+            let stream = try await pdf.renderBatch(htmls, output)
+            for try await result in stream {
+                durations.append(Double(result.duration.components.seconds) +
+                               Double(result.duration.components.attoseconds) / 1_000_000_000_000_000_000)
+            }
 
-            let duration = Date().timeIntervalSince(startTime)
+            let totalDuration = Date().timeIntervalSince(startTime)
+            memoryTask.cancel()
+
+            let memoryAfter = MemorySnapshot.current()
+            let peakMemory = await peakMemoryActor.getPeak()
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "All PDFs should be created")
 
+            // Calculate percentiles
+            let sortedDurations = durations.sorted()
+            let p50Index = sortedDurations.count / 2
+            let p95Index = sortedDurations.count * 95 / 100
+            let p99Index = sortedDurations.count * 99 / 100
+
             return BenchmarkResult(
                 name: name,
                 count: count,
-                duration: duration,
-                throughput: Double(count) / duration,
-                avgPerItem: duration / Double(count)
+                mode: mode,
+                concurrency: maxConcurrent,
+                duration: totalDuration,
+                throughput: Double(count) / totalDuration,
+                avgPerItem: totalDuration / Double(count),
+                memoryBefore: memoryBefore,
+                memoryAfter: memoryAfter,
+                peakMemory: peakMemory,
+                minDuration: sortedDurations.first ?? 0,
+                maxDuration: sortedDurations.last ?? 0,
+                p50Duration: sortedDurations[p50Index],
+                p95Duration: sortedDurations[p95Index],
+                p99Duration: sortedDurations[p99Index]
             )
         }
     }
@@ -319,6 +491,9 @@ struct PerformanceBenchmarks {
         print("Duration:        \(String(format: "%.2f", result.duration))s")
         print("Throughput:      \(result.throughputPerSec) PDFs/sec")
         print("Avg per PDF:     \(result.avgPerItemMs)ms")
+        print("p50/p95/p99:     \(String(format: "%.2f", result.p50Duration * 1000))ms / \(String(format: "%.2f", result.p95Duration * 1000))ms / \(String(format: "%.2f", result.p99Duration * 1000))ms")
+        print("Peak Memory:     \(String(format: "%.1f", result.peakMemory.residentMB)) MB")
+        print("Memory Delta:    \(String(format: "%.1f", result.memoryDeltaMB)) MB")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
     }
 
