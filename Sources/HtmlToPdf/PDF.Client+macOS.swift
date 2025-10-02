@@ -14,6 +14,13 @@ import ResourcePool
 import AppKit
 import PDFKit
 
+extension PDF: DependencyKey {
+    public static let liveValue = PDF(
+        client: .macOS,
+        configuration: .default
+    )
+}
+
 extension PDF.Client: DependencyKey {
     public static let liveValue: Self = .macOS
 }
@@ -22,7 +29,7 @@ extension PDF.Client {
     /// macOS-specific implementation using WKWebView and NSPrintOperation
     public static let macOS = PDF.Client(
         render: { documents in
-            @Dependency(\.pdfConfiguration) var config
+            @Dependency(\.pdf.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
         capabilities: {
@@ -520,11 +527,6 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
         // Run WITHOUT showing UI
         printOperation.showsPrintPanel = false
         printOperation.showsProgressPanel = false
-
-        // Get page count from print operation BEFORE running
-        // This avoids re-reading the PDF file after generation
-        let pageRange = printOperation.printInfo.dictionary()[NSPrintInfo.AttributeKey.allPages] as? NSRange
-        let estimatedPageCount = printOperation.printInfo.dictionary()[NSPrintInfo.AttributeKey.pagesAcross] as? Int ?? 1
 
         // Run asynchronously on a background thread to avoid blocking main thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self, weak webView, paperSize = configuration.paperSize, mode = configuration.paginationMode] in

@@ -111,7 +111,7 @@ struct PerformanceBenchmarks {
     func benchmarkConcurrentBatches() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -129,8 +129,8 @@ struct PerformanceBenchmarks {
                     group.addTask { @Sendable in
                         await withDependencies {
                             $0.pdf = .liveValue
-                            $0.pdfConfiguration = .default
-                            $0.pdfConfiguration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
+                            $0.pdf.configuration = .default
+                            $0.pdf.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
                             let htmls = (1...100).map { i in
@@ -166,7 +166,7 @@ struct PerformanceBenchmarks {
     func benchmarkPoolWarmup() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -275,10 +275,10 @@ struct PerformanceBenchmarks {
     ) async throws -> BenchmarkResult {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.paginationMode = mode
-            $0.pdfConfiguration.concurrency = maxConcurrent
-            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(120)
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.paginationMode = mode
+            $0.pdf.configuration.concurrency = maxConcurrent
+            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(120)
         } operation: {
             @Dependency(\.pdf) var pdf
 

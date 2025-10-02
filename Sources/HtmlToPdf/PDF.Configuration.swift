@@ -68,7 +68,7 @@ extension PDF {
             paperSize: CGSize = .a4,
             margins: EdgeInsets = .standard,
             baseURL: URL? = nil,
-            paginationMode: PaginationMode = .paginated,
+            paginationMode: PaginationMode = .continuous,
             concurrency: Int? = nil,
             documentTimeout: Duration? = nil,
             batchTimeout: Duration? = nil,
@@ -93,7 +93,7 @@ extension PDF {
 // MARK: - Configuration Presets
 
 extension PDF.Configuration {
-    /// Default configuration (A4, standard margins, proper pagination for printing)
+    /// Default configuration (A4, standard margins, continuous mode for fast rendering)
     public static let `default` = PDF.Configuration()
 
     /// US Letter size with standard margins
@@ -163,9 +163,5 @@ extension PDF.Configuration: TestDependencyKey {
     public static let testValue = PDF.Configuration.default
 }
 
-extension DependencyValues {
-    public var pdfConfiguration: PDF.Configuration {
-        get { self[PDF.Configuration.self] }
-        set { self[PDF.Configuration.self] = newValue }
-    }
-}
+// Note: PDF.Configuration is now accessed via \.pdf.configuration
+// The PDF struct (in PDF.swift) handles the main dependency registration

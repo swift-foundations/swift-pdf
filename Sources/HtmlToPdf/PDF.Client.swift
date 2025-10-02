@@ -82,9 +82,5 @@ extension PDF.Client: TestDependencyKey {
     )
 }
 
-extension DependencyValues {
-    public var pdf: PDF.Client {
-        get { self[PDF.Client.self] }
-        set { self[PDF.Client.self] = newValue }
-    }
-}
+// Note: PDF.Client is now accessed via \.pdf.client
+// The PDF struct (in PDF.swift) handles the main dependency registration

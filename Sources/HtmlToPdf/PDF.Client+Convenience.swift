@@ -149,7 +149,7 @@ extension PDF.Client {
         _ htmls: [String],
         to directory: URL
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        @Dependency(\.pdfConfiguration) var config
+        @Dependency(\.pdf.configuration) var config
 
         let documents = htmls.enumerated().map { index, html in
             let filename = config.namingStrategy.filename(for: index)
@@ -186,7 +186,7 @@ extension PDF.Client {
         _ htmls: [String],
         to directory: URL
     ) async throws -> [URL] {
-        @Dependency(\.pdfConfiguration) var config
+        @Dependency(\.pdf.configuration) var config
 
         let documents = htmls.enumerated().map { index, html in
             let filename = config.namingStrategy.filename(for: index)

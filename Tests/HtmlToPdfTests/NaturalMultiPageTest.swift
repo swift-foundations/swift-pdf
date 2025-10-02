@@ -18,7 +18,7 @@ struct NaturalMultiPageTests {
     func generateNaturalMultiPagePDF() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration.paginationMode = .paginated  // Use proper pagination for multi-page
+            $0.pdf.configuration.paginationMode = .paginated  // Use proper pagination for multi-page
         } operation: {
             @Dependency(\.pdf) var pdf
 

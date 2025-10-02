@@ -12,24 +12,13 @@ import ResourcePool
 
 /// Configuration for creating WKWebView resources
 public struct WKWebViewResourceConfig: Sendable {
-    /// Shared process pool for all WebViews
-    @MainActor public static let sharedProcessPool = WKProcessPool()
-
     /// Whether to use persistent data store
     public let usePersistentDataStore: Bool
 
-    /// Whether to use isolated process pools (separate WKProcessPool per WebView)
-    /// - Note: On macOS 12.0+, WKProcessPool instances have no effect (deprecated)
-    /// - Shared (false): Use shared pool (recommended for macOS 12.0+)
-    /// - Isolated (true): Create separate pools (only effective on macOS < 12.0)
-    public let useIsolatedProcessPool: Bool
-
     public init(
-        usePersistentDataStore: Bool = false,
-        useIsolatedProcessPool: Bool = false
+        usePersistentDataStore: Bool = false
     ) {
         self.usePersistentDataStore = usePersistentDataStore
-        self.useIsolatedProcessPool = useIsolatedProcessPool
     }
 }
 
@@ -50,17 +39,8 @@ public final class WKWebViewResource: PoolableResource {
     public static func create(config: Config) async throws -> WKWebViewResource {
         let webViewConfig = WKWebViewConfiguration()
 
-        // Use shared or isolated process pool based on configuration
-        // Note: On macOS 12.0+, multiple WKProcessPool instances have no effect
-        if #available(macOS 12.0, *) {
-            // On macOS 12.0+, always use shared pool (multiple instances deprecated)
-            webViewConfig.processPool = WKWebViewResourceConfig.sharedProcessPool
-        } else {
-            // On older macOS, honor the useIsolatedProcessPool setting
-            webViewConfig.processPool = config.useIsolatedProcessPool
-                ? WKProcessPool()
-                : WKWebViewResourceConfig.sharedProcessPool
-        }
+        // Note: processPool defaults to a shared instance, no need to set it explicitly
+        // (avoiding deprecated WKProcessPool APIs)
 
         // Disable GPU acceleration features we don't need for PDF
         webViewConfig.suppressesIncrementalRendering = true

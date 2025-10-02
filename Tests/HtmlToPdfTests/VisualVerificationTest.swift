@@ -17,7 +17,7 @@ struct VisualVerificationTests {
     func generateVerificationPDF() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 

@@ -17,8 +17,8 @@ struct AsyncStreamTests {
     func testAsyncStreamProgressive() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.namingStrategy = .init { _ in UUID().uuidString }
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.namingStrategy = .init { _ in UUID().uuidString }
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -63,7 +63,7 @@ struct AsyncStreamTests {
     func testAsyncStreamFromDocuments() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -82,7 +82,7 @@ struct AsyncStreamTests {
                 )
             }
 
-            let stream = try await pdf.renderDocuments(documents)
+            let stream = try await pdf.render(documents)
 
             var resultCount = 0
             for try await result in stream {
@@ -101,7 +101,7 @@ struct AsyncStreamTests {
     func testConcurrentAsyncStreams() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -113,7 +113,7 @@ struct AsyncStreamTests {
             }
 
             try await withDependencies {
-                $0.pdfConfiguration.namingStrategy = .init { _ in "stream1-\(UUID().uuidString)" }
+                $0.pdf.configuration.namingStrategy = .init { _ in "stream1-\(UUID().uuidString)" }
             } operation: {
                 let stream1 = try await pdf.renderBatch([String](repeating: .html, count: count), output)
 
@@ -123,7 +123,7 @@ struct AsyncStreamTests {
             }
 
             try await withDependencies {
-                $0.pdfConfiguration.namingStrategy = .init { _ in "stream2-\(UUID().uuidString)" }
+                $0.pdf.configuration.namingStrategy = .init { _ in "stream2-\(UUID().uuidString)" }
             } operation: {
                 let stream2 = try await pdf.renderBatch([String](repeating: .html, count: count), output)
 

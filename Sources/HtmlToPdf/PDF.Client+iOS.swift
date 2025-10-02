@@ -20,7 +20,7 @@ extension PDF.Client {
     /// iOS-specific implementation using UIPrintPageRenderer
     public static let iOS = PDF.Client(
         render: { documents in
-            @Dependency(\.pdfConfiguration) var config
+            @Dependency(\.pdf.configuration) var config
             return try await renderDocumentsInternal(documents, config: config)
         },
         capabilities: {

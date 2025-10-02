@@ -19,9 +19,9 @@ struct ConcurrencyTests {
     func testLargeBatch() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.concurrency = 4
-            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(60)
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.concurrency = 4
+            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(60)
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -59,7 +59,7 @@ struct ConcurrencyTests {
     func testConcurrentOperations() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -76,8 +76,8 @@ struct ConcurrencyTests {
                     group.addTask { @Sendable in
                         await withDependencies {
                             $0.pdf = .liveValue
-                            $0.pdfConfiguration = .default
-                            $0.pdfConfiguration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
+                            $0.pdf.configuration = .default
+                            $0.pdf.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
                             let htmls = [String](repeating: .html, count: 10)
@@ -97,7 +97,7 @@ struct ConcurrencyTests {
     func testRapidSequentialOperations() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -110,7 +110,7 @@ struct ConcurrencyTests {
             // Generate 20 PDFs one after another rapidly
             for i in 1...20 {
                 let html = "<html><body><h1>Document \(i)</h1></body></html>"
-                _ = try await pdf.renderWithTitle(html, "rapid-\(i)", output)
+                _ = try await pdf.render(html, title: "rapid-\(i)", in: output)
             }
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
@@ -124,8 +124,8 @@ struct ConcurrencyTests {
     func testConcurrencyLimit() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.concurrency = 2  // Very limited concurrency
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.concurrency = 2  // Very limited concurrency
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -152,9 +152,9 @@ struct ConcurrencyTests {
     func testMixedDocumentSizes() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.concurrency = 5
-            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(60)
+            $0.pdf.configuration = .default
+            $0.pdf.configuration.concurrency = 5
+            $0.pdf.configuration.webViewAcquisitionTimeout = .seconds(60)
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -184,7 +184,7 @@ struct ConcurrencyTests {
                 ))
             }
 
-            let stream = try await pdf.renderDocuments(documents)
+            let stream = try await pdf.render(documents)
 
             var completed = 0
             for try await _ in stream {
@@ -204,7 +204,7 @@ struct ConcurrencyTests {
     func testResourceCleanup() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
+            $0.pdf.configuration = .default
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -217,7 +217,7 @@ struct ConcurrencyTests {
             // Generate multiple batches sequentially
             for batch in 1...3 {
                 try await withDependencies {
-                    $0.pdfConfiguration.namingStrategy = .init { i in "batch\(batch)-\(i)" }
+                    $0.pdf.configuration.namingStrategy = .init { i in "batch\(batch)-\(i)" }
                 } operation: {
                     let htmls = [String](repeating: .html, count: 10)
                     _ = try await pdf.renderBatchSync(htmls, output)

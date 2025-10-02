@@ -18,7 +18,7 @@ struct PaginationModeTests {
     func paginatedModeLongContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration.paginationMode = .paginated
+            $0.pdf.configuration.paginationMode = .paginated
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -59,7 +59,7 @@ struct PaginationModeTests {
     func continuousModeLongContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration.paginationMode = .continuous
+            $0.pdf.configuration.paginationMode = .continuous
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -100,7 +100,7 @@ struct PaginationModeTests {
     func automaticModeShortContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration.paginationMode = .automatic()
+            $0.pdf.configuration.paginationMode = .automatic()
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -132,7 +132,7 @@ struct PaginationModeTests {
     func automaticModeLongContent() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration.paginationMode = .automatic(heuristic: .contentLength(threshold: 1.5))
+            $0.pdf.configuration.paginationMode = .automatic(heuristic: .contentLength(threshold: 1.5))
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -175,8 +175,8 @@ struct PaginationModeTests {
         // Test paginated mode with margins
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration.paginationMode = .paginated
-            $0.pdfConfiguration.margins = .wide  // 72pt margins
+            $0.pdf.configuration.paginationMode = .paginated
+            $0.pdf.configuration.margins = .wide  // 72pt margins
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -192,8 +192,8 @@ struct PaginationModeTests {
         // Test continuous mode with margins
         try await withDependencies {
             $0.pdf = .liveValue
-            $0.pdfConfiguration.paginationMode = .continuous
-            $0.pdfConfiguration.margins = .wide  // 72pt margins
+            $0.pdf.configuration.paginationMode = .continuous
+            $0.pdf.configuration.margins = .wide  // 72pt margins
         } operation: {
             @Dependency(\.pdf) var pdf
 
