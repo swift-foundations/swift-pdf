@@ -15,34 +15,7 @@ struct ConcurrencyTests {
 
     // MARK: - Pool Efficiency Tests
 
-    @Test("Pool handles 20 documents efficiently")
-    func testMediumBatch() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.concurrency = 5
-            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(30)
-        } operation: {
-            @Dependency(\.pdf) var pdf
-
-            let count = 20
-            let htmls = [String](repeating: .html, count: count)
-            let output = URL.output()
-
-            defer {
-                try? FileManager.default.removeItem(at: output)
-            }
-
-            let urls = try await pdf.renderBatchSync(htmls, output)
-
-            #expect(urls.count == count, "All \(count) documents should be created")
-
-            let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-            #expect(files.count == count, "All \(count) files should exist")
-        }
-    }
-
-    @Test("Pool handles 50 documents with queueing")
+    @Test("Pool handles medium to large batches with queueing")
     func testLargeBatch() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
@@ -104,7 +77,7 @@ struct ConcurrencyTests {
                         await withDependencies {
                             $0.pdf = .liveValue
                             $0.pdfConfiguration = .default
-                            $0.pdfConfiguration.namingStrategy = .custom { i in "batch\(batch)-doc\(i)" }
+                            $0.pdfConfiguration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
                             let htmls = [String](repeating: .html, count: 10)
@@ -196,7 +169,7 @@ struct ConcurrencyTests {
             // Small documents
             for i in 1...10 {
                 documents.append(PDF.Document(
-                    html: "<html><body><p>Small \(i)</p></body></html>",
+                    htmlString: "<html><body><p>Small \(i)</p></body></html>",
                     title: "small-\(i)",
                     in: output
                 ))
@@ -205,7 +178,7 @@ struct ConcurrencyTests {
             // Large documents
             for i in 1...5 {
                 documents.append(PDF.Document(
-                    html: String.html2,
+                    htmlString: String.html2,
                     title: "large-\(i)",
                     in: output
                 ))
@@ -244,7 +217,7 @@ struct ConcurrencyTests {
             // Generate multiple batches sequentially
             for batch in 1...3 {
                 try await withDependencies {
-                    $0.pdfConfiguration.namingStrategy = .custom { i in "batch\(batch)-\(i)" }
+                    $0.pdfConfiguration.namingStrategy = .init { i in "batch\(batch)-\(i)" }
                 } operation: {
                     let htmls = [String](repeating: .html, count: 10)
                     _ = try await pdf.renderBatchSync(htmls, output)

@@ -13,44 +13,12 @@ import Dependencies
 @Suite("AsyncStream Results", .serialized)
 struct AsyncStreamTests {
 
-    @Test("AsyncStream yields correct results for small batch")
-    func testAsyncStreamSmallBatch() async throws {
+    @Test("AsyncStream yields correct results with progressive completion")
+    func testAsyncStreamProgressive() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
             $0.pdfConfiguration = .default
-            $0.pdfConfiguration.namingStrategy = .custom { _ in UUID().uuidString }
-        } operation: {
-            @Dependency(\.pdf) var pdf
-
-            let count = 5
-            let output = URL.output()
-
-            defer {
-                try? FileManager.default.removeItem(at: output)
-            }
-
-            let htmls = [String](repeating: .html, count: count)
-            let stream = try await pdf.renderBatch(htmls, output)
-
-            var resultCount = 0
-            for try await result in stream {
-                resultCount += 1
-                #expect(FileManager.default.fileExists(atPath: result.url.path), "Yielded URL should exist")
-            }
-
-            #expect(resultCount == count, "Should yield all \(count) results")
-
-            let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-            #expect(files.count == count, "All files should exist after stream completes")
-        }
-    }
-
-    @Test("AsyncStream yields results as PDFs complete")
-    func testAsyncStreamProgressiveResults() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.namingStrategy = .custom { i in "doc-\(i)" }
+            $0.pdfConfiguration.namingStrategy = .init { _ in UUID().uuidString }
         } operation: {
             @Dependency(\.pdf) var pdf
 
@@ -83,12 +51,11 @@ struct AsyncStreamTests {
             let completedCount = await tracker.completedCount
             let yieldedURLs = await tracker.yieldedURLs
 
-            #expect(completedCount == count, "Should yield all \(count) URLs")
+            #expect(completedCount == count, "Should yield all \(count) results")
             #expect(yieldedURLs.count == count, "Should track all completions")
 
-            // Verify all files exist
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-            #expect(files.count == count, "All files should exist")
+            #expect(files.count == count, "All files should exist after stream completes")
         }
     }
 
@@ -109,7 +76,7 @@ struct AsyncStreamTests {
 
             let documents = (1...count).map { i in
                 PDF.Document(
-                    html: String.html,
+                    htmlString: String.html,
                     title: "doc-\(i)",
                     in: output
                 )
@@ -146,7 +113,7 @@ struct AsyncStreamTests {
             }
 
             try await withDependencies {
-                $0.pdfConfiguration.namingStrategy = .custom { _ in "stream1-\(UUID().uuidString)" }
+                $0.pdfConfiguration.namingStrategy = .init { _ in "stream1-\(UUID().uuidString)" }
             } operation: {
                 let stream1 = try await pdf.renderBatch([String](repeating: .html, count: count), output)
 
@@ -156,7 +123,7 @@ struct AsyncStreamTests {
             }
 
             try await withDependencies {
-                $0.pdfConfiguration.namingStrategy = .custom { _ in "stream2-\(UUID().uuidString)" }
+                $0.pdfConfiguration.namingStrategy = .init { _ in "stream2-\(UUID().uuidString)" }
             } operation: {
                 let stream2 = try await pdf.renderBatch([String](repeating: .html, count: count), output)
 

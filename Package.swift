@@ -15,6 +15,7 @@ extension Target.Dependency {
     static var dependencies: Self { .product(name: .dependencies, package: "swift-dependencies") }
     static var dependenciesMacros: Self { .product(name: .dependenciesMacros, package: "swift-dependencies") }
     static var environmentVariables: Self { .product(name: "EnvironmentVariables", package: "swift-environment-variables") }
+    static var pointFreeHTML: Self { .product(name: "PointFreeHTML", package: "pointfree-html") }
 }
 
 let package = Package(
@@ -30,6 +31,7 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.8.0"),
         .package(url: "https://github.com/coenttb/swift-environment-variables", from: "0.1.3"),
         .package(path: "../swift-resource-pool"),
+        .package(path: "../pointfree-html"),
     ],
     targets: [
         .target(
@@ -38,7 +40,8 @@ let package = Package(
                 .dependencies,
                 .dependenciesMacros,
                 .environmentVariables,
-                .product(name: "ResourcePool", package: "swift-resource-pool")
+                .product(name: "ResourcePool", package: "swift-resource-pool"),
+                .pointFreeHTML
             ]
         ),
         .testTarget(

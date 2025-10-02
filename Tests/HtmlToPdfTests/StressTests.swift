@@ -90,7 +90,7 @@ struct StressTests {
                 let dirIndex = (i - 1) / filesPerDirectory
                 let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
                 return PDF.Document(
-                    html: "<html><body><p>\(i)</p></body></html>",
+                    htmlString: "<html><body><p>\(i)</p></body></html>",
                     title: "doc-\(i)",
                     in: subdirUrl
                 )
@@ -207,7 +207,7 @@ struct StressTests {
                 let dirIndex = (i - 1) / filesPerDirectory
                 let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
                 return PDF.Document(
-                    html: "<html><body><p>\(i)</p></body></html>",
+                    htmlString: "<html><body><p>\(i)</p></body></html>",
                     title: "doc-\(i)",
                     in: subdirUrl
                 )
@@ -246,44 +246,6 @@ struct StressTests {
             print("Files created:   \(totalFiles)")
             print("Subdirectories:  \(subdirs.count)")
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        }
-    }
-
-    @Test("Generate 10,000 PDFs (quick stress test)", .timeLimit(.minutes(5)))
-    func test10kPDFs() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-            $0.pdfConfiguration.concurrency = 8
-            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(120)
-        } operation: {
-            @Dependency(\.pdf) var pdf
-
-            let count = 10_000
-            let output = URL.output()
-
-            defer {
-                try? FileManager.default.removeItem(at: output)
-            }
-
-            let startTime = Date()
-
-            let htmls = (1...count).map { i in
-                "<html><body><p>Doc \(i)</p></body></html>"
-            }
-
-            print("Starting 10k PDF generation test...")
-
-            _ = try await pdf.renderBatchSync(htmls, output)
-
-            let duration = Date().timeIntervalSince(startTime)
-
-            let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-            #expect(files.count == count, "Should create all \(count) PDFs")
-
-            print("\n✅ 10k PDF Stress Test Complete!")
-            print("Duration: \(String(format: "%.2f", duration))s")
-            print("Throughput: \(String(format: "%.0f", Double(count) / duration)) PDFs/sec")
         }
     }
 

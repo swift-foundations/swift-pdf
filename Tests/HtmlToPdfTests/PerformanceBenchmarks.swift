@@ -130,7 +130,7 @@ struct PerformanceBenchmarks {
                         await withDependencies {
                             $0.pdf = .liveValue
                             $0.pdfConfiguration = .default
-                            $0.pdfConfiguration.namingStrategy = .custom { i in "batch\(batch)-doc\(i)" }
+                            $0.pdfConfiguration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
                             let htmls = (1...100).map { i in

@@ -85,36 +85,8 @@ struct BasicFunctionalityTests {
 
     // MARK: - Small Batch Tests
 
-    @Test("Generate 3 PDFs from strings")
-    func testSmallBatchFromStrings() async throws {
-        try await withDependencies {
-            $0.pdf = .liveValue
-            $0.pdfConfiguration = .default
-        } operation: {
-            @Dependency(\.pdf) var pdf
-
-            let count = 3
-            let htmls = [String](repeating: .html, count: count)
-            let output = URL.output()
-
-            defer {
-                try? FileManager.default.removeItem(at: output)
-            }
-
-            let urls = try await pdf.renderBatchSync(htmls, output)
-
-            #expect(urls.count == count, "Should create \(count) PDF files")
-
-            // Verify each file has content
-            for url in urls {
-                let data = try Data(contentsOf: url)
-                #expect(data.count > 1000, "Each PDF should have content")
-            }
-        }
-    }
-
-    @Test("Generate 5 PDFs from Documents")
-    func testSmallBatchFromDocuments() async throws {
+    @Test("Generate small batch from strings and documents")
+    func testSmallBatch() async throws {
         try await withDependencies {
             $0.pdf = .liveValue
             $0.pdfConfiguration = .default
@@ -128,9 +100,25 @@ struct BasicFunctionalityTests {
                 try? FileManager.default.removeItem(at: output)
             }
 
+            // Test batch from strings
+            let htmls = [String](repeating: .html, count: count)
+            let urls = try await pdf.renderBatchSync(htmls, output)
+
+            #expect(urls.count == count, "Should create \(count) PDF files from strings")
+
+            // Verify each file has content
+            for url in urls {
+                let data = try Data(contentsOf: url)
+                #expect(data.count > 1000, "Each PDF should have content")
+            }
+
+            // Clean up for documents test
+            try FileManager.default.removeItem(at: output)
+
+            // Test batch from documents
             let documents = (1...count).map { i in
                 PDF.Document(
-                    html: String.html,
+                    htmlString: String.html,
                     title: "doc-\(i)",
                     in: output
                 )
@@ -141,7 +129,7 @@ struct BasicFunctionalityTests {
                 resultCount += 1
             }
 
-            #expect(resultCount == count, "Should create \(count) PDF files")
+            #expect(resultCount == count, "Should create \(count) PDF files from documents")
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "Should have \(count) files in directory")
@@ -171,6 +159,144 @@ struct BasicFunctionalityTests {
 
             let pdfData = try Data(contentsOf: result)
             #expect(pdfData.count > 5000, "Complex PDF should have substantial content")
+        }
+    }
+
+    // MARK: - Missing API Coverage
+
+    @Test("renderToData returns PDF data")
+    func testRenderToData() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdfConfiguration = .default
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let html = String.html
+            let data = try await pdf.renderToData(html)
+
+            #expect(data.count > 1000, "PDF data should have substantial content")
+            // PDF files start with "%PDF" (0x25 0x50 0x44 0x46)
+            #expect(data.starts(with: [0x25, 0x50, 0x44, 0x46]), "Should start with %PDF magic bytes")
+        }
+    }
+
+    @Test("capabilities returns platform info")
+    func testCapabilities() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let caps = pdf.capabilities()
+            #if os(macOS)
+            #expect(caps.supportsWebViewPooling == true, "macOS should support WebView pooling")
+            #expect(caps.supportsBackgroundRendering == true, "macOS should support background rendering")
+            #expect(caps.maxConcurrentOperations > 0, "Should have max concurrent operations")
+            #else
+            #expect(caps.supportsWebViewPooling == true, "iOS should support WebView pooling")
+            #expect(caps.supportsBackgroundRendering == false, "iOS should not support background rendering")
+            #expect(caps.maxConcurrentOperations > 0, "Should have max concurrent operations")
+            #endif
+        }
+    }
+
+    // MARK: - Configuration Coverage
+
+    @Test("baseURL configuration with external resources")
+    func testBaseURLConfiguration() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdfConfiguration = .default
+            $0.pdfConfiguration.baseURL = URL(string: "https://example.com")
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let html = """
+            <html>
+            <head>
+                <style>body { color: red; }</style>
+            </head>
+            <body>
+                <h1>Test with baseURL</h1>
+            </body>
+            </html>
+            """
+            let output = URL.output().appendingPathComponent("baseurl-test.pdf")
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            let result = try await pdf.render(html, output)
+
+            #expect(FileManager.default.fileExists(atPath: result.path), "PDF with baseURL should be created")
+        }
+    }
+
+    @Test("US Letter paper size")
+    func testUSLetterPaperSize() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdfConfiguration = .default
+            $0.pdfConfiguration.paperSize = .letter
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let html = String.html
+            let output = URL.output().appendingPathComponent("us-letter.pdf")
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            let result = try await pdf.render(html, output)
+
+            #expect(FileManager.default.fileExists(atPath: result.path), "US Letter PDF should be created")
+        }
+    }
+
+    @Test("A3 paper size")
+    func testA3PaperSize() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdfConfiguration = .default
+            $0.pdfConfiguration.paperSize = .a3
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let html = String.html
+            let output = URL.output().appendingPathComponent("a3.pdf")
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            let result = try await pdf.render(html, output)
+
+            #expect(FileManager.default.fileExists(atPath: result.path), "A3 PDF should be created")
+        }
+    }
+
+    @Test("Minimal margins preset")
+    func testMinimalMargins() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdfConfiguration = .default
+            $0.pdfConfiguration.margins = .minimal
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let html = String.html
+            let output = URL.output().appendingPathComponent("minimal-margins.pdf")
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            let result = try await pdf.render(html, output)
+
+            #expect(FileManager.default.fileExists(atPath: result.path), "PDF with minimal margins should be created")
         }
     }
 }

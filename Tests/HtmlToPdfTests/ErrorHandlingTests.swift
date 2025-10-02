@@ -140,6 +140,83 @@ struct ErrorHandlingTests {
         }
     }
 
+    // MARK: - WebView Pool Error Tests
+
+    @Test("Handles WebView pool resource timeout")
+    func testWebViewPoolTimeout() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdfConfiguration = .default
+            $0.pdfConfiguration.concurrency = 1  // Very limited pool
+            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(1)  // Short timeout
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let output = URL.temporaryDirectory
+                .appendingPathComponent("pool-timeout-test")
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            // Launch many concurrent operations to exhaust the pool
+            await withTaskGroup(of: Void.self) { group in
+                for i in 1...10 {
+                    let outputDir = output
+                    group.addTask { @Sendable in
+                        await withDependencies {
+                            $0.pdf = .liveValue
+                            $0.pdfConfiguration = .default
+                            $0.pdfConfiguration.concurrency = 1
+                            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(1)
+                        } operation: {
+                            @Dependency(\.pdf) var taskPdf
+                            do {
+                                let html = "<html><body><h1>Document \(i)</h1></body></html>"
+                                _ = try await taskPdf.renderWithTitle(html, "doc-\(i)", outputDir)
+                            } catch {
+                                // Some operations may timeout, which is expected
+                            }
+                        }
+                    }
+                }
+                await group.waitForAll()
+            }
+
+            // At least some PDFs should be created despite pool pressure
+            let files = (try? FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)) ?? []
+            #expect(files.count > 0, "Some PDFs should be created despite pool pressure")
+        }
+    }
+
+    @Test("Handles WebView pool under heavy concurrent load")
+    func testWebViewPoolUnderLoad() async throws {
+        try await withDependencies {
+            $0.pdf = .liveValue
+            $0.pdfConfiguration = .default
+            $0.pdfConfiguration.concurrency = 2
+            $0.pdfConfiguration.webViewAcquisitionTimeout = .seconds(30)
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            let count = 20
+            let output = URL.output()
+
+            defer {
+                try? FileManager.default.removeItem(at: output)
+            }
+
+            // Launch more concurrent operations than the pool size
+            let htmls = (1...count).map { i in
+                "<html><body><h1>Document \(i)</h1></body></html>"
+            }
+
+            let urls = try await pdf.renderBatchSync(htmls, output)
+
+            #expect(urls.count == count, "All documents should complete despite pool queueing")
+        }
+    }
+
     // MARK: - Timeout Tests
 
     @Test("Respects document timeout")

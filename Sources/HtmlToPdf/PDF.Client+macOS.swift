@@ -10,6 +10,7 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 import WebKit
+import ResourcePool
 
 extension PDF.Client: DependencyKey {
     public static let liveValue: Self = .macOS
@@ -20,19 +21,20 @@ extension PDF.Client {
     public static let macOS = PDF.Client(
         render: { html, destination in
             @Dependency(\.pdfConfiguration) var config
-            let document = PDF.Document(html: html, destination: destination)
+            let document = PDF.Document(htmlString: html, destination: destination)
             return try await document.renderInternal(config: config)
         },
 
         renderWithTitle: { html, title, directory in
             @Dependency(\.pdfConfiguration) var config
-            let document = PDF.Document(html: html, title: title, in: directory)
+            let document = PDF.Document(htmlString: html, title: title, in: directory)
             return try await document.renderInternal(config: config)
         },
 
         renderToData: { html in
             @Dependency(\.pdfConfiguration) var config
-            return try await renderHTMLToData(html, config: config)
+            let htmlBytes = ContiguousArray(html.utf8)
+            return try await renderHTMLToData(htmlBytes, config: config)
         },
 
         renderDocument: { document in
@@ -45,7 +47,7 @@ extension PDF.Client {
 
             let documents = htmls.enumerated().map { index, html in
                 let filename = config.namingStrategy.filename(for: index)
-                return PDF.Document(html: html, title: filename, in: directory)
+                return PDF.Document(htmlString: html, title: filename, in: directory)
             }
 
             return try await renderDocumentsInternal(documents, config: config)
@@ -61,7 +63,7 @@ extension PDF.Client {
 
             let documents = htmls.enumerated().map { index, html in
                 let filename = config.namingStrategy.filename(for: index)
-                return PDF.Document(html: html, title: filename, in: directory)
+                return PDF.Document(htmlString: html, title: filename, in: directory)
             }
 
             let stream = try await renderDocumentsInternal(documents, config: config)
@@ -83,22 +85,31 @@ extension PDF.Client {
 
 @MainActor
 private func renderHTMLToData(
-    _ html: String,
+    _ htmlBytes: ContiguousArray<UInt8>,
     config: PDF.Configuration
 ) async throws -> Data {
     let webView = WKWebView(frame: .zero)
 
     return try await withCheckedThrowingContinuation { continuation in
         let marginCSS = generateMarginCSS(config)
-        let htmlToLoad = html.injectingCSS(marginCSS)
+        let htmlToLoad = htmlBytes.injectingCSS(marginCSS)
+        let htmlData = htmlToLoad.toData()
 
-        webView.loadHTMLString(htmlToLoad, baseURL: config.baseURL)
+        webView.load(
+            htmlData,
+            mimeType: "text/html",
+            characterEncodingName: "UTF-8",
+            baseURL: config.baseURL ?? URL(string: "about:blank")!
+        )
 
         // Wait for load completion (simplified - production would need proper delegate)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            webView.frame = .init(origin: .zero, size: config.paperSize)
+            // Set frame to paper size for proper layout
+            webView.frame = CGRect(origin: .zero, size: config.paperSize)
 
             let pdfConfig = WKPDFConfiguration()
+            // Set rect explicitly to control page size (CSS @page is not supported by WKWebView)
+            // This ensures the PDF pages match the configured paper size
             pdfConfig.rect = CGRect(origin: .zero, size: config.paperSize)
 
             webView.createPDF(configuration: pdfConfig) { result in
@@ -112,7 +123,11 @@ private func renderHTMLToData(
 extension PDF.Document {
     func renderInternal(config: PDF.Configuration) async throws -> URL {
         @Dependency(\.webViewPool) var webViewPool
+        let pool = try await webViewPool.pool
+        return try await renderWithPool(pool, config: config)
+    }
 
+    func renderWithPool(_ pool: ResourcePool<WKWebViewResource>, config: PDF.Configuration) async throws -> URL {
         if config.createDirectories {
             try FileManager.default.createDirectory(
                 at: self.destination.deletingLastPathComponent(),
@@ -120,13 +135,12 @@ extension PDF.Document {
             )
         }
 
-        let pool = try await webViewPool.pool
         let destination = self.destination
         let html = self.html
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
         ) { @Sendable resource in
-            let document = PDF.Document(html: html, destination: destination)
+            let document = PDF.Document(htmlBytes: html, destination: destination)
             try await document.renderWithWebView(
                 resource.webView,
                 config: config
@@ -183,8 +197,14 @@ extension PDF.Document {
 
             let marginCSS = generateMarginCSS(config)
             let htmlToLoad = self.html.injectingCSS(marginCSS)
+            let htmlData = htmlToLoad.toData()
 
-            webView.loadHTMLString(htmlToLoad, baseURL: config.baseURL)
+            webView.load(
+                htmlData,
+                mimeType: "text/html",
+                characterEncodingName: "UTF-8",
+                baseURL: config.baseURL ?? URL(string: "about:blank")!
+            )
         }
     }
 }
@@ -196,6 +216,10 @@ private func renderDocumentsInternal(
     AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task { @MainActor in
             do {
+                // Get the pool ONCE at the beginning, not for every document
+                @Dependency(\.webViewPool) var webViewPool
+                let pool = try await webViewPool.pool
+
                 let maxConcurrent = config.concurrency ??
                     Swift.min(ProcessInfo.processInfo.activeProcessorCount, 8)
 
@@ -205,7 +229,7 @@ private func renderDocumentsInternal(
                     for (index, document) in documents.prefix(maxConcurrent).enumerated() {
                         taskGroup.addTask {
                             let start = ContinuousClock.now
-                            let url = try await document.renderInternal(config: config)
+                            let url = try await document.renderWithPool(pool, config: config)
                             let duration = ContinuousClock.now - start
                             return (index, url, duration)
                         }
@@ -230,7 +254,7 @@ private func renderDocumentsInternal(
 
                             taskGroup.addTask {
                                 let start = ContinuousClock.now
-                                let url = try await document.renderInternal(config: config)
+                                let url = try await document.renderWithPool(pool, config: config)
                                 let duration = ContinuousClock.now - start
                                 return (capturedIndex, url, duration)
                             }
@@ -245,26 +269,29 @@ private func renderDocumentsInternal(
     }
 }
 
-private func generateMarginCSS(_ config: PDF.Configuration) -> String {
-    return """
+private func generateMarginCSS(_ config: PDF.Configuration) -> ContiguousArray<UInt8> {
+    // Note: WKWebView does NOT support CSS @page size directive
+    // Page size is controlled via WKPDFConfiguration.rect instead
+    // We only use CSS for body margins to create content padding
+
+    let css = """
     <style>
     @media print, screen {
         html, body {
             margin: 0;
             padding: 0;
             width: 100%;
-            height: 100%;
+            height: auto;
         }
+
         body {
-            padding-top: \(config.margins.top)pt !important;
-            padding-right: \(config.margins.right)pt !important;
-            padding-bottom: \(config.margins.bottom)pt !important;
-            padding-left: \(config.margins.left)pt !important;
-            box-sizing: border-box !important;
+            padding: \(config.margins.top)pt \(config.margins.right)pt \(config.margins.bottom)pt \(config.margins.left)pt;
+            box-sizing: border-box;
         }
     }
     </style>
     """
+    return ContiguousArray(css.utf8)
 }
 
 // MARK: - Supporting Classes (from existing implementation)
@@ -300,9 +327,12 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in
-            webView.frame = .init(origin: .zero, size: configuration.paperSize)
+            // Set frame to paper size for proper layout
+            webView.frame = CGRect(origin: .zero, size: configuration.paperSize)
 
             let pdfConfig = WKPDFConfiguration()
+            // Set rect explicitly to control page size (CSS @page is not supported by WKWebView)
+            // This ensures the PDF pages match the configured paper size
             pdfConfig.rect = CGRect(origin: .zero, size: configuration.paperSize)
 
             webView.createPDF(configuration: pdfConfig) { [weak webView] result in
