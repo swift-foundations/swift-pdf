@@ -119,7 +119,7 @@ struct StressTests {
         }
     }
 
-    @Test("Generate 100,000 PDFs", .timeLimit(.minutes(30)))
+    @Test("Generate 200,000 PDFs", .timeLimit(.minutes(30)))
     func test100kPDFs() async throws {
         try await withDependencies {
             // Using .automatic now defaults to 3x CPU count (24 on 8-core Mac)
@@ -132,7 +132,7 @@ struct StressTests {
                 // Suppress WebKit console warnings
                 setenv("OS_ACTIVITY_MODE", "disable", 1)
 
-                let count = 100_000
+                let count = 200_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
 
                 let tracker = ProgressTracker(totalCount: count, reportInterval: 5.0)
