@@ -238,7 +238,7 @@ struct VisualVerificationTests {
             print("\nOutput location:")
             print("  \(output.path)")
 
-            let url = try await pdf.render.client.html(htmlString, output)
+            let url = try await pdf.render.client.html(htmlString, to: output)
 
             if FileManager.default.fileExists(atPath: url.path) {
                 let attrs = try FileManager.default.attributesOfItem(atPath: url.path)

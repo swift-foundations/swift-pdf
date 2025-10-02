@@ -71,7 +71,7 @@ struct WebViewMemoryTests {
         defer { try? FileManager.default.removeItem(at: output) }
 
         let html = "<html><body><h1>Test</h1></body></html>"
-        _ = try await pdf.render.html(html, output)
+        _ = try await pdf.render.html(html, to: output)
 
         try await Task.sleep(for: .milliseconds(500))
 
@@ -96,7 +96,7 @@ struct WebViewMemoryTests {
 
         // First, render 1 to establish baseline
         let html = "<html><body><h1>Test</h1></body></html>"
-        _ = try await pdf.render.html(html, output.appendingPathComponent("0.pdf"))
+        _ = try await pdf.render.html(html, to: output.appendingPathComponent("0.pdf"))
         try await Task.sleep(for: .milliseconds(500))
 
         let after1 = currentMemoryUsage()
@@ -145,7 +145,7 @@ struct WebViewMemoryTests {
 
         // First, render 1 to establish baseline
         let html = "<html><body><h1>Test</h1></body></html>"
-        _ = try await pdf.render.html(html, output.appendingPathComponent("0.pdf"))
+        _ = try await pdf.render.html(html, to: output.appendingPathComponent("0.pdf"))
         try await Task.sleep(for: .milliseconds(500))
 
         let after1 = currentMemoryUsage()
@@ -194,7 +194,7 @@ struct WebViewMemoryTests {
 
         // First, render 1 to establish baseline
         let html = "<html><body><h1>Test</h1></body></html>"
-        _ = try await pdf.render.html(html, output.appendingPathComponent("0.pdf"))
+        _ = try await pdf.render.html(html, to: output.appendingPathComponent("0.pdf"))
         try await Task.sleep(for: .milliseconds(500))
 
         let after1 = currentMemoryUsage()

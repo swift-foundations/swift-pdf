@@ -48,9 +48,9 @@ extension PDF.Render {
     /// - Throws: Rendering errors
     public func html(
         _ html: String,
-        _ destination: URL
+        to destination: URL
     ) async throws -> URL {
-        try await client.html(html, destination)
+        try await client.html(html, to: destination)
     }
 
     // MARK: - Batch Operations
@@ -74,6 +74,17 @@ extension PDF.Render {
 
     // MARK: - Data Operations
 
+    /// Render a single HTML string to PDF data
+    ///
+    /// Convenience method that forwards to `client.data()`.
+    ///
+    /// - Parameter htmlString: HTML content to render
+    /// - Returns: PDF data
+    /// - Throws: Rendering errors
+    public func data(_ htmlString: String) async throws -> Data {
+        try await client.data(htmlString)
+    }
+
     /// Render multiple HTML strings to PDF data, yielding results as they complete
     ///
     /// Convenience method that forwards to `client.data()`.
@@ -85,17 +96,6 @@ extension PDF.Render {
         _ htmlStrings: some Sequence<String>
     ) async throws -> AsyncThrowingStream<Data, Error> {
         try await client.data(htmlStrings)
-    }
-
-    /// Render a single HTML string to PDF data
-    ///
-    /// Convenience method that forwards to `client.data()`.
-    ///
-    /// - Parameter htmlString: HTML content to render
-    /// - Returns: PDF data
-    /// - Throws: Rendering errors
-    public func data(_ htmlString: String) async throws -> Data {
-        try await client.data(htmlString)
     }
 
     // MARK: - Platform Capabilities

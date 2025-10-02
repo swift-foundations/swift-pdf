@@ -255,7 +255,7 @@ struct PerformanceBenchmarks {
             try? FileManager.default.removeItem(at: output)
         }
         
-        _ = try await pdf.render.client.html(html, output)
+        _ = try await pdf.render.client.html(html, to: output)
         
         let duration = Date().timeIntervalSince(startTime)
         

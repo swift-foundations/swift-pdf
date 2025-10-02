@@ -36,7 +36,7 @@ struct PaginationModeTests {
             </html>
             """
         
-        let url = try await pdf.render.client.html(html, output)
+        let url = try await pdf.render.client.html(html, to: output)
         
         // Verify multiple pages were created
         guard let pdfDoc = PDFDocument(url: url) else {
@@ -74,7 +74,7 @@ struct PaginationModeTests {
             </html>
             """
         
-        let url = try await pdf.render.client.html(html, output)
+        let url = try await pdf.render.client.html(html, to: output)
         
         // Verify single page was created
         guard let pdfDoc = PDFDocument(url: url) else {
@@ -110,7 +110,7 @@ struct PaginationModeTests {
             </html>
             """
         
-        let url = try await pdf.render.client.html(html, output)
+        let url = try await pdf.render.client.html(html, to: output)
         
         guard let pdfDoc = PDFDocument(url: url) else {
             throw NSError(domain: "Failed to load PDF", code: -1)
@@ -141,7 +141,7 @@ struct PaginationModeTests {
             </html>
             """
         
-        let url = try await pdf.render.client.html(html, output)
+        let url = try await pdf.render.client.html(html, to: output)
         
         guard let pdfDoc = PDFDocument(url: url) else {
             throw NSError(domain: "Failed to load PDF", code: -1)
@@ -173,7 +173,7 @@ struct PaginationModeTests {
             defer { try? FileManager.default.removeItem(at: output) }
             
             let html = "<html><body><p>Test margins in paginated mode</p></body></html>"
-            let result = try await pdf.render.client.html(html, output)
+            let result = try await pdf.render.client.html(html, to: output)
             
             #expect(FileManager.default.fileExists(atPath: result.path), "Paginated PDF with margins should be created")
         }
@@ -189,7 +189,7 @@ struct PaginationModeTests {
             defer { try? FileManager.default.removeItem(at: output) }
             
             let html = "<html><body><p>Test margins in continuous mode</p></body></html>"
-            let result = try await pdf.render.client.html(html, output)
+            let result = try await pdf.render.client.html(html, to: output)
             
             #expect(FileManager.default.fileExists(atPath: result.path), "Continuous PDF with margins should be created")
         }

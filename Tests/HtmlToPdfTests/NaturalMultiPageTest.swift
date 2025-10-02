@@ -118,7 +118,7 @@ struct NaturalMultiPageTests {
             print("\nExpected: 3-4 pages of content")
             print("Items: 200 test items")
 
-            let url = try await pdf.render.client.html(htmlString, output)
+            let url = try await pdf.render.client.html(htmlString, to: output)
 
             if FileManager.default.fileExists(atPath: url.path) {
                 let attrs = try FileManager.default.attributesOfItem(atPath: url.path)

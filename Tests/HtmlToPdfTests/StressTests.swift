@@ -353,7 +353,7 @@ struct StressTests {
                             let html = "<html><body><p>PDF \(count)</p></body></html>"
                             let destination = outputDir.appendingPathComponent("sustained-\(count).pdf")
                             
-                            _ = try await pdf.render.client.html(html, destination)
+                            _ = try await pdf.render.client.html(html, to: destination)
                             
                             // Brief pause to simulate realistic workload
                             try? await Task.sleep(for: .milliseconds(100))

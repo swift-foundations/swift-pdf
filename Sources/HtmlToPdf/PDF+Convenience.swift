@@ -11,33 +11,33 @@ extension PDF {
 
     // MARK: - Most Common Operations
 
-    /// Render documents to PDF files, yielding results as they complete
+    /// Render a single document to PDF
     ///
-    /// Top-level convenience for the most common operation.
-    /// Forwards to `render.documents()`.
+    /// Top-level convenience for type-safe document rendering.
+    /// Forwards to `render.document()`.
     ///
     /// ## Usage
     ///
     /// ```swift
     /// @Dependency(\.pdf) var pdf
     ///
-    /// let documents = [
-    ///     PDF.Document(htmlString: html1, destination: url1),
-    ///     PDF.Document(htmlString: html2, destination: url2)
-    /// ]
+    /// let document = PDF.Document(
+    ///     htmlString: html,
+    ///     destination: url,
+    ///     paginationMode: .paginated
+    /// )
     ///
-    /// for try await result in try await pdf.documents(documents) {
-    ///     print("Generated \(result.url)")
-    /// }
+    /// let result = try await pdf.document(document)
+    /// print("Generated \(result)")
     /// ```
     ///
-    /// - Parameter documents: Documents to render (any sequence)
-    /// - Returns: Stream of results as PDFs are generated
+    /// - Parameter document: Document to render
+    /// - Returns: URL of the generated PDF
     /// - Throws: Rendering errors
-    public func documents(
-        _ documents: some Sequence<PDF.Document>
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await render.documents(documents)
+    public func document(
+        _ document: PDF.Document
+    ) async throws -> URL {
+        try await render.document(document)
     }
 
     /// Render HTML to PDF file
@@ -63,7 +63,7 @@ extension PDF {
         _ html: String,
         to destination: URL
     ) async throws -> URL {
-        try await render.html(html, destination)
+        try await render.html(html, to: destination)
     }
 
     /// Render HTML to PDF data (in-memory)

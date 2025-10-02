@@ -25,7 +25,7 @@ struct ErrorHandlingTests {
             .appendingPathExtension("pdf")
 
         // Should still generate a PDF even with malformed HTML
-        let result = try await pdf.render.client.html(malformedHTML, output)
+        let result = try await pdf.render.client.html(malformedHTML, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created even with malformed HTML")
 
@@ -41,7 +41,7 @@ struct ErrorHandlingTests {
             .appendingPathComponent("empty-test")
             .appendingPathExtension("pdf")
 
-        let result = try await pdf.render.client.html(emptyHTML, output)
+        let result = try await pdf.render.client.html(emptyHTML, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created even with empty HTML")
 
@@ -63,7 +63,7 @@ struct ErrorHandlingTests {
             .appendingPathComponent("large-test")
             .appendingPathExtension("pdf")
 
-        let result = try await pdf.render.client.html(largeHTML, output)
+        let result = try await pdf.render.client.html(largeHTML, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created for large HTML")
 
@@ -83,7 +83,7 @@ struct ErrorHandlingTests {
         let invalidPath = URL(fileURLWithPath: "/invalid/path/that/does/not/exist/test.pdf")
 
         do {
-            try await pdf.render.client.html(html, invalidPath)
+            try await pdf.render.client.html(html, to: invalidPath)
             Issue.record("Should have thrown an error for invalid path")
         } catch {
             // Expected to fail
@@ -105,7 +105,7 @@ struct ErrorHandlingTests {
             .appendingPathComponent("test.pdf")
 
         // Should create all intermediate directories
-        let result = try await pdf.render.client.html(html, nestedPath)
+        let result = try await pdf.render.client.html(html, to: nestedPath)
 
         #expect(FileManager.default.fileExists(atPath: result.path))
 
@@ -218,7 +218,7 @@ struct ErrorHandlingTests {
             .appendingPathExtension("pdf")
 
         do {
-            let result = try await pdf.render.client.html(complexHTML, output)
+            let result = try await pdf.render.client.html(complexHTML, to: output)
             // If we get here, the timeout might not have worked, but the document might be simple enough
             // Check if file was created
             if FileManager.default.fileExists(atPath: result.path) {
@@ -306,7 +306,7 @@ struct PrintingErrorTests {
         }
 
         // Should still succeed even with resource constraints
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created despite resource constraints")
     }
 }

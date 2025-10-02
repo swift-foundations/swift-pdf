@@ -43,7 +43,7 @@ extension PDF.Render.Client {
     /// - Throws: Rendering errors
     public func html(
         _ html: String,
-        _ destination: URL
+        to destination: URL
     ) async throws -> URL {
         let doc = PDF.Document(htmlString: html, destination: destination)
         return try await document(doc)

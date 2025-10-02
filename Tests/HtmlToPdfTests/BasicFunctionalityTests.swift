@@ -26,7 +26,7 @@ struct BasicFunctionalityTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created")
 
@@ -65,7 +65,7 @@ struct BasicFunctionalityTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF with custom config should be created")
     }
@@ -132,7 +132,7 @@ struct BasicFunctionalityTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "Complex HTML PDF should be created")
 
@@ -192,7 +192,7 @@ struct BasicFunctionalityTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF with baseURL should be created")
     }
@@ -210,7 +210,7 @@ struct BasicFunctionalityTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "US Letter PDF should be created")
     }
@@ -228,7 +228,7 @@ struct BasicFunctionalityTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "A3 PDF should be created")
     }
@@ -246,7 +246,7 @@ struct BasicFunctionalityTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "PDF with minimal margins should be created")
     }

@@ -44,7 +44,7 @@ struct ConvenienceTests {
         }
 
         // Mid-level - shows capability structure, forwards to client
-        let result = try await pdf.render.html(html, output)
+        let result = try await pdf.render.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "Capability-level convenience should work")
     }
@@ -61,7 +61,7 @@ struct ConvenienceTests {
         }
 
         // Explicit form - direct client access
-        let result = try await pdf.render.client.html(html, output)
+        let result = try await pdf.render.client.html(html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "Explicit client access should work")
     }
@@ -117,8 +117,8 @@ struct ConvenienceTests {
         #expect(data3.count > 1000, "Explicit client data should work")
     }
 
-    @Test("Document array convenience levels")
-    func testDocumentArrayLevels() async throws {
+    @Test("Document convenience levels")
+    func testDocumentConvenienceLevels() async throws {
 
         let output = URL.temporaryDirectory
             .appendingPathComponent("docs-\(UUID().uuidString)")
@@ -127,36 +127,32 @@ struct ConvenienceTests {
             try? FileManager.default.removeItem(at: output)
         }
 
-        let documents = [
-            PDF.Document(htmlString: "<html><body>A</body></html>", title: "a", in: output),
-            PDF.Document(htmlString: "<html><body>B</body></html>", title: "b", in: output)
-        ]
+        let document = PDF.Document(htmlString: "<html><body>Test</body></html>", title: "test", in: output)
 
         // Level 1: Top-level
-        var count1 = 0
-        for try await _ in try await pdf.documents(documents) {
-            count1 += 1
-        }
-        #expect(count1 == 2, "Top-level documents should work")
+        let url1 = try await pdf.document(document)
+        #expect(FileManager.default.fileExists(atPath: url1.path), "Top-level document should work")
 
         // Clean for next test
         try? FileManager.default.removeItem(at: output)
 
         // Level 2: Capability-level
-        var count2 = 0
-        for try await _ in try await pdf.render.documents(documents) {
-            count2 += 1
-        }
-        #expect(count2 == 2, "Capability-level documents should work")
+        let url2 = try await pdf.render.document(document)
+        #expect(FileManager.default.fileExists(atPath: url2.path), "Capability-level document should work")
 
         // Clean for next test
         try? FileManager.default.removeItem(at: output)
 
-        // Level 3: Explicit client
-        var count3 = 0
+        // Level 3: Explicit client - batch documents
+        let documents = [
+            PDF.Document(htmlString: "<html><body>A</body></html>", title: "a", in: output),
+            PDF.Document(htmlString: "<html><body>B</body></html>", title: "b", in: output)
+        ]
+
+        var count = 0
         for try await _ in try await pdf.render.client.documents(documents) {
-            count3 += 1
+            count += 1
         }
-        #expect(count3 == 2, "Explicit client documents should work")
+        #expect(count == 2, "Client-level batch documents should work")
     }
 }
