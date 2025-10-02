@@ -106,11 +106,11 @@ public final class WKWebViewResource: PoolableResource {
         // Clear navigation delegate
         webView.navigationDelegate = nil
 
-        // Lightweight cleanup - just verify document is ready
-        // Note: Expensive operations like loading blank HTML and clearing data stores
-        // caused 10x performance degradation. Instead, rely on resource cycling
-        // (maxUsesBeforeCycling in ResourcePool) to periodically replace WebViews.
-        _ = try? await webView.evaluateJavaScript("document.readyState")
+        // Note: Expensive operations like loading blank HTML, clearing data stores,
+        // or JavaScript validation caused 10x performance degradation.
+        // Instead, rely on resource cycling (maxUsesBeforeCycling in ResourcePool)
+        // and validate() to periodically replace unhealthy WebViews.
+        // The stopLoading() and delegate clearing above is sufficient for cleanup.
     }
 }
 

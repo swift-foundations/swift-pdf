@@ -25,6 +25,58 @@ extension PDF.Client: DependencyKey {
     public static let liveValue: Self = .macOS
 }
 
+// MARK: - Directory Cache
+
+/// Thread-safe cache for validated directories to avoid redundant file system checks
+@MainActor
+private final class DirectoryCache: @unchecked Sendable {
+    private var validated: Set<String> = []
+
+    func ensureDirectory(
+        at url: URL,
+        createIfNeeded: Bool
+    ) throws {
+        let path = url.path
+
+        // Fast path: already validated
+        if validated.contains(path) {
+            return
+        }
+
+        // Slow path: check and possibly create
+        if createIfNeeded {
+            try FileManager.default.createDirectory(
+                at: url,
+                withIntermediateDirectories: true
+            )
+            validated.insert(path)
+        } else {
+            // Validate directory exists when createDirectories is false
+            var isDirectory: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) || !isDirectory.boolValue {
+                throw PrintingError.invalidFilePath(
+                    url,
+                    underlyingError: NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: NSFileNoSuchFileError,
+                        userInfo: [NSLocalizedDescriptionKey: "Directory does not exist: \(path)"]
+                    )
+                )
+            }
+            validated.insert(path)
+        }
+    }
+
+    func clear() {
+        validated.removeAll()
+    }
+}
+
+/// Shared directory cache for the rendering session
+private let directoryCache = DirectoryCache()
+
+// MARK: - Client Implementation
+
 extension PDF.Client {
     /// macOS-specific implementation using WKWebView and NSPrintOperation
     public static let macOS = PDF.Client(
@@ -157,25 +209,11 @@ extension PDF.Document {
     ) async throws -> (url: URL, pageCount: Int, dimensions: [CGSize], mode: PDF.PaginationMode) {
         let parentDirectory = self.destination.deletingLastPathComponent()
 
-        if config.createDirectories {
-            try FileManager.default.createDirectory(
-                at: parentDirectory,
-                withIntermediateDirectories: true
-            )
-        } else {
-            // Validate directory exists when createDirectories is false
-            var isDirectory: ObjCBool = false
-            if !FileManager.default.fileExists(atPath: parentDirectory.path, isDirectory: &isDirectory) || !isDirectory.boolValue {
-                throw PrintingError.invalidFilePath(
-                    self.destination,
-                    underlyingError: NSError(
-                        domain: NSCocoaErrorDomain,
-                        code: NSFileNoSuchFileError,
-                        userInfo: [NSLocalizedDescriptionKey: "Directory does not exist: \(parentDirectory.path)"]
-                    )
-                )
-            }
-        }
+        // Use cached directory validation - avoids redundant file system checks
+        try directoryCache.ensureDirectory(
+            at: parentDirectory,
+            createIfNeeded: config.createDirectories
+        )
 
         let destination = self.destination
         let html = self.html
@@ -314,8 +352,14 @@ private func renderDocumentsInternal(
                     }
                 }
                 continuation.finish()
+
+                // Clear directory cache after batch completes
+                directoryCache.clear()
             } catch {
                 continuation.finish(throwing: error)
+
+                // Clear directory cache on error as well
+                directoryCache.clear()
             }
         }
     }
@@ -328,23 +372,9 @@ private func generateMarginCSS(_ config: PDF.Configuration) -> ContiguousArray<U
     //
     // Since we don't know the mode yet (determined after loading),
     // we apply CSS padding and NSPrintInfo will override when used
-
-    let css = """
-    <style>
-    @media print, screen {
-        html {
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            margin: 0;
-            padding: \(config.margins.top)pt \(config.margins.right)pt \(config.margins.bottom)pt \(config.margins.left)pt;
-            box-sizing: border-box;
-        }
-    }
-    </style>
-    """
-    return ContiguousArray(css.utf8)
+    //
+    // Use pre-computed CSS from configuration to avoid repeated string interpolation
+    return config.marginCSSBytes
 }
 
 // MARK: - Supporting Classes (from existing implementation)

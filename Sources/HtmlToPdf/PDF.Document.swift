@@ -7,21 +7,20 @@
 
 import Foundation
 import PointFreeHTML
-import CryptoKit
 
 // MARK: - CSS Injection Cache
 
 /// Thread-safe cache for CSS-injected HTML to avoid redundant processing
 private actor CSSInjectionCache {
-    private var cache: [String: ContiguousArray<UInt8>] = [:]
-    private var accessOrder: [String] = []
+    private var cache: [Int: ContiguousArray<UInt8>] = [:]
+    private var accessOrder: [Int] = []
     private let maxEntries = 100
 
-    func get(key: String) -> ContiguousArray<UInt8>? {
+    func get(key: Int) -> ContiguousArray<UInt8>? {
         cache[key]
     }
 
-    func set(key: String, value: ContiguousArray<UInt8>) {
+    func set(key: Int, value: ContiguousArray<UInt8>) {
         // Evict oldest entry if at capacity
         if cache.count >= maxEntries, !cache.keys.contains(key) {
             if let oldestKey = accessOrder.first {
@@ -149,13 +148,17 @@ extension ContiguousArray where Element == UInt8 {
     }
 
     /// Generate a cache key for HTML + CSS combination
-    private func generateCacheKey(html: ContiguousArray<UInt8>, css: ContiguousArray<UInt8>) -> String {
-        // Use SHA256 hash for compact, collision-resistant key
-        var hasher = SHA256()
-        hasher.update(data: Data(html))
-        hasher.update(data: Data(css))
-        let hash = hasher.finalize()
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    private func generateCacheKey(html: ContiguousArray<UInt8>, css: ContiguousArray<UInt8>) -> Int {
+        // Use Swift's Hasher (xxHash-based) - 10-100x faster than SHA256
+        // Collision resistance is sufficient for cache keys
+        var hasher = Hasher()
+        html.withUnsafeBufferPointer { htmlBuffer in
+            hasher.combine(bytes: UnsafeRawBufferPointer(htmlBuffer))
+        }
+        css.withUnsafeBufferPointer { cssBuffer in
+            hasher.combine(bytes: UnsafeRawBufferPointer(cssBuffer))
+        }
+        return hasher.finalize()
     }
 
     /// Perform the actual CSS injection (uncached)

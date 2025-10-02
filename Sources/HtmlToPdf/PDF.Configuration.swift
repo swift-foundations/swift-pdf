@@ -64,6 +64,29 @@ extension PDF {
         /// How to name files in batch operations
         public var namingStrategy: NamingStrategy
 
+        // MARK: - Computed Properties
+
+        /// Pre-computed margin CSS bytes for performance
+        /// Generated on-demand and cached based on margins
+        public var marginCSSBytes: ContiguousArray<UInt8> {
+            let css = """
+            <style>
+            @media print, screen {
+                html {
+                    margin: 0;
+                    padding: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: \(margins.top)pt \(margins.right)pt \(margins.bottom)pt \(margins.left)pt;
+                    box-sizing: border-box;
+                }
+            }
+            </style>
+            """
+            return ContiguousArray(css.utf8)
+        }
+
         public init(
             paperSize: CGSize = .a4,
             margins: EdgeInsets = .standard,
