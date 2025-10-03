@@ -7,7 +7,7 @@
 
 **The fastest HTML to PDF library for Swift**
 
-⚡ **2,016 PDFs/sec** • 💾 **Constant memory** • 🎯 **Type-safe** • 🧪 **Swift 6**
+⚡ **1,939 PDFs/sec** • 💾 **Constant memory** • 🎯 **Type-safe** • 🧪 **Swift 6**
 
 ---
 
@@ -77,9 +77,9 @@ try await pdf.render(html: Invoice(number: 1234), to: fileURL)
 
 ### 1. It's Ridiculously Fast
 
-**2,016 PDFs per second.** Peak throughput. Measured, not estimated.
+**1,939 PDFs per second.** Peak throughput. Measured, not estimated.
 
-That's **120,000 PDFs per minute**. Or **7.2 million per hour**.
+That's **116,340 PDFs per minute**. Or **6.98 million per hour**.
 
 ```swift
 // Generate 10,000 invoices in ~5 seconds
@@ -141,7 +141,7 @@ for try await result in try await pdf.render(htmls: htmls, to: directory) {
 }
 ```
 
-**Latency:** Milliseconds to first result. **Throughput:** 2,016 PDFs/sec sustained.
+**Latency:** Milliseconds to first result. **Throughput:** 1,939 PDFs/sec sustained.
 
 ---
 
@@ -300,21 +300,21 @@ try await withDependencies {
 
 **Continuous Mode** (single-page, maximum speed):
 
-| Batch Size | Throughput  | Avg Latency | p95 Latency | Memory |
-|------------|-------------|-------------|-------------|--------|
-| 100        | 1,828/sec   | 0.55ms      | 6.98ms      | 146 MB |
-| 1,000      | **2,016/sec** | 0.50ms      | 4.62ms      | 147 MB |
-| 10,000     | 1,929/sec   | 0.52ms      | 4.83ms      | 148 MB |
+| Batch Size | Throughput  | Avg Latency | Memory |
+|------------|-------------|-------------|--------|
+| 100        | 1,772/sec   | 0.56ms      | 146 MB |
+| 1,000      | **1,939/sec** | 0.52ms      | 146 MB |
+| 10,000     | 1,814/sec   | 0.55ms      | 148 MB |
 
 **Paginated Mode** (multi-page, print-ready):
 
-| Batch Size | Throughput | Avg Latency | p95 Latency | Memory |
-|------------|------------|-------------|-------------|--------|
-| 100        | 184/sec    | 5.43ms      | 370.87ms    | 104 MB |
-| 1,000      | **696/sec** | 1.44ms      | 12.47ms     | 111 MB |
-| 10,000     | 484/sec    | 2.06ms      | 22.93ms     | 138 MB |
+| Batch Size | Throughput | Avg Latency | Memory |
+|------------|------------|-------------|--------|
+| 100        | 142/sec    | 7.05ms      | 102 MB |
+| 1,000      | **677/sec** | 1.48ms      | 110 MB |
+| 10,000     | 485/sec    | 2.06ms      | 137 MB |
 
-**Test Environment:** macOS 15.0, Apple Silicon (8 cores), 24 GB RAM, Swift 6.0+
+**Test Environment:** macOS 26.0, Apple Silicon (8 cores), 24 GB RAM, Swift 6.0+
 
 ### What Makes It Fast
 
@@ -342,7 +342,7 @@ try await withDependencies {
 
 | Mode | Speed | Use Case | Page Layout |
 |------|-------|----------|-------------|
-| **Continuous** | ⚡⚡⚡⚡⚡ 2,016/sec | Web captures, articles, receipts | Single tall page |
+| **Continuous** | ⚡⚡⚡⚡⚡ 1,939/sec | Web captures, articles, receipts | Single tall page |
 | **Paginated** | ⚡⚡⚡ 696/sec | Invoices, reports, contracts | Multiple pages |
 | **Automatic** | ⚡⚡⚡⚡ Adaptive | Mixed content | Smart detection |
 
@@ -386,6 +386,7 @@ try await withDependencies {
         paperSize: .letter,                    // US Letter (8.5" × 11")
         margins: .wide,                        // 1 inch margins
         paginationMode: .paginated,            // Multi-page layout
+        appearance: .light,                    // Force light background (default)
 
         // Performance settings
         concurrency: 24,                       // Or .automatic
@@ -443,7 +444,7 @@ EdgeInsets(horizontal: 50, vertical: 75)               // Symmetric
 ### Pagination Modes
 
 ```swift
-// Continuous: Single tall page (FAST: 2,016 PDFs/sec)
+// Continuous: Single tall page (FAST: 1,939 PDFs/sec)
 .continuous
 
 // Paginated: Multiple pages (PRINT-READY: 696 PDFs/sec)
@@ -456,6 +457,36 @@ EdgeInsets(horizontal: 50, vertical: 75)               // Symmetric
 .automatic(heuristic: .preferSpeed)            // Bias toward continuous
 .automatic(heuristic: .preferPrintReady)       // Bias toward paginated
 ```
+
+### Appearance (Light/Dark Mode)
+
+**Default: `.light`** - PDFs render with white backgrounds regardless of macOS dark mode.
+
+```swift
+// Light appearance (DEFAULT - recommended for invoices, reports)
+$0.pdf.render.configuration.appearance = .light  // White background, dark text
+
+// Dark appearance (rare - presentations only)
+$0.pdf.render.configuration.appearance = .dark   // Dark background, light text
+
+// Auto (respect system setting - may produce inconsistent results)
+$0.pdf.render.configuration.appearance = .auto   // Varies by system theme
+```
+
+**Why `.light` is default:**
+- Professional documents (invoices, contracts, reports) should have white backgrounds
+- Prevents surprise dark backgrounds when macOS is in dark mode
+- Saves ink when printing
+- Matches user expectations for business documents
+
+**When to use `.auto`:**
+- User-controlled preference (let users choose their PDF theme)
+- HTML already handles dark mode correctly with `@media (prefers-color-scheme)`
+
+**When to use `.dark`:**
+- Dark-themed presentations or slide decks
+- Screen-only documents with intentional dark design
+- ⚠️ Not recommended for documents intended for printing
 
 ---
 
@@ -711,26 +742,130 @@ We tested every configuration on an 8-core Mac:
 
 **Conclusion:** We set `.automatic` to use **3x CPU count** by default.
 
-### Why Batch Replacement Matters
+### Pool Replacement & Memory Management
 
 WebKit accumulates memory in the process space over time. Not a leak—just accumulation.
 
-**Naive approach:** Use same WebViews forever
-- **Result:** 44% throughput degradation over 100K PDFs
+**Default behavior:** Replace pool every **30,000 PDFs**
+- Prevents memory bloat in long-running processes
+- Maintains consistent throughput over millions of PDFs
+- ~100-200ms overhead per replacement (negligible)
 
-**Our approach:** Replace entire pool every 50,000 PDFs
-- **Result:** 19% degradation (minimal, inevitable)
-- **Benefit:** 60% faster over 1M PDFs vs naive approach
+**Customize threshold:**
+```swift
+try await withDependencies {
+    // Higher threshold: fewer replacements, slightly more memory
+    $0.pdf.render.configuration.poolReplacementThreshold = 50_000
+
+    // Lower threshold: more frequent cleanup, guaranteed freshness
+    $0.pdf.render.configuration.poolReplacementThreshold = 10_000
+
+    // Disable: not recommended for long-running servers
+    $0.pdf.render.configuration.poolReplacementThreshold = nil
+} operation: {
+    // Your code
+}
+```
 
 **How it works:**
-1. Render 50,000 PDFs with Pool A
+1. Render N PDFs with Pool A (N = threshold)
 2. Create fresh Pool B in background
 3. Drain Pool A (finish in-flight renders)
-4. Switch to Pool B
+4. Switch to Pool B atomically
 5. Release Pool A (garbage collected)
 6. Repeat
 
-**Overhead:** ~100-200ms every 50,000 PDFs (negligible)
+**Performance impact:**
+- **With replacement (30K threshold):** 19% degradation over 1M PDFs (minimal)
+- **Without replacement:** 44% degradation over 100K PDFs (severe)
+- **Benefit:** 60% faster with replacement over long runs
+
+**When to adjust:**
+- **Short batches (<10K):** Disable (set to `nil`)
+- **Medium batches (10K-100K):** Default 30K is optimal
+- **Long-running servers:** Keep default or use adaptive optimization
+- **Memory-constrained:** Lower to 10K-15K
+
+---
+
+## Security Considerations
+
+### External Resource Loading
+
+By default, WebViews **will load external resources** referenced in your HTML:
+- `<img src="https://example.com/logo.png">` → **LOADED from network**
+- `background-image: url(https://...)` → **LOADED from network**
+- `<link rel="stylesheet" href="https://...">` → **LOADED from network**
+
+**For trusted HTML (your own templates):** This is usually fine and enables full CSS/image support.
+
+**For untrusted HTML (user-generated content):** Consider blocking network requests to prevent:
+- Data exfiltration via image URLs
+- Slow rendering due to network timeouts
+- Privacy concerns (third-party tracking pixels)
+
+### Blocking External Resources (Server Use Case)
+
+To block all network requests and only allow local/inline resources:
+
+```swift
+import WebKit
+
+// Create content rule list to block network requests
+let blockNetworkJSON = """
+[{
+    "trigger": {
+        "url-filter": ".*",
+        "resource-type": ["image", "style-sheet", "script", "font", "media"]
+    },
+    "action": {
+        "type": "block"
+    }
+}]
+"""
+
+let ruleList = try await WKContentRuleListStore.default()
+    .compileContentRuleList(
+        forIdentifier: "BlockNetworkResources",
+        encodedContentRuleList: blockNetworkJSON
+    )
+
+// Apply to WebView configuration (requires custom WebView pool setup)
+// Note: This requires extending WKWebViewResource.create() to accept custom configuration
+```
+
+**Alternative approach:** Use `baseURL` with a local file:// path to scope resource loading:
+
+```swift
+try await withDependencies {
+    // Only allow resources from this directory
+    $0.pdf.render.configuration.baseURL = URL(fileURLWithPath: "/path/to/assets")
+} operation: {
+    // Now <img src="logo.png"> will load from /path/to/assets/logo.png
+    // But <img src="https://evil.com/..."> will fail
+    try await pdf.render(html: html, to: url)
+}
+```
+
+### JavaScript Execution
+
+JavaScript is **disabled by default** for PDF rendering (see `WKWebViewResource.swift:44-48`).
+
+This prevents:
+- Dynamic content manipulation
+- Network requests via fetch/XHR
+- Malicious script execution
+
+**Note:** The library uses `evaluateJavaScript` internally for pagination heuristics (measuring content height), but user HTML cannot execute JavaScript.
+
+### Recommendations by Context
+
+| Context | External Resources | baseURL | Content Rules |
+|---------|-------------------|---------|---------------|
+| **Your own templates** | ✅ Allow (default) | Optional | Not needed |
+| **User-generated HTML** | ⚠️ Consider blocking | Recommended | Recommended |
+| **Server/production** | 🔒 Block via rules | Set to local path | Strongly recommended |
+| **Development/testing** | ✅ Allow (default) | Not needed | Not needed |
 
 ---
 
@@ -845,7 +980,7 @@ Adding Linux requires:
 
 | Solution | Throughput | Memory | Type-Safe | Platform | Cost |
 |----------|------------|--------|-----------|----------|------|
-| **HtmlToPdf** | **2,016/sec** | Constant | ✅ Swift 6 | Apple | Free |
+| **HtmlToPdf** | **1,939/sec** | Constant | ✅ Swift 6 | Apple | Free |
 | wkhtmltopdf | ~100/sec | Growing | ❌ CLI | Linux | Free |
 | Puppeteer | ~50/sec | High | ❌ JS | Cross | Free |
 | PDFKit (native) | N/A | Low | Partial | Apple | Free |

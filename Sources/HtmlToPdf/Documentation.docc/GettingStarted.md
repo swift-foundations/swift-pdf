@@ -399,7 +399,7 @@ try await pdf.render(html: html, to: fileURL)
 
 **Level 2:** Pick the right mode
 ```swift
-$0.pdf.render.configuration.paginationMode = .continuous  // 2,016 PDFs/sec
+$0.pdf.render.configuration.paginationMode = .continuous  // 1,939 PDFs/sec
 // or
 $0.pdf.render.configuration.paginationMode = .paginated   // 696 PDFs/sec
 ```
@@ -418,7 +418,7 @@ $0.pdf.render.configuration.adaptiveThroughputOptimization = true
 
 | Mode | Speed | Best For | Page Layout |
 |------|-------|----------|-------------|
-| **Continuous** | ⚡⚡⚡⚡⚡ 2,016/sec | Receipts, web captures | Single tall page |
+| **Continuous** | ⚡⚡⚡⚡⚡ 1,939/sec | Receipts, web captures | Single tall page |
 | **Paginated** | ⚡⚡⚡ 696/sec | Invoices, contracts | Multiple pages |
 | **Automatic** | ⚡⚡⚡⚡ Adaptive | Mixed content | Smart detection |
 

@@ -142,7 +142,7 @@ This allows relative paths in your HTML:
 Choose how content flows into pages:
 
 ```swift
-// Single tall page (fast, 2,016 PDFs/sec)
+// Single tall page (fast, 1,939 PDFs/sec)
 $0.pdf.render.configuration.paginationMode = .continuous
 
 // Multiple pages (print-ready, 696 PDFs/sec)

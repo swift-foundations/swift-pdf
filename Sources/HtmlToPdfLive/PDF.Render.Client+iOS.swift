@@ -296,7 +296,13 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
             // Perform CSS injection asynchronously (may use cache, matching macOS)
             Task {
                 let marginCSS = generateMarginCSS(self.configuration)
-                let htmlToLoad = await self.document.html.injectingCSS(marginCSS)
+                var htmlToLoad = await self.document.html.injectingCSS(marginCSS)
+
+                // Inject appearance CSS if needed
+                if let appearanceCSS = self.configuration.appearance.cssInjection {
+                    htmlToLoad = await htmlToLoad.injectingCSS(appearanceCSS)
+                }
+
                 let htmlData = htmlToLoad.toData()
 
                 webView.load(
@@ -380,8 +386,28 @@ extension ContiguousArray where Element == UInt8 {
     /// Check if HTML bytes contain an <img tag (case-insensitive)
     func containsImageTag() -> Bool {
         // Search for "<img" in bytes (case-insensitive)
-        let pattern = ContiguousArray("<img".utf8)
-        return self.firstRange(of: pattern, options: .caseInsensitive) != nil
+        // Convert both to lowercase for comparison
+        let pattern: [UInt8] = [60, 105, 109, 103] // "<img" in ASCII
+        let patternUppercase: [UInt8] = [60, 73, 77, 71] // "<IMG" in ASCII
+
+        // Simple sliding window search
+        guard self.count >= pattern.count else { return false }
+
+        for i in 0...(self.count - pattern.count) {
+            var matches = true
+            for j in 0..<pattern.count {
+                let byte = self[i + j]
+                // Check if matches lowercase or uppercase pattern
+                if byte != pattern[j] && byte != patternUppercase[j] {
+                    matches = false
+                    break
+                }
+            }
+            if matches {
+                return true
+            }
+        }
+        return false
     }
 }
 

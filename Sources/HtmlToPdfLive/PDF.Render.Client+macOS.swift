@@ -199,7 +199,13 @@ extension PDF.Document {
             // Perform CSS injection asynchronously (may use cache)
             Task {
                 let marginCSS = generateMarginCSS(config)
-                let htmlToLoad = await self.html.injectingCSS(marginCSS)
+                var htmlToLoad = await self.html.injectingCSS(marginCSS)
+
+                // Inject appearance CSS if needed
+                if let appearanceCSS = config.appearance.cssInjection {
+                    htmlToLoad = await htmlToLoad.injectingCSS(appearanceCSS)
+                }
+
                 let htmlData = htmlToLoad.toData()
 
                 webView.load(

@@ -4,7 +4,7 @@ Understand what makes HtmlToPdf fast, then optimize for your specific use case.
 
 ## Overview
 
-HtmlToPdf achieves **2,016 PDFs/sec** peak throughput—faster than most commercial solutions. This guide explains how, and shows you how to tune performance for your workload.
+HtmlToPdf achieves **1,939 PDFs/sec** peak throughput—faster than most commercial solutions. This guide explains how, and shows you how to tune performance for your workload.
 
 **You'll learn:**
 1. The counter-intuitive discoveries (memory efficiency paradox, 3x CPU count)
@@ -18,31 +18,31 @@ HtmlToPdf achieves **2,016 PDFs/sec** peak throughput—faster than most commerc
 
 ### Continuous Mode (Maximum Speed)
 
-| Batch Size | Throughput | Avg Latency | p95 Latency | Memory |
-|------------|------------|-------------|-------------|--------|
-| 100        | 1,828/sec  | 0.55ms      | 6.98ms      | 146 MB |
-| 1,000      | **2,016/sec** | **0.50ms** | **4.62ms** | **147 MB** |
-| 10,000     | 1,929/sec  | 0.52ms      | 4.83ms      | 148 MB |
+| Batch Size | Throughput | Avg Latency | Memory |
+|------------|------------|-------------|--------|
+| 100        | 1,772/sec  | 0.56ms      | 146 MB |
+| 1,000      | **1,939/sec** | **0.52ms** | **146 MB** |
+| 10,000     | 1,814/sec  | 0.55ms      | 148 MB |
 
-**That's 120,960 PDFs per minute. Or 7.2 million per hour.**
+**That's 116,340 PDFs per minute. Or 6.98 million per hour.**
 
 ### Paginated Mode (Print-Ready)
 
-| Batch Size | Throughput | Avg Latency | p95 Latency | Memory |
-|------------|------------|-------------|-------------|--------|
-| 100        | 184/sec    | 5.43ms      | 370.87ms    | 104 MB |
-| 1,000      | **696/sec** | **1.44ms** | **12.47ms** | **111 MB** |
-| 10,000     | 484/sec    | 2.06ms      | 22.93ms     | 138 MB |
+| Batch Size | Throughput | Avg Latency | Memory |
+|------------|------------|-------------|--------|
+| 100        | 142/sec    | 7.05ms      | 102 MB |
+| 1,000      | **677/sec** | **1.48ms** | **110 MB** |
+| 10,000     | 485/sec    | 2.06ms      | 137 MB |
 
-**Still 41,760 PDFs per minute. Faster than most solutions' "fast" mode.**
+**Still 40,620 PDFs per minute. Faster than most solutions' "fast" mode.**
 
 ### Test Environment
 
-- Platform: macOS 15.0
+- Platform: macOS 26.0
 - CPU: Apple Silicon (8 cores)
 - Memory: 24 GB RAM
 - Swift: 6.0+
-- Pool: 24 WebViews (continuous), 6-8 WebViews (paginated)
+- Pool: 6-8 WebViews (automatic concurrency)
 
 **These are real numbers. Measured, not estimated.**
 
@@ -140,7 +140,7 @@ WebKit accumulates memory in the process space over time. Not a leak—just accu
 
 | Mode | Throughput | Use Case | Page Layout | Implementation |
 |------|------------|----------|-------------|----------------|
-| **Continuous** | ⚡⚡⚡⚡⚡ 2,016/sec | Web captures, receipts, articles | Single tall page | `WKWebView.createPDF()` |
+| **Continuous** | ⚡⚡⚡⚡⚡ 1,939/sec | Web captures, receipts, articles | Single tall page | `WKWebView.createPDF()` |
 | **Paginated** | ⚡⚡⚡ 696/sec | Invoices, contracts, reports | Multiple pages | `NSPrintOperation` |
 | **Automatic** | ⚡⚡⚡⚡ Adaptive | Mixed content | Smart detection | Heuristic-based |
 
@@ -272,7 +272,6 @@ $0.pdf.render.configuration.concurrency = 8
 **Rule of thumb:**
 - **Mobile (iOS):** 4-8 WebViews (thermal and battery constraints)
 - **Desktop (macOS):** 12-32 WebViews (higher power budget)
-- **Server (future Linux):** 32+ WebViews (maximize throughput)
 
 ---
 
@@ -600,8 +599,7 @@ $0.pdf.render.configuration.adaptiveThroughputOptimization = true
 
 | Solution | Throughput | Memory | Platform | Notes |
 |----------|------------|--------|----------|-------|
-| **HtmlToPdf** | **2,016/sec** | Constant | Apple | This library |
-| wkhtmltopdf | ~100/sec | Growing | Linux | CLI-based |
+| **HtmlToPdf** | **1,939/sec** | Constant | Apple | This library |
 | Puppeteer | ~50/sec | High | Cross-platform | Node.js |
 | PDFKit (native) | N/A | Low | Apple | Different use case |
 | AWS Lambda | ~1,667/sec | Per-invocation | Cloud | $$$ |

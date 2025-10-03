@@ -8,7 +8,7 @@ HtmlToPdf provides a powerful, type-safe API for generating PDF documents from H
 
 ### Key Features
 
-- **⚡ Exceptional Performance**: 2,016 PDFs/sec peak throughput
+- **⚡ Exceptional Performance**: 1,939 PDFs/sec peak throughput
 - **🎯 Type-Safe**: Full Swift 6 strict concurrency support
 - **📄 Dual Modes**: Fast continuous or print-ready paginated output
 - **🔄 Streaming**: Process results as they complete

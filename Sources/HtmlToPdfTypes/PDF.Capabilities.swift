@@ -35,11 +35,6 @@ extension PDF {
         /// - App suspension policies
         public static let iOS = 8
 
-        /// Linux maximum: 32 concurrent operations
-        ///
-        /// Future support via wkhtmltopdf or headless Chrome
-        public static let linux = 32
-
         /// Mock/test limit: 1 for deterministic testing
         public static let mock = 1
     }

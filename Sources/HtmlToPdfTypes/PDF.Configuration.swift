@@ -41,6 +41,37 @@ extension PDF {
         /// How content should be paginated in the PDF
         public var paginationMode: PaginationMode
 
+        /// Color scheme appearance for PDF rendering
+        ///
+        /// Controls whether PDFs render with light or dark backgrounds,
+        /// independent of system dark mode settings.
+        ///
+        /// **Default is `.light`** - ensures professional documents (invoices, reports, contracts)
+        /// render with white backgrounds regardless of macOS appearance.
+        ///
+        /// ## Options
+        ///
+        /// - `.light`: Force white background, dark text (default, recommended)
+        /// - `.dark`: Force dark background, light text (rare - presentations only)
+        /// - `.auto`: Respect system appearance (may produce inconsistent results)
+        ///
+        /// ## Example
+        ///
+        /// ```swift
+        /// // Default behavior (light appearance)
+        /// try await pdf.render(html: html, to: url)
+        ///
+        /// // Respect system dark mode
+        /// try await withDependencies {
+        ///     $0.pdf.render.configuration.appearance = .auto
+        /// } operation: {
+        ///     try await pdf.render(html: html, to: url)
+        /// }
+        /// ```
+        ///
+        /// See ``PDF/Appearance`` for detailed documentation.
+        public var appearance: Appearance = .light
+
         // MARK: - Batch Configuration
 
         /// Concurrency strategy for PDF rendering
@@ -135,6 +166,7 @@ extension PDF {
             margins: EdgeInsets = .standard,
             baseURL: URL? = nil,
             paginationMode: PaginationMode = .continuous,
+            appearance: Appearance = .light,
             concurrency: ConcurrencyStrategy = .automatic,
             adaptiveThroughputOptimization: Bool = false,
             poolReplacementThreshold: Int? = 30_000,
@@ -148,6 +180,7 @@ extension PDF {
             self.margins = margins
             self.baseURL = baseURL
             self.paginationMode = paginationMode
+            self.appearance = appearance
             self.concurrency = concurrency
             self.adaptiveThroughputOptimization = adaptiveThroughputOptimization
             self.poolReplacementThreshold = poolReplacementThreshold
