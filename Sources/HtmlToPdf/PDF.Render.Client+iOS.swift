@@ -150,8 +150,7 @@ private func renderDocumentsInternal(
             do {
                 @Dependency(\.pdf.render.metrics) var metrics
 
-                let maxConcurrent = config.concurrency ??
-                    Swift.min(ProcessInfo.processInfo.activeProcessorCount, 4)
+                let maxConcurrent = config.concurrency.resolved
 
                 var completedCount = 0
 

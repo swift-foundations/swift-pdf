@@ -1,4 +1,7 @@
-// ===== Tests/HtmlToPdfTests/AsyncStreamTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/AsyncStreamTests.swift
+// ========================================
+
 //
 //  AsyncStreamTests.swift
 //  swift-html-to-pdf
@@ -11,6 +14,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 @Suite(
@@ -29,30 +33,19 @@ struct AsyncStreamTests {
         try await withTemporaryDirectory { output in
             let count = 20
 
-            actor CompletionTracker {
-                var completedCount = 0
-                var yieldedURLs: [URL] = []
-
-                func recordCompletion(url: URL) {
-                    completedCount += 1
-                    yieldedURLs.append(url)
-                }
-            }
-            let tracker = CompletionTracker()
+            // Track URLs as stream yields them
+            var yieldedURLs: [URL] = []
 
             let htmls = [String](repeating: TestHTML.simple, count: count)
             let stream = try await pdf.render.client.html(htmls, to: output)
 
             for try await result in stream {
-                await tracker.recordCompletion(url: result.url)
+                yieldedURLs.append(result.url)
                 #expect(FileManager.default.fileExists(atPath: result.url.path), "Yielded URL should exist")
             }
 
-            let completedCount = await tracker.completedCount
-            let yieldedURLs = await tracker.yieldedURLs
-
-            #expect(completedCount == count, "Should yield all \(count) results")
-            #expect(yieldedURLs.count == count, "Should track all completions")
+            // Verify all results were yielded
+            #expect(yieldedURLs.count == count, "Should yield all \(count) results")
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "All files should exist after stream completes")
@@ -119,7 +112,10 @@ struct AsyncStreamTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/BaseURLTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/BaseURLTests.swift
+// ========================================
+
 //
 //  BaseURLTests.swift
 //  swift-html-to-pdf
@@ -314,7 +310,10 @@ struct CapabilityTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/BasicFunctionalityTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/BasicFunctionalityTests.swift
+// ========================================
+
 //
 //  BasicFunctionalityTests.swift
 //  swift-html-to-pdf
@@ -522,7 +521,10 @@ struct BasicFunctionalityTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/CancellationTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/CancellationTests.swift
+// ========================================
+
 //
 //  CancellationTests.swift
 //  swift-html-to-pdf
@@ -774,7 +776,10 @@ struct CancellationTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/ConcurrencyTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/ConcurrencyTests.swift
+// ========================================
+
 //
 //  ConcurrencyTests.swift
 //  swift-html-to-pdf
@@ -787,6 +792,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 @Suite("Concurrency & Pool Behavior", .dependency(\.pdf, .liveValue))
@@ -804,20 +810,15 @@ struct ConcurrencyTests {
             let count = 50
             let htmls = [String](repeating: TestHTML.simple, count: count)
 
-            actor ProgressTracker {
-                var completed = 0
-                func increment() { completed += 1 }
-            }
-            let tracker = ProgressTracker()
-
             let stream = try await pdf.render.client.html(htmls, to: output)
 
+            var completedCount = 0
             for try await _ in stream {
-                await tracker.increment()
+                completedCount += 1
             }
 
-            let completedCount = await tracker.completed
-            #expect(completedCount == count, "Should track all completions")
+            // Verify all PDFs were generated
+            #expect(completedCount == count, "Should generate all \(count) PDFs")
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "All \(count) documents should be created despite pool queueing")
@@ -961,7 +962,10 @@ struct ConcurrencyTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/ConvenienceTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/ConvenienceTests.swift
+// ========================================
+
 //
 //  ConvenienceTests.swift
 //  swift-html-to-pdf
@@ -1122,7 +1126,10 @@ struct ConvenienceTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/ErrorHandlingTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/ErrorHandlingTests.swift
+// ========================================
+
 //
 //  ErrorHandlingTests.swift
 //  swift-html-to-pdf
@@ -1389,7 +1396,261 @@ struct PrintingErrorTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/MultiPageVerificationTest.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/MetricsIntegrationTests.swift
+// ========================================
+
+//
+//  MetricsIntegrationTests.swift
+//  swift-html-to-pdf
+//
+//  Integration tests for metrics collection during PDF generation
+//
+
+import Testing
+import Foundation
+import Dependencies
+import PDFTestSupport
+@testable import HtmlToPdf
+
+@Suite("Metrics Integration")
+struct MetricsIntegrationTests {
+    let metricsStorage: TestMetricsStorage
+    let metrics: PDF.Render.Metrics
+
+    init() {
+        // Create test metrics with storage
+        let (metrics, storage) = makeTestMetrics()
+        self.metricsStorage = storage
+        self.metrics = metrics
+    }
+
+    @Test("Metrics record counter increments", .dependency(\.pdf.render.metrics, makeTestMetrics().metrics))
+    func metricsRecordIncrements() {
+        let (metrics, storage) = makeTestMetrics()
+
+        // Verify metrics use the test storage
+        metrics.incrementPDFsGenerated()
+
+        #expect(storage.pdfsGenerated == 1, "Storage should capture increment")
+    }
+
+    @Test("Metrics record PDF generation success")
+    func metricsRecordSuccess() async throws {
+        let (testMetrics, storage) = makeTestMetrics()
+
+        try await withDependencies {
+            $0.pdf.render.metrics = testMetrics
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            try await withTemporaryDirectory { output in
+                let html = "<html><body><h1>Test Document</h1></body></html>"
+                _ = try await pdf.render.client.html(html, to: output.appendingPathComponent("test.pdf"))
+
+                // Assert on storage directly
+                #expect(storage.pdfsGenerated == 1)
+                #expect(storage.renderDurations.count == 1)
+                #expect(storage.pdfsFailed == 0)
+            }
+        }
+    }
+
+    @Test("Metrics record multiple PDF generations")
+    func metricsRecordMultiple() async throws {
+        let (testMetrics, storage) = makeTestMetrics()
+
+        try await withDependencies {
+            $0.pdf.render.metrics = testMetrics
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            try await withTemporaryDirectory { output in
+                let count = 10
+                let htmls = (1...count).map { "<html><body><p>Document \($0)</p></body></html>" }
+
+                var resultCount = 0
+                for try await _ in try await pdf.render.client.html(htmls, to: output) {
+                    resultCount += 1
+                }
+
+                #expect(resultCount == count)
+                #expect(storage.pdfsGenerated == Int64(count))
+                #expect(storage.renderDurations.count == count)
+
+                // Verify p95 calculation
+                #expect(storage.p95Duration != nil)
+            }
+        }
+    }
+
+    @Test("Metrics track pagination mode dimension")
+    func metricsTrackPaginationMode() async throws {
+        let (testMetrics, storage) = makeTestMetrics()
+
+        try await withDependencies {
+            $0.pdf.render.metrics = testMetrics
+        } operation: {
+            try await withTemporaryDirectory { output in
+                // Generate with continuous mode
+                try await withDependencies {
+                    $0.pdf.render.configuration.paginationMode = .continuous
+                } operation: {
+                    @Dependency(\.pdf) var pdfContinuous
+                    let html = "<html><body><p>Continuous</p></body></html>"
+                    _ = try await pdfContinuous.render.client.html(html, to: output.appendingPathComponent("continuous.pdf"))
+                }
+
+                // Generate with paginated mode
+                try await withDependencies {
+                    $0.pdf.render.configuration.paginationMode = .paginated
+                } operation: {
+                    @Dependency(\.pdf) var pdfPaginated
+                    let html = "<html><body><p>Paginated</p></body></html>"
+                    _ = try await pdfPaginated.render.client.html(html, to: output.appendingPathComponent("paginated.pdf"))
+                }
+
+                // Verify both modes were recorded
+                let continuousDurations = storage.renderDurations.filter { $0.1 == .continuous }
+                let paginatedDurations = storage.renderDurations.filter { $0.1 == .paginated }
+
+                #expect(continuousDurations.count == 1)
+                #expect(paginatedDurations.count == 1)
+            }
+        }
+    }
+
+    @Test("Metrics track pool utilization")
+    func metricsTrackPoolUtilization() async throws {
+        let (testMetrics, storage) = makeTestMetrics()
+
+        try await withDependencies {
+            $0.pdf.render.metrics = testMetrics
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            try await withTemporaryDirectory { output in
+                let html = "<html><body><p>Test</p></body></html>"
+                _ = try await pdf.render.client.html(html, to: output.appendingPathComponent("test.pdf"))
+
+                // Pool utilization should have been updated
+                #expect(storage.poolUtilization >= 0)
+            }
+        }
+    }
+
+    @Test("Metrics can be reset between operations")
+    func metricsReset() async throws {
+        let (testMetrics, storage) = makeTestMetrics()
+
+        try await withDependencies {
+            $0.pdf.render.metrics = testMetrics
+        } operation: {
+            @Dependency(\.pdf) var pdf
+
+            try await withTemporaryDirectory { output in
+                // Generate first batch
+                let html = "<html><body><p>Test</p></body></html>"
+                _ = try await pdf.render.client.html(html, to: output.appendingPathComponent("test1.pdf"))
+
+                let firstCount = storage.pdfsGenerated
+                #expect(firstCount == 1)
+
+                // Reset metrics
+                storage.reset()
+
+                // Generate second batch
+                _ = try await pdf.render.client.html(html, to: output.appendingPathComponent("test2.pdf"))
+
+                let secondCount = storage.pdfsGenerated
+                #expect(secondCount == 1, "Should have 1 PDF after reset (not 2)")
+            }
+        }
+    }
+}
+
+
+// ========================================
+// File: Tests/HtmlToPdfTests/MetricsTests.swift
+// ========================================
+
+//
+//  MetricsTests.swift
+//  swift-html-to-pdf
+//
+//  Tests for metrics functionality
+//
+
+import Testing
+import Foundation
+import Dependencies
+import PDFTestSupport
+@testable import HtmlToPdf
+
+@Suite("Metrics Tests")
+struct MetricsTests {
+
+    @Test("Metrics are available via dependency")
+    func metricsAvailableViaDependency() {
+        let (metrics, storage) = makeTestMetrics()
+
+        // Verify metrics closures exist and can be called
+        metrics.incrementPDFsGenerated()
+        metrics.incrementPDFsFailed()
+        metrics.incrementPoolReplacements()
+        metrics.recordRenderDuration(.seconds(1), nil)
+        metrics.updatePoolUtilization(10)
+        metrics.updateThroughput(1000.0)
+        metrics.recordPoolReplacement()
+
+        // Verify storage captured the metrics
+        #expect(storage.pdfsGenerated == 1)
+        #expect(storage.pdfsFailed == 1)
+        #expect(storage.poolReplacements == 2)
+        #expect(storage.poolUtilization == 10)
+        #expect(storage.currentThroughput == 1000.0)
+    }
+
+    @Test("Metrics record actual values")
+    func metricsRecordActualValues() {
+        let (metrics, storage) = makeTestMetrics()
+
+        // Record some metrics
+        metrics.recordSuccess(duration: .milliseconds(50))
+        metrics.recordSuccess(duration: .milliseconds(100))
+        metrics.recordFailure()
+        metrics.updatePoolUtilization(5)
+        metrics.updateThroughput(1500.0)
+        metrics.recordPoolReplacement()
+
+        // Verify all values recorded
+        #expect(storage.pdfsGenerated == 2)
+        #expect(storage.pdfsFailed == 1)
+        #expect(storage.poolReplacements == 1)
+        #expect(storage.renderDurations.count == 2)
+        #expect(storage.poolUtilization == 5)
+        #expect(storage.currentThroughput == 1500.0)
+    }
+
+    @Test("Metrics p95 calculation")
+    func metricsP95Calculation() {
+        let (metrics, storage) = makeTestMetrics()
+
+        // Record a series of durations
+        for ms in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100] {
+            metrics.recordSuccess(duration: .milliseconds(Int64(ms)))
+        }
+
+        #expect(storage.renderDurations.count == 10)
+        #expect(storage.p95Duration != nil)
+    }
+}
+
+
+// ========================================
+// File: Tests/HtmlToPdfTests/MultiPageVerificationTest.swift
+// ========================================
+
 //
 //  MultiPageVerificationTest.swift
 //  swift-html-to-pdf
@@ -1662,7 +1923,10 @@ struct MultiPageVerificationTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/NamingCollisionTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/NamingCollisionTests.swift
+// ========================================
+
 //
 //  NamingCollisionTests.swift
 //  swift-html-to-pdf
@@ -1880,7 +2144,10 @@ struct NamingCollisionTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/NaturalMultiPageTest.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/NaturalMultiPageTest.swift
+// ========================================
+
 //
 //  NaturalMultiPageTest.swift
 //  swift-html-to-pdf
@@ -2243,7 +2510,10 @@ struct NaturalMultiPageTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/PaginationModeTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/PaginationModeTests.swift
+// ========================================
+
 //
 //  PaginationModeTests.swift
 //  swift-html-to-pdf
@@ -2443,7 +2713,10 @@ struct PaginationModeTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/PerformanceBenchmarks.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/PerformanceBenchmarks.swift
+// ========================================
+
 //
 //  PerformanceBenchmarks.swift
 //  swift-html-to-pdf
@@ -2455,6 +2728,7 @@ import Testing
 import Foundation
 import Dependencies
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 extension Tag {
@@ -2730,18 +3004,66 @@ struct PerformanceBenchmarks {
 
         // Run benchmarks for PAGINATED mode (print-ready)
         let paginatedResults = [
-            try await runBenchmark(name: "100 Simple", count: 100, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "100 Complex", count: 100, html: complexHTML, maxConcurrent: 6, mode: .paginated),
-            try await runBenchmark(name: "1,000 Complex", count: 1_000, html: complexHTML, maxConcurrent: 6, mode: .paginated),
+            try await runBenchmark(
+                name: "100 Simple",
+                count: 100,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "1,000 Simple",
+                count: 1_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "10,000 Simple",
+                count: 10_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "100 Complex",
+                count: 100,
+                html: complexHTML,
+                maxConcurrent: 6,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "1,000 Complex",
+                count: 1_000,
+                html: complexHTML,
+                maxConcurrent: 6,
+                mode: .paginated
+            ),
         ]
 
         // Run benchmarks for CONTINUOUS mode (fast)
         let continuousResults = [
-            try await runBenchmark(name: "100 Simple", count: 100, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
-            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
-            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
+            try await runBenchmark(
+                name: "100 Simple",
+                count: 100,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .continuous
+            ),
+            try await runBenchmark(
+                name: "1,000 Simple",
+                count: 1_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .continuous
+            ),
+            try await runBenchmark(
+                name: "10,000 Simple",
+                count: 10_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .continuous
+            ),
         ]
 
         // Calculate dynamic comparisons
@@ -2845,7 +3167,10 @@ struct PerformanceBenchmarks {
         maxConcurrent: Int,
         mode: PDF.PaginationMode = .paginated
     ) async throws -> BenchmarkResult {
-        try await withDependencies {
+        // Get shared metrics backend and reset for this test
+        let metricsBackend = TestMetricsBackend.forTest()
+
+        let result = try await withDependencies {
             $0.pdf.render.configuration.paginationMode = mode
             $0.pdf.render.configuration.concurrency = .fixed(maxConcurrent)
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
@@ -2862,7 +3187,6 @@ struct PerformanceBenchmarks {
 
             let memoryBefore = MemorySnapshot.current()
             let peakMemoryActor = PeakMemoryTracker()
-            var durations: [TimeInterval] = []
 
             // Track memory during execution
             let memoryTask = Task {
@@ -2875,11 +3199,10 @@ struct PerformanceBenchmarks {
 
             let startTime = Date()
 
-            // Render with per-PDF timing
+            // Render - metrics are automatically collected
             let stream = try await pdf.render.client.html(htmls, to: output)
-            for try await result in stream {
-                durations.append(Double(result.duration.components.seconds) +
-                               Double(result.duration.components.attoseconds) / 1_000_000_000_000_000_000)
+            for try await _ in stream {
+                // Metrics automatically recorded
             }
 
             let totalDuration = Date().timeIntervalSince(startTime)
@@ -2891,11 +3214,8 @@ struct PerformanceBenchmarks {
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "All PDFs should be created")
 
-            // Calculate percentiles
-            let sortedDurations = durations.sorted()
-            let p50Index = sortedDurations.count / 2
-            let p95Index = sortedDurations.count * 95 / 100
-            let p99Index = sortedDurations.count * 99 / 100
+            // Get metrics from backend instead of manual calculation
+            let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
 
             return BenchmarkResult(
                 name: name,
@@ -2908,13 +3228,19 @@ struct PerformanceBenchmarks {
                 memoryBefore: memoryBefore,
                 memoryAfter: memoryAfter,
                 peakMemory: peakMemory,
-                minDuration: sortedDurations.first ?? 0,
-                maxDuration: sortedDurations.last ?? 0,
-                p50Duration: sortedDurations[p50Index],
-                p95Duration: sortedDurations[p95Index],
-                p99Duration: sortedDurations[p99Index]
+                minDuration: timer?.min ?? 0,
+                maxDuration: timer?.max ?? 0,
+                p50Duration: timer?.p50 ?? 0,
+                p95Duration: timer?.p95 ?? 0,
+                p99Duration: timer?.p99 ?? 0
             )
         }
+
+        // Note: Manual avgPerItem includes queueing/pooling overhead,
+        // while metrics timer only measures actual WebView render time.
+        // They will differ significantly, which is expected.
+
+        return result
     }
 
     private func printBenchmarkResult(_ result: BenchmarkResult) {
@@ -3063,7 +3389,10 @@ struct PerformanceBenchmarks {
 }
 
 
-// ===== Tests/HtmlToPdfTests/PrintQualityExperiment.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/PrintQualityExperiment.swift
+// ========================================
+
 //
 //  PrintQualityExperiment.swift
 //  swift-html-to-pdf
@@ -3510,7 +3839,10 @@ struct PrintQualityExperiments {
 }
 
 
-// ===== Tests/HtmlToPdfTests/StressTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/StressTests.swift
+// ========================================
+
 //
 //  StressTests.swift
 //  swift-html-to-pdf
@@ -3522,6 +3854,7 @@ import Testing
 import Foundation
 import Dependencies
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 extension Tag {
@@ -3547,6 +3880,8 @@ struct StressTests {
 //        .disabled { false }
     )
     func test1MPDFs() async throws {
+        let metricsBackend = TestMetricsBackend.forTest()
+
         try await withDependencies {
             $0.pdf.render.configuration.concurrency = 8
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
@@ -3558,8 +3893,15 @@ struct StressTests {
                 let count = 1_000_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
 
-                let tracker = ProgressTracker(totalCount: count, reportInterval: 10.0)
                 let startTime = Date()
+
+                // Setup live metrics display
+                let metricsTracker = MetricsProgressTracker(
+                    totalCount: count,
+                    metricsBackend: metricsBackend,
+                    reportInterval: .seconds(10)
+                )
+                await metricsTracker.start()
 
                 // Create subdirectories to avoid file system degradation
                 // 1M files split into 1000 directories of 1000 files each
@@ -3594,11 +3936,12 @@ struct StressTests {
                 let stream = try await pdf.render.client.documents(documents)
 
                 for try await _ in stream {
-                    _ = await tracker.recordCompletion()
+                    // Metrics automatically recorded, live display updates
                 }
 
+                await metricsTracker.stop()
+
                 let duration = Date().timeIntervalSince(startTime)
-                _ = await tracker.completed
 
                 // Verify all files were created by counting across all subdirectories
                 var totalFiles = 0
@@ -3609,13 +3952,16 @@ struct StressTests {
                 }
                 #expect(totalFiles == count, "Should create all \(count) PDFs")
 
-                // Calculate stats
-                let throughput = Double(count) / duration
-                let avgMs = duration * 1000 / Double(count)
+                // Get stats from metrics instead of manual calculation
+                let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? (Double(count) / duration)
+                let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
+                let avgMs = (timer?.average ?? 0) * 1000
                 let minutes = Int(duration / 60)
                 let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
 
-                // Print final statistics
+                // Print final statistics with metrics summary
+                await metricsTracker.printSummary()
+
                 print("\n╔═══════════════════════════════════════════════════════════╗")
                 print("║         1 MILLION PDF TEST - RESULTS                     ║")
                 print("╚═══════════════════════════════════════════════════════════╝")
@@ -3623,6 +3969,7 @@ struct StressTests {
                 print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
                 print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
                 print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
+                print("p95 per PDF:     \(String(format: "%.3f", (timer?.p95 ?? 0) * 1000))ms")
                 print("Files created:   \(totalFiles.formatted())")
                 print("Subdirectories:  \(subdirs.count)")
                 print("╚═══════════════════════════════════════════════════════════╝\n")
@@ -3858,7 +4205,10 @@ struct StressTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/Utils.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/Utils.swift
+// ========================================
+
 //
 //  File.swift
 //
@@ -3869,6 +4219,8 @@ struct StressTests {
 import Foundation
 import HtmlToPdf
 import Testing
+import PDFTestSupport
+import Metrics
 
 extension URL {
 
@@ -3979,38 +4331,137 @@ extension String {
 
 // MARK: - Test Progress Tracking
 
+/// Legacy progress tracker - prefer using TestMetricsBackend + LiveMetricsDisplay for new tests
 actor ProgressTracker {
     var completed = 0
     var lastReportedAt = Date()
     var lastReportedCompleted = 0
     let reportInterval: TimeInterval
     let totalCount: Int
+    private let metricsBackend: TestMetricsBackend?
 
-    init(totalCount: Int, reportInterval: TimeInterval = 5.0) {
+    init(totalCount: Int, reportInterval: TimeInterval = 5.0, metricsBackend: TestMetricsBackend? = nil) {
         self.totalCount = totalCount
         self.reportInterval = reportInterval
+        self.metricsBackend = metricsBackend
     }
 
-    func recordCompletion() -> Int {
+    func recordCompletion() async -> Int {
         completed += 1
 
-        let now = Date()
-        if now.timeIntervalSince(lastReportedAt) >= reportInterval {
-            let interval = now.timeIntervalSince(lastReportedAt)
-            let delta = completed - lastReportedCompleted
-            let rate = Double(delta) / interval
-            print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
-            lastReportedAt = now
-            lastReportedCompleted = completed
+        // If metrics backend provided, use it for tracking
+        if let metricsBackend = metricsBackend {
+            let counter = metricsBackend.counter("htmltopdf_pdfs_generated_total")
+            let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? 0
+
+            let now = Date()
+            if now.timeIntervalSince(lastReportedAt) >= reportInterval {
+                let progress = Double(completed) / Double(totalCount) * 100
+                print("Progress: \(completed)/\(totalCount) (\(String(format: "%.1f", progress))%) - Throughput: \(String(format: "%.0f", throughput)) PDFs/sec - Total: \(counter?.value ?? 0)")
+                lastReportedAt = now
+                lastReportedCompleted = completed
+            }
+        } else {
+            // Fallback to manual calculation
+            let now = Date()
+            if now.timeIntervalSince(lastReportedAt) >= reportInterval {
+                let interval = now.timeIntervalSince(lastReportedAt)
+                let delta = completed - lastReportedCompleted
+                let rate = Double(delta) / interval
+                print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
+                lastReportedAt = now
+                lastReportedCompleted = completed
+            }
         }
 
         return completed
     }
 }
 
+/// Metrics-based progress tracker - recommended for new tests
+///
+/// Example:
+/// ```swift
+/// let metricsBackend = TestMetricsBackend()
+/// MetricsSystem.bootstrap(metricsBackend)
+///
+/// let tracker = MetricsProgressTracker(
+///     totalCount: 10_000,
+///     metricsBackend: metricsBackend
+/// )
+/// await tracker.start()
+///
+/// // Your test code...
+/// for try await result in stream {
+///     // Metrics are automatically recorded by the library
+/// }
+///
+/// await tracker.stop()
+/// await tracker.printSummary()
+/// ```
+public actor MetricsProgressTracker {
+    private let totalCount: Int
+    private let metricsBackend: TestMetricsBackend
+    private let reportInterval: Duration
+    private var displayTask: Task<Void, Never>?
+    private let startTime: Date
+
+    public init(
+        totalCount: Int,
+        metricsBackend: TestMetricsBackend,
+        reportInterval: Duration = .seconds(5)
+    ) {
+        self.totalCount = totalCount
+        self.metricsBackend = metricsBackend
+        self.reportInterval = reportInterval
+        self.startTime = Date()
+    }
+
+    public func start() {
+        displayTask = Task {
+            while !Task.isCancelled {
+                await printProgress()
+                try? await Task.sleep(for: reportInterval)
+            }
+        }
+    }
+
+    public func stop() {
+        displayTask?.cancel()
+        displayTask = nil
+    }
+
+    private func printProgress() async {
+        let pdfsGenerated = metricsBackend.counter("htmltopdf_pdfs_generated_total")?.value ?? 0
+        let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? 0
+        let poolUtil = metricsBackend.gauge("htmltopdf_pool_utilization")?.value ?? 0
+        let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
+        let p95 = (timer?.p95 ?? 0) * 1000
+
+        let progress = Double(pdfsGenerated) / Double(totalCount) * 100
+        let elapsed = Date().timeIntervalSince(startTime)
+        let eta = Int64(pdfsGenerated) > 0 ? (elapsed / Double(pdfsGenerated)) * Double(totalCount - Int(pdfsGenerated)) : 0
+
+        print("Progress: \(pdfsGenerated)/\(totalCount) (\(String(format: "%.1f", progress))%) | " +
+              "Throughput: \(String(format: "%.0f", throughput))/sec | " +
+              "Pool: \(Int(poolUtil)) | " +
+              "p95: \(String(format: "%.1f", p95))ms | " +
+              "ETA: \(String(format: "%.0f", eta))s")
+    }
+
+    public func printSummary() async {
+        await printProgress()
+        let summary = await formatMetricsSummary(metricsBackend)
+        print("\n" + summary)
+    }
+}
 
 
-// ===== Tests/HtmlToPdfTests/VisualVerificationTest.swift =====
+
+// ========================================
+// File: Tests/HtmlToPdfTests/VisualVerificationTest.swift
+// ========================================
+
 //
 //  VisualVerificationTest.swift
 //  swift-html-to-pdf
@@ -4279,7 +4730,10 @@ struct VisualVerificationTests {
 }
 
 
-// ===== Tests/HtmlToPdfTests/WebViewMemoryTests.swift =====
+// ========================================
+// File: Tests/HtmlToPdfTests/WebViewMemoryTests.swift
+// ========================================
+
 //
 //  WebViewMemoryTests.swift
 //  swift-html-to-pdf

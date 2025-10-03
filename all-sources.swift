@@ -1,4 +1,7 @@
-// ===== Sources/HtmlToPdf/PDF+Convenience.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF+Convenience.swift
+// ========================================
+
 //
 //  PDF+Convenience.swift
 //  swift-html-to-pdf
@@ -222,7 +225,10 @@ extension PDF {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Capabilities.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Capabilities.swift
+// ========================================
+
 //
 //  PDF.Capabilities.swift
 //  swift-html-to-pdf
@@ -298,7 +304,10 @@ extension PDF.Capabilities {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.ConcurrencyStrategy.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.ConcurrencyStrategy.swift
+// ========================================
+
 //
 //  PDF.ConcurrencyStrategy.swift
 //  swift-html-to-pdf
@@ -411,7 +420,10 @@ extension PDF {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Configuration.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Configuration.swift
+// ========================================
+
 //
 //  PDF.Configuration.swift
 //  swift-html-to-pdf
@@ -607,7 +619,10 @@ extension PDF.Configuration: TestDependencyKey {
 // The PDF struct (in PDF.swift) handles the main dependency registration
 
 
-// ===== Sources/HtmlToPdf/PDF.Document.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Document.swift
+// ========================================
+
 //
 //  PDF.Document.swift
 //  swift-html-to-pdf
@@ -872,7 +887,10 @@ extension UInt8 {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.EdgeInsets.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.EdgeInsets.swift
+// ========================================
+
 //
 //  PDF.EdgeInsets.swift
 //  swift-html-to-pdf
@@ -995,7 +1013,10 @@ extension UIEdgeInsets {
 #endif
 
 
-// ===== Sources/HtmlToPdf/PDF.FailedDocument.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.FailedDocument.swift
+// ========================================
+
 //
 //  PDF.FailedDocument.swift
 //  swift-html-to-pdf
@@ -1051,7 +1072,10 @@ extension PDF.FailedDocument: LocalizedError {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.NamingStrategy.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.NamingStrategy.swift
+// ========================================
+
 //
 //  PDF.NamingStrategy.swift
 //  swift-html-to-pdf
@@ -1093,7 +1117,10 @@ extension PDF.NamingStrategy {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.PaginationMode.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.PaginationMode.swift
+// ========================================
+
 //
 //  PDF.PaginationMode.swift
 //  swift-html-to-pdf
@@ -1175,6 +1202,34 @@ extension PDF {
     }
 }
 
+// MARK: - Metrics Support
+
+extension PDF.PaginationMode {
+    /// Label for metrics dimension tracking
+    ///
+    /// Provides a stable string representation for use in metrics dimensions.
+    /// This allows segmentation of render duration metrics by pagination mode.
+    var metricsLabel: String {
+        switch self {
+        case .continuous:
+            return "continuous"
+        case .paginated:
+            return "paginated"
+        case .automatic(let heuristic):
+            switch heuristic {
+            case .contentLength:
+                return "automatic_content_length"
+            case .htmlStructure:
+                return "automatic_html_structure"
+            case .preferSpeed:
+                return "automatic_prefer_speed"
+            case .preferPrintReady:
+                return "automatic_prefer_print_ready"
+            }
+        }
+    }
+}
+
 // MARK: - Internal Rendering Method
 
 extension PDF {
@@ -1189,7 +1244,10 @@ extension PDF {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.PaperSize.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.PaperSize.swift
+// ========================================
+
 //
 //  PDF.PaperSize.swift
 //  swift-html-to-pdf
@@ -1271,7 +1329,10 @@ extension CGSize {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Render+Convenience.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render+Convenience.swift
+// ========================================
+
 //
 //  PDF.Render+Convenience.swift
 //  swift-html-to-pdf
@@ -1385,7 +1446,10 @@ extension PDF.Render {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Render+TestDependencyKey.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render+TestDependencyKey.swift
+// ========================================
+
 //
 //  PDF.Render+TestDependencyKey.swift
 //  swift-html-to-pdf
@@ -1396,10 +1460,31 @@ extension PDF.Render {
 import Dependencies
 
 extension PDF.Render: TestDependencyKey {
-    public static let testValue = PDF.Render(
-        client: .testValue,
-        configuration: .testValue
-    )
+    /// Test value that uses live client and configuration with isolated metrics
+    ///
+    /// Each test gets:
+    /// - Real rendering client (.macOS/.iOS depending on platform) for integration testing
+    /// - Real configuration (.default) for accurate behavior
+    /// - Isolated metrics (.testValue) that bootstrap fresh backend per test
+    ///
+    /// This provides realistic testing while ensuring perfect metrics isolation.
+    public static var testValue: Self {
+        PDF.Render(
+            client: liveClient,
+            configuration: .default,
+            metrics: .testValue
+        )
+    }
+
+    private static var liveClient: PDF.Render.Client {
+        #if os(macOS)
+        return .macOS
+        #elseif os(iOS)
+        return .iOS
+        #else
+        return .testValue
+        #endif
+    }
 }
 
 extension PDF.Render.Client: TestDependencyKey {
@@ -1407,7 +1492,10 @@ extension PDF.Render.Client: TestDependencyKey {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Render.Client+Convenience.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.Client+Convenience.swift
+// ========================================
+
 //
 //  PDF.Render.Client+Convenience.swift
 //  swift-html-to-pdf
@@ -1553,7 +1641,10 @@ extension PDF.Render.Client {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Render.Client+iOS.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.Client+iOS.swift
+// ========================================
+
 //
 //  PDF.Render.Client+iOS.swift
 //  swift-html-to-pdf
@@ -1565,6 +1656,7 @@ extension PDF.Render.Client {
 import Dependencies
 import DependenciesMacros
 import Foundation
+import LoggingExtras
 import UIKit
 import WebKit
 
@@ -1673,6 +1765,11 @@ extension PDF.Document {
         @Dependency(\.webViewPool) var webViewPool
 
         let pool = try await webViewPool.pool
+
+        // Track pool utilization
+        await ActiveOperationsTracker.shared.increment()
+        defer { Task { await ActiveOperationsTracker.shared.decrement() } }
+
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
         ) { resource in
@@ -1698,6 +1795,7 @@ private func renderDocumentsInternal(
     return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task { @MainActor in
             do {
+                @Dependency(\.pdf.render.metrics) var metrics
 
                 let maxConcurrent = config.concurrency ??
                     Swift.min(ProcessInfo.processInfo.activeProcessorCount, 4)
@@ -1731,6 +1829,10 @@ private func renderDocumentsInternal(
                             pageCount: pageCount,
                             pageDimensions: dimensions
                         )
+
+                        // Record metrics for successful PDF generation
+                        metrics.recordSuccess(duration: duration, mode: mode)
+
                         continuation.yield(result)
 
                         if nextIndex < documentsArray.count {
@@ -1752,6 +1854,19 @@ private func renderDocumentsInternal(
                 }
                 continuation.finish()
             } catch {
+                @Dependency(\.logger) var logger
+                @Dependency(\.pdf.render.metrics) var metrics
+
+                // Record metrics for failed PDF generation
+                let printingError = error as? PrintingError
+                metrics.recordFailure(error: printingError)
+
+                logger.error("Batch rendering failed", metadata: [
+                    "completed_count": "\(completedCount)",
+                    "total_count": "\(documentsArray.count)",
+                    "error": "\(error)",
+                    "error_type": "\(type(of: error))"
+                ])
                 continuation.finish(throwing: error)
             }
         }
@@ -1807,7 +1922,11 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
                         continuation.resume(throwing: timeoutError)
                     } catch {
                         if !(error is CancellationError) {
-                            print("[DocumentWKRenderer] Unexpected error in timeout task: \(error)")
+                            @Dependency(\.logger) var logger
+                            logger.error("Unexpected error in timeout task", metadata: [
+                                "error": "\(error)",
+                                "error_type": "\(type(of: error))"
+                            ])
                         }
                     }
                 }
@@ -1851,7 +1970,10 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
 #endif
 
 
-// ===== Sources/HtmlToPdf/PDF.Render.Client+macOS.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.Client+macOS.swift
+// ========================================
+
 //
 //  PDF.Render.Client+macOS.swift
 //  swift-html-to-pdf
@@ -1865,19 +1987,15 @@ import DependenciesMacros
 import Foundation
 import WebKit
 import ResourcePool
-import AppKit
+@preconcurrency import AppKit
 import PDFKit
-
-extension PDF: DependencyKey {
-    public static let liveValue = PDF(
-        render: .liveValue
-    )
-}
+import LoggingExtras
 
 extension PDF.Render: DependencyKey {
     public static let liveValue = PDF.Render(
         client: .macOS,
-        configuration: .default
+        configuration: .default,
+        metrics: .liveValue
     )
 }
 
@@ -2056,6 +2174,11 @@ extension PDF.Document {
 
         let destination = self.destination
         let html = self.html
+
+        // Track pool utilization
+        await ActiveOperationsTracker.shared.increment()
+        defer { Task { await ActiveOperationsTracker.shared.decrement() } }
+
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
         ) { @Sendable resource in
@@ -2140,16 +2263,16 @@ private func renderDocumentsInternal(
 
     return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task {
+            var completedCount = 0
             do {
 
                 // Get the pool ONCE at the beginning, not for every document
                 // Pool access doesn't require main actor
                 @Dependency(\.webViewPool) var webViewPool
+                @Dependency(\.pdf.render.metrics) var metrics
                 let pool = try await webViewPool.pool
 
                 let maxConcurrent = config.concurrency.resolved
-
-                var completedCount = 0
 
                 try await withThrowingTaskGroup(of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self) { taskGroup in
                     for (index, document) in documentsArray.prefix(maxConcurrent).enumerated() {
@@ -2175,6 +2298,10 @@ private func renderDocumentsInternal(
                             pageCount: pageCount,
                             pageDimensions: dimensions
                         )
+
+                        // Record metrics for successful PDF generation
+                        metrics.recordSuccess(duration: duration, mode: mode)
+
                         continuation.yield(result)
 
                         // Record PDF generation for batch replacement tracking
@@ -2200,6 +2327,19 @@ private func renderDocumentsInternal(
                 // Clear directory cache after batch completes
                 directoryCache.clear()
             } catch {
+                @Dependency(\.logger) var logger
+                @Dependency(\.pdf.render.metrics) var metrics
+
+                // Record metrics for failed PDF generation
+                let printingError = error as? PrintingError
+                metrics.recordFailure(error: printingError)
+
+                logger.error("Batch rendering failed", metadata: [
+                    "completed_count": "\(completedCount)",
+                    "total_count": "\(documentsArray.count)",
+                    "error": "\(error)",
+                    "error_type": "\(type(of: error))"
+                ])
                 continuation.finish(throwing: error)
 
                 // Clear directory cache on error as well
@@ -2484,7 +2624,10 @@ private class PrintDelegate: @unchecked Sendable {
 #endif
 
 
-// ===== Sources/HtmlToPdf/PDF.Render.Client.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.Client.swift
+// ========================================
+
 //
 //  PDF.Render.Client.swift
 //  swift-html-to-pdf
@@ -2555,7 +2698,188 @@ extension PDF.Render {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Render.Result.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.Metrics+macOS.swift
+// ========================================
+
+//
+//  PDF.Render.Metrics+macOS.swift
+//  swift-html-to-pdf
+//
+//  Live metrics implementation using swift-metrics
+//
+
+#if os(macOS) || os(iOS)
+import Dependencies
+import Metrics
+
+extension PDF.Render.Metrics: DependencyKey {
+    /// Live implementation delegating to swift-metrics
+    ///
+    /// Creates swift-metrics Counter/Timer/Gauge instances and delegates
+    /// operations to them. Requires MetricsSystem.bootstrap() at app startup.
+    public static var liveValue: Self {
+        // Create swift-metrics instances (captured in closures)
+        let pdfsGenerated = Counter(label: "htmltopdf_pdfs_generated_total")
+        let pdfsFailed = Counter(label: "htmltopdf_pdfs_failed_total")
+        let poolReplacements = Counter(label: "htmltopdf_pool_replacements_total")
+        let renderDuration = Timer(label: "htmltopdf_render_duration_seconds")
+        let poolUtilization = Gauge(label: "htmltopdf_pool_utilization")
+        let currentThroughput = Gauge(label: "htmltopdf_throughput_pdfs_per_sec")
+
+        return Self(
+            incrementPDFsGenerated: { pdfsGenerated.increment() },
+            incrementPDFsFailed: { pdfsFailed.increment() },
+            incrementPoolReplacements: { poolReplacements.increment() },
+            recordRenderDuration: { duration, mode in
+                let nanoseconds = duration.components.seconds * 1_000_000_000 +
+                                duration.components.attoseconds / 1_000_000_000
+                if let mode = mode {
+                    Timer(
+                        label: "htmltopdf_render_duration_seconds",
+                        dimensions: [("mode", mode.metricsLabel)]
+                    ).recordNanoseconds(nanoseconds)
+                } else {
+                    renderDuration.recordNanoseconds(nanoseconds)
+                }
+            },
+            updatePoolUtilization: { count in poolUtilization.record(count) },
+            updateThroughput: { pdfsPerSecond in currentThroughput.record(pdfsPerSecond) }
+        )
+    }
+}
+#endif
+
+
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.Metrics.swift
+// ========================================
+
+//
+//  PDF.Render.Metrics.swift
+//  swift-html-to-pdf
+//
+//  Metrics for PDF rendering observability
+//
+
+import Dependencies
+import DependenciesMacros
+import Foundation
+
+extension PDF.Render {
+    /// Metrics for PDF rendering operations
+    ///
+    /// Following the domain-first pattern where Metrics is a capability
+    /// with operations defined as dependency endpoints for testability.
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// @Dependency(\.pdf.render.metrics) var metrics
+    ///
+    /// metrics.recordSuccess(duration: duration, mode: .paginated)
+    /// metrics.recordFailure(error: error)
+    /// ```
+    ///
+    /// ## Production Integration
+    ///
+    /// The live implementation delegates to swift-metrics. Bootstrap once at startup:
+    ///
+    /// ```swift
+    /// import Metrics
+    ///
+    /// @main
+    /// struct MyApp {
+    ///     static func main() {
+    ///         MetricsSystem.bootstrap(PrometheusMetricsFactory())
+    ///         // ...
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// ## Available Metrics
+    ///
+    /// **Counters:**
+    /// - `htmltopdf_pdfs_generated_total`: Total PDFs successfully generated
+    /// - `htmltopdf_pdfs_failed_total`: Total PDF generation failures
+    /// - `htmltopdf_pool_replacements_total`: Total resource pool replacements
+    ///
+    /// **Timers:**
+    /// - `htmltopdf_render_duration_seconds`: PDF render duration (p50/p95/p99)
+    ///
+    /// **Gauges:**
+    /// - `htmltopdf_pool_utilization`: Current WebViews in pool
+    /// - `htmltopdf_throughput_pdfs_per_sec`: Current throughput
+    @DependencyClient
+    public struct Metrics: @unchecked Sendable {
+
+        // MARK: - Counter Operations
+
+        /// Increment PDFs generated counter
+        @DependencyEndpoint
+        public var incrementPDFsGenerated: @Sendable () -> Void
+
+        /// Increment PDFs failed counter
+        @DependencyEndpoint
+        public var incrementPDFsFailed: @Sendable () -> Void
+
+        /// Increment pool replacements counter
+        @DependencyEndpoint
+        public var incrementPoolReplacements: @Sendable () -> Void
+
+        // MARK: - Timer Operations
+
+        /// Record render duration
+        @DependencyEndpoint
+        public var recordRenderDuration: @Sendable (_ duration: Duration, _ mode: PDF.PaginationMode?) -> Void
+
+        // MARK: - Gauge Operations
+
+        /// Update pool utilization gauge
+        @DependencyEndpoint
+        public var updatePoolUtilization: @Sendable (_ count: Int) -> Void
+
+        /// Update throughput gauge
+        @DependencyEndpoint
+        public var updateThroughput: @Sendable (_ pdfsPerSecond: Double) -> Void
+
+        // MARK: - Convenience Methods
+
+        /// Record successful PDF generation
+        ///
+        /// Increments the counter and records the render duration.
+        ///
+        /// - Parameters:
+        ///   - duration: Time taken to render the PDF
+        ///   - mode: Optional pagination mode for dimensional tracking
+        public func recordSuccess(duration: Duration, mode: PDF.PaginationMode? = nil) {
+            incrementPDFsGenerated()
+            recordRenderDuration(duration, mode)
+        }
+
+        /// Record PDF generation failure
+        ///
+        /// Increments the failures counter.
+        ///
+        /// - Parameter error: Optional error for dimensional tracking
+        public func recordFailure(error: PrintingError? = nil) {
+            incrementPDFsFailed()
+        }
+
+        /// Record pool replacement
+        ///
+        /// Increments the pool replacements counter.
+        public func recordPoolReplacement() {
+            incrementPoolReplacements()
+        }
+    }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.Result.swift
+// ========================================
+
 //
 //  PDF.Render.Result.swift
 //  swift-html-to-pdf
@@ -2566,7 +2890,10 @@ extension PDF.Render {
 import Foundation
 
 
-// ===== Sources/HtmlToPdf/PDF.Render.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Render.swift
+// ========================================
+
 //
 //  PDF.Render.swift
 //  swift-html-to-pdf
@@ -2578,10 +2905,10 @@ import Dependencies
 import Foundation
 
 extension PDF {
-    /// Rendering capability containing client and configuration.
+    /// Rendering capability containing client, configuration, and metrics.
     ///
     /// This follows the domain-first pattern where the business capability (Render)
-    /// is primary, with technical implementations (Client, Configuration) as nested types.
+    /// is primary, with technical implementations (Client, Configuration, Metrics) as nested types.
     ///
     /// ## Usage
     ///
@@ -2597,6 +2924,9 @@ extension PDF {
     /// } operation: {
     ///     try await pdf.render.client.documents(documents)
     /// }
+    ///
+    /// // Access metrics
+    /// let metrics = pdf.render.metrics
     /// ```
     public struct Render: Sendable {
         /// Client for rendering operations
@@ -2605,18 +2935,26 @@ extension PDF {
         /// Configuration for PDF rendering
         public var configuration: PDF.Configuration
 
+        /// Metrics for production observability
+        public var metrics: PDF.Render.Metrics
+
         public init(
             client: PDF.Render.Client,
-            configuration: PDF.Configuration
+            configuration: PDF.Configuration,
+            metrics: PDF.Render.Metrics
         ) {
             self.client = client
             self.configuration = configuration
+            self.metrics = metrics
         }
     }
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.Result.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Result.swift
+// ========================================
+
 //
 //  PDF.Result.swift
 //  swift-html-to-pdf
@@ -2669,7 +3007,10 @@ extension PDF {
 }
 
 
-// ===== Sources/HtmlToPdf/PDF.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/PDF.swift
+// ========================================
+
 //
 //  PDF.swift
 //  swift-html-to-pdf
@@ -2745,6 +3086,13 @@ public struct PDF: Sendable {
 
 // MARK: - Dependency Registration
 
+extension PDF: DependencyKey {
+    public static let liveValue = PDF(
+        render: .liveValue
+    )
+}
+
+
 extension PDF: TestDependencyKey {
     public static let testValue = PDF(
         render: .testValue
@@ -2759,7 +3107,11 @@ extension DependencyValues {
 }
 
 
-// ===== Sources/HtmlToPdf/PrintingError.swift =====
+
+// ========================================
+// File: Sources/HtmlToPdf/PrintingError.swift
+// ========================================
+
 //
 //  PrintingError.swift
 //  swift-html-to-pdf
@@ -2998,6 +3350,62 @@ public enum PrintingError: Error, LocalizedError, Sendable {
     }
 }
 
+// MARK: - Metrics Support
+
+extension PrintingError {
+    /// Label for metrics dimension tracking
+    ///
+    /// Provides a stable string representation for use in metrics dimensions.
+    /// This allows segmentation of failure metrics by error type.
+    var metricsReason: String {
+        switch self {
+        // Document Errors
+        case .invalidHTML:
+            return "invalid_html"
+        case .invalidFilePath:
+            return "invalid_file_path"
+        case .directoryCreationFailed:
+            return "directory_creation_failed"
+
+        // WebView Errors
+        case .webViewLoadingFailed:
+            return "webview_loading_failed"
+        case .webViewNavigationFailed:
+            return "webview_navigation_failed"
+        case .webViewRenderingTimeout:
+            return "webview_rendering_timeout"
+
+        // Pool Errors
+        case .webViewPoolExhausted:
+            return "webview_pool_exhausted"
+        case .webViewAcquisitionTimeout:
+            return "webview_acquisition_timeout"
+        case .webViewPoolInitializationFailed:
+            return "webview_pool_initialization_failed"
+
+        // PDF Generation Errors
+        case .pdfGenerationFailed:
+            return "pdf_generation_failed"
+        case .printOperationFailed:
+            return "print_operation_failed"
+        case .documentTimeout:
+            return "document_timeout"
+        case .batchTimeout:
+            return "batch_timeout"
+
+        // Cancellation
+        case .cancelled:
+            return "cancelled"
+        case .noResultProduced:
+            return "no_result_produced"
+
+        // Platform Capability Errors
+        case .capabilityUnavailable:
+            return "capability_unavailable"
+        }
+    }
+}
+
 // MARK: - Convenience Initializers
 
 //extension PrintingError {
@@ -3015,7 +3423,10 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 //}
 
 
-// ===== Sources/HtmlToPdf/WKWebViewResource.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/WKWebViewResource.swift
+// ========================================
+
 //
 //  WKWebViewResource.swift
 //  swift-html-to-pdf
@@ -3027,23 +3438,13 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 import Foundation
 import WebKit
 import ResourcePool
-
-/// Configuration for creating WKWebView resources
-public struct WKWebViewResourceConfig: Sendable {
-    /// Whether to use persistent data store
-    public let usePersistentDataStore: Bool
-
-    public init(
-        usePersistentDataStore: Bool = false
-    ) {
-        self.usePersistentDataStore = usePersistentDataStore
-    }
-}
+import Dependencies
+import LoggingExtras
 
 /// WKWebView wrapper that conforms to PoolableResource
 @MainActor
 public final class WKWebViewResource: PoolableResource {
-    public typealias Config = WKWebViewResourceConfig
+    public typealias Config = Void
 
     /// The underlying WKWebView
     public let webView: WKWebView
@@ -3065,8 +3466,8 @@ public final class WKWebViewResource: PoolableResource {
         webViewConfig.preferences.setValue(false, forKey: "acceleratedDrawingEnabled")
         webViewConfig.preferences.setValue(false, forKey: "displayListDrawingEnabled")
 
-        // Use data store based on configuration
-        webViewConfig.websiteDataStore = config.usePersistentDataStore ? .default() : .nonPersistent()
+        // Use non-persistent data store (correct for stateless PDF generation)
+        webViewConfig.websiteDataStore = .nonPersistent()
 
         // Disable JavaScript for PDF rendering
         if #available(macOS 11.0, iOS 14.0, *) {
@@ -3111,6 +3512,11 @@ public final class WKWebViewResource: PoolableResource {
             return true
         } catch {
             // WebView is unresponsive or in error state
+            @Dependency(\.logger) var logger
+            logger.warning("WebView validation failed, will be replaced", metadata: [
+                "error": "\(error)",
+                "error_type": "\(type(of: error))"
+            ])
             return false
         }
     }
@@ -3134,7 +3540,10 @@ public final class WKWebViewResource: PoolableResource {
 
 #endif
 
-// ===== Sources/HtmlToPdf/WebViewPoolClient-ResourcePool.swift =====
+// ========================================
+// File: Sources/HtmlToPdf/WebViewPoolClient-ResourcePool.swift
+// ========================================
+
 //
 //  WebViewPoolClient-ResourcePool.swift
 //  swift-html-to-pdf
@@ -3146,8 +3555,8 @@ public final class WKWebViewResource: PoolableResource {
 import Foundation
 import WebKit
 import Dependencies
+import LoggingExtras
 import ResourcePool
-import EnvironmentVariables
 import IssueReporting
 
 /// Adaptive throughput optimizer that monitors performance and triggers optimizations
@@ -3193,6 +3602,10 @@ private actor AdaptiveThroughputOptimizer {
                 absolutePeakThroughput = throughput
             }
 
+            // Update metrics gauge with current throughput
+            @Dependency(\.pdf.render.metrics) var metrics
+            metrics.updateThroughput(throughput)
+
             // Keep only recent windows
             if windows.count > maxWindows {
                 windows.removeFirst()
@@ -3225,7 +3638,13 @@ private actor AdaptiveThroughputOptimizer {
         // This balances early detection with avoiding false positives
         // 5% degradation is significant enough to warrant pool replacement
         if localPeak > 1500 && recentAverage < localPeak * 0.95 {
-            print("📊 Adaptive replacement: \(String(format: "%.0f", recentAverage)) PDFs/sec (recent avg) vs \(String(format: "%.0f", localPeak)) PDFs/sec (local peak) - \(String(format: "%.1f", (1.0 - recentAverage/localPeak) * 100))% degradation")
+            @Dependency(\.logger) var logger
+            let degradationPercent = (1.0 - recentAverage/localPeak) * 100
+            logger.warning("Adaptive pool replacement triggered due to performance degradation", metadata: [
+                "recent_average_pdfs_sec": "\(Int(recentAverage))",
+                "local_peak_pdfs_sec": "\(Int(localPeak))",
+                "degradation_percent": "\(String(format: "%.1f", degradationPercent))"
+            ])
             return .triggerPoolReplacement
         }
 
@@ -3276,7 +3695,8 @@ private actor WebViewPoolActor {
         if adaptiveOptimization && adaptiveOptimizer == nil {
             adaptiveOptimizer = AdaptiveThroughputOptimizer()
             adaptiveOptimizationEnabled = true
-            print("🎯 Adaptive throughput optimization ENABLED")
+            @Dependency(\.logger) var logger
+            logger.debug("Adaptive throughput optimization enabled")
         }
 
         if let existing = sharedPool {
@@ -3285,6 +3705,8 @@ private actor WebViewPoolActor {
 
         let newPool = try await provider()
         sharedPool = newPool
+        @Dependency(\.logger) var logger
+        logger.info("WebView pool initialized")
         return newPool
     }
 
@@ -3323,7 +3745,14 @@ private actor WebViewPoolActor {
     ) async throws {
         isReplacing = true
         let oldCount = totalPDFsGenerated
-        print("🔄 Batch replacement triggered at \(oldCount) PDFs (\(reason)) - replacing entire pool")
+        let startTime = Date()
+        @Dependency(\.logger) var logger
+        @Dependency(\.pdf.render.metrics) var metrics
+
+        logger.info("Pool replacement started", metadata: [
+            "pdf_count": "\(oldCount)",
+            "reason": "\(reason)"
+        ])
 
         // Create new pool (warmup will happen in background)
         let newPool = try await provider()
@@ -3334,6 +3763,9 @@ private actor WebViewPoolActor {
         sharedPool = newPool
         totalPDFsGenerated = 0
 
+        // Record pool replacement metric
+        metrics.recordPoolReplacement()
+
         // Reset adaptive optimizer to establish new baseline
         if let optimizer = adaptiveOptimizer {
             await optimizer.resetPeak()
@@ -3341,7 +3773,34 @@ private actor WebViewPoolActor {
 
         isReplacing = false
 
-        print("✅ Batch replacement complete - fresh pool ready, old pool will cleanup automatically")
+        let duration = Date().timeIntervalSince(startTime)
+        logger.info("Pool replacement complete", metadata: [
+            "duration_seconds": "\(String(format: "%.2f", duration))",
+            "previous_pdf_count": "\(oldCount)"
+        ])
+    }
+}
+
+// MARK: - Active Operations Tracker
+
+/// Tracks the number of currently active WebView operations for pool utilization metrics
+actor ActiveOperationsTracker {
+    private var activeCount: Int = 0
+    static let shared = ActiveOperationsTracker()
+
+    func increment() {
+        activeCount += 1
+        updateMetrics()
+    }
+
+    func decrement() {
+        activeCount -= 1
+        updateMetrics()
+    }
+
+    private func updateMetrics() {
+        @Dependency(\.pdf.render.metrics) var metrics
+        metrics.updatePoolUtilization(activeCount)
     }
 }
 
@@ -3385,29 +3844,15 @@ extension WebViewPoolClient: DependencyKey {
     public static var liveValue: WebViewPoolClient {
         return WebViewPoolClient(
             poolProvider: { @MainActor in
-                @Dependency(\.envVars) var env
-
-                // Determine pool size
-                let poolSize: Int
-                if let envPoolSize = env["WEBVIEW_POOL_SIZE"],
-                   let customSize = Int(envPoolSize), customSize > 0 {
-                    poolSize = customSize
-                } else {
-                    // Use intelligent defaults based on hardware
-                    poolSize = PDF.ConcurrencyStrategy.calculateDefaultConcurrency()
-                }
-
-                // Create configuration
-                let usePersistentDataStore = env["WEBVIEW_PERSISTENT_DATA_STORE"]?.lowercased() == "true"
-                let config = WKWebViewResourceConfig(
-                    usePersistentDataStore: usePersistentDataStore
-                )
+                // Pool size comes from configuration via dependencies
+                @Dependency(\.pdf.render.configuration) var configuration
+                let poolSize = configuration.concurrency.resolved
 
                 // Create pool with warmup
                 // Batch replacement (every 30K PDFs) handles memory leaks at pool level
                 return try await ResourcePool<WKWebViewResource>(
                     capacity: poolSize,
-                    resourceConfig: config,
+                    resourceConfig: (),
                     warmup: true,
                     maxUsesBeforeCycling: nil  // No per-resource cycling - using batch replacement
                 )
@@ -3417,10 +3862,9 @@ extension WebViewPoolClient: DependencyKey {
 
     public static var testValue: WebViewPoolClient {
         WebViewPoolClient(poolProvider: { @MainActor in
-            let config = WKWebViewResourceConfig(usePersistentDataStore: false)
             return try await ResourcePool<WKWebViewResource>(
                 capacity: 2,
-                resourceConfig: config,
+                resourceConfig: (),
                 warmup: false
             )
         })
@@ -3437,7 +3881,448 @@ extension DependencyValues {
 #endif
 
 
-// ===== Sources/PDFTestSupport/PDFVerification.swift =====
+// ========================================
+// File: Sources/PDFTestSupport/MetricsTestSupport.swift
+// ========================================
+
+//
+//  MetricsTestSupport.swift
+//  PDFTestSupport
+//
+//  Utilities for testing with metrics
+//
+
+import Foundation
+import Metrics
+
+// MARK: - Live Metrics Display
+
+/// Display live metrics during long-running tests
+///
+/// Example:
+/// ```swift
+/// let display = LiveMetricsDisplay(metricsBackend: backend)
+/// await display.start()
+/// // ... run your test ...
+/// await display.stop()
+/// ```
+public actor LiveMetricsDisplay {
+    private let metricsBackend: TestMetricsBackend
+    private let updateInterval: Duration
+    private var displayTask: Task<Void, Never>?
+    private var isRunning = false
+
+    public init(
+        metricsBackend: TestMetricsBackend,
+        updateInterval: Duration = .seconds(2)
+    ) {
+        self.metricsBackend = metricsBackend
+        self.updateInterval = updateInterval
+    }
+
+    public func start() {
+        guard !isRunning else { return }
+        isRunning = true
+
+        displayTask = Task {
+            while !Task.isCancelled {
+                await printCurrentMetrics()
+                try? await Task.sleep(for: updateInterval)
+            }
+        }
+    }
+
+    public func stop() {
+        isRunning = false
+        displayTask?.cancel()
+        displayTask = nil
+    }
+
+    private func printCurrentMetrics() async {
+        let pdfsGenerated = metricsBackend.counter("htmltopdf_pdfs_generated_total")?.value ?? 0
+        let pdfsFailed = metricsBackend.counter("htmltopdf_pdfs_failed_total")?.value ?? 0
+        let poolUtil = metricsBackend.gauge("htmltopdf_pool_utilization")?.value ?? 0
+        let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? 0
+
+        let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
+        let p95 = (timer?.p95 ?? 0) * 1000 // Convert to ms
+
+        print("📊 Live Metrics | PDFs: \(pdfsGenerated) | Failed: \(pdfsFailed) | Pool: \(Int(poolUtil)) | Throughput: \(String(format: "%.0f", throughput))/sec | p95: \(String(format: "%.1f", p95))ms")
+    }
+}
+
+// MARK: - Metrics Assertions
+
+/// Assert that a counter has a specific value
+///
+/// Example:
+/// ```swift
+/// try await expectCounter(
+///     "htmltopdf_pdfs_generated_total",
+///     equals: 100,
+///     in: metricsBackend
+/// )
+/// ```
+public func expectCounter(
+    _ label: String,
+    equals expectedValue: Int64,
+    in backend: TestMetricsBackend,
+    file: StaticString = #file,
+    line: UInt = #line
+) async throws {
+    let counter = backend.counter(label)
+    guard let counter = counter else {
+        throw MetricsTestError.metricNotFound(label: label)
+    }
+    let actualValue = counter.value
+    guard actualValue == expectedValue else {
+        throw MetricsTestError.valueMismatch(
+            label: label,
+            expected: "\(expectedValue)",
+            actual: "\(actualValue)"
+        )
+    }
+}
+
+/// Assert that a timer's p95 latency is below a threshold
+///
+/// Example:
+/// ```swift
+/// try await expectLatency(
+///     "htmltopdf_render_duration_seconds",
+///     p95LessThan: 0.1, // 100ms
+///     in: metricsBackend
+/// )
+/// ```
+public func expectLatency(
+    _ label: String,
+    p95LessThan threshold: TimeInterval,
+    in backend: TestMetricsBackend,
+    file: StaticString = #file,
+    line: UInt = #line
+) async throws {
+    let timer = backend.timer(label)
+    guard let timer = timer else {
+        throw MetricsTestError.metricNotFound(label: label)
+    }
+    let p95 = timer.p95
+    guard p95 < threshold else {
+        throw MetricsTestError.thresholdExceeded(
+            label: label,
+            metric: "p95 latency",
+            threshold: "\(threshold)s",
+            actual: "\(p95)s"
+        )
+    }
+}
+
+/// Assert that throughput exceeds a minimum threshold
+///
+/// Example:
+/// ```swift
+/// try await expectThroughput(
+///     greaterThan: 1000.0,
+///     pdfsGenerated: 10_000,
+///     duration: 10.0,
+///     in: metricsBackend
+/// )
+/// ```
+public func expectThroughput(
+    greaterThan threshold: Double,
+    pdfsGenerated: Int64,
+    duration: TimeInterval,
+    in backend: TestMetricsBackend,
+    file: StaticString = #file,
+    line: UInt = #line
+) async throws {
+    let throughput = Double(pdfsGenerated) / duration
+    guard throughput > threshold else {
+        throw MetricsTestError.thresholdExceeded(
+            label: "throughput",
+            metric: "PDFs/sec",
+            threshold: "\(threshold)",
+            actual: "\(throughput)"
+        )
+    }
+}
+
+// MARK: - Metrics Comparison
+
+/// Compare metrics against a baseline to detect regressions
+///
+/// Example:
+/// ```swift
+/// let comparison = await compareMetrics(
+///     current: currentBackend,
+///     baseline: baselineValues,
+///     tolerance: 0.10 // 10% regression allowed
+/// )
+/// if comparison.hasRegressions {
+///     print(comparison.summary())
+/// }
+/// ```
+public struct MetricsComparison: Sendable {
+    public let currentP95Latency: TimeInterval
+    public let baselineP95Latency: TimeInterval
+    public let currentThroughput: Double
+    public let baselineThroughput: Double
+    public let tolerance: Double
+
+    public var latencyRegression: Double {
+        (currentP95Latency - baselineP95Latency) / baselineP95Latency
+    }
+
+    public var throughputRegression: Double {
+        (baselineThroughput - currentThroughput) / baselineThroughput
+    }
+
+    public var hasRegressions: Bool {
+        latencyRegression > tolerance || throughputRegression > tolerance
+    }
+
+    public func summary() -> String {
+        var lines = ["Performance Comparison:"]
+        lines.append("  p95 Latency: \(String(format: "%.2f", currentP95Latency * 1000))ms (baseline: \(String(format: "%.2f", baselineP95Latency * 1000))ms)")
+        if latencyRegression > tolerance {
+            lines.append("    ⚠️  REGRESSION: +\(String(format: "%.1f", latencyRegression * 100))% (tolerance: \(String(format: "%.1f", tolerance * 100))%)")
+        }
+        lines.append("  Throughput: \(String(format: "%.0f", currentThroughput)) PDFs/sec (baseline: \(String(format: "%.0f", baselineThroughput)) PDFs/sec)")
+        if throughputRegression > tolerance {
+            lines.append("    ⚠️  REGRESSION: -\(String(format: "%.1f", throughputRegression * 100))% (tolerance: \(String(format: "%.1f", tolerance * 100))%)")
+        }
+        return lines.joined(separator: "\n")
+    }
+}
+
+public func compareMetrics(
+    current: TestMetricsBackend,
+    baselineP95Latency: TimeInterval,
+    baselineThroughput: Double,
+    tolerance: Double = 0.10
+) async -> MetricsComparison {
+    let timer = current.timer("htmltopdf_render_duration_seconds")
+    let currentP95 = timer?.p95 ?? 0
+
+    let pdfsGenerated = current.counter("htmltopdf_pdfs_generated_total")?.value ?? 0
+    let timer2 = current.timer("htmltopdf_render_duration_seconds")
+    let totalDuration = (timer2?.values.reduce(0, +) ?? 0)
+    let currentThroughput = totalDuration > 0 ? Double(pdfsGenerated) / (TimeInterval(totalDuration) / 1_000_000_000) : 0
+
+    return MetricsComparison(
+        currentP95Latency: currentP95,
+        baselineP95Latency: baselineP95Latency,
+        currentThroughput: currentThroughput,
+        baselineThroughput: baselineThroughput,
+        tolerance: tolerance
+    )
+}
+
+// MARK: - Metrics Summary Formatting
+
+/// Format metrics for pretty-printing in tests
+public func formatMetricsSummary(_ backend: TestMetricsBackend) async -> String {
+    var lines = ["╔══════════════════════════════════════════════════════════╗"]
+    lines.append("║              TEST METRICS SUMMARY                        ║")
+    lines.append("╚══════════════════════════════════════════════════════════╝")
+
+    let pdfsGenerated = backend.counter("htmltopdf_pdfs_generated_total")?.value ?? 0
+    let pdfsFailed = backend.counter("htmltopdf_pdfs_failed_total")?.value ?? 0
+    let poolReplacements = backend.counter("htmltopdf_pool_replacements_total")?.value ?? 0
+
+    lines.append("\n📊 Counters:")
+    lines.append("  • PDFs Generated: \(pdfsGenerated)")
+    lines.append("  • PDFs Failed: \(pdfsFailed)")
+    lines.append("  • Pool Replacements: \(poolReplacements)")
+
+    let poolUtil = backend.gauge("htmltopdf_pool_utilization")?.value ?? 0
+    let throughput = backend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? 0
+
+    lines.append("\n📏 Gauges:")
+    lines.append("  • Pool Utilization: \(Int(poolUtil))")
+    lines.append("  • Throughput: \(String(format: "%.0f", throughput)) PDFs/sec")
+
+    if let timer = backend.timer("htmltopdf_render_duration_seconds") {
+        lines.append("\n⏱️  Render Duration:")
+        lines.append("  • Count: \(timer.values.count)")
+        lines.append("  • Average: \(String(format: "%.2f", timer.average * 1000))ms")
+        lines.append("  • p50: \(String(format: "%.2f", timer.p50 * 1000))ms")
+        lines.append("  • p95: \(String(format: "%.2f", timer.p95 * 1000))ms")
+        lines.append("  • p99: \(String(format: "%.2f", timer.p99 * 1000))ms")
+    }
+
+    lines.append("\n╚══════════════════════════════════════════════════════════╝")
+    return lines.joined(separator: "\n")
+}
+
+// MARK: - Dimension Helpers
+
+/// Get metrics grouped by dimension
+///
+/// Example:
+/// ```swift
+/// let byMode = await metricsByDimension(
+///     label: "htmltopdf_render_duration_seconds",
+///     dimension: "mode",
+///     in: backend
+/// )
+/// // Returns: ["continuous": TestTimer, "paginated": TestTimer]
+/// ```
+public func timersByDimension(
+    label: String,
+    dimension: String,
+    in backend: TestMetricsBackend
+) async -> [String: TestTimer] {
+    let timers = backend.timers(withLabel: label)
+    var result: [String: TestTimer] = [:]
+
+    for timer in timers {
+        if let value = timer.dimensions.first(where: { $0.0 == dimension })?.1 {
+            result[value] = timer
+        }
+    }
+
+    return result
+}
+
+/// Get counters grouped by dimension
+public func countersByDimension(
+    label: String,
+    dimension: String,
+    in backend: TestMetricsBackend
+) async -> [String: TestCounter] {
+    let counters = backend.counters(withLabel: label)
+    var result: [String: TestCounter] = [:]
+
+    for counter in counters {
+        if let value = counter.dimensions.first(where: { $0.0 == dimension })?.1 {
+            result[value] = counter
+        }
+    }
+
+    return result
+}
+
+// MARK: - Error Types
+
+public enum MetricsTestError: Error, CustomStringConvertible {
+    case metricNotFound(label: String)
+    case valueMismatch(label: String, expected: String, actual: String)
+    case thresholdExceeded(label: String, metric: String, threshold: String, actual: String)
+
+    public var description: String {
+        switch self {
+        case .metricNotFound(let label):
+            return "Metric not found: \(label)"
+        case .valueMismatch(let label, let expected, let actual):
+            return "Metric '\(label)' value mismatch - expected: \(expected), actual: \(actual)"
+        case .thresholdExceeded(let label, let metric, let threshold, let actual):
+            return "Metric '\(label)' \(metric) exceeded threshold - threshold: \(threshold), actual: \(actual)"
+        }
+    }
+}
+
+
+// ========================================
+// File: Sources/PDFTestSupport/PDF.Render.Metrics+TestSupport.swift
+// ========================================
+
+//
+//  PDF.Render.Metrics+TestSupport.swift
+//  PDFTestSupport
+//
+//  Test implementation with in-memory storage
+//
+
+import Dependencies
+import Foundation
+@testable import HtmlToPdf
+
+/// Create test metrics with storage for assertions
+public func makeTestMetrics() -> (metrics: PDF.Render.Metrics, storage: TestMetricsStorage) {
+    let storage = TestMetricsStorage()
+
+    let metrics = PDF.Render.Metrics(
+        incrementPDFsGenerated: { storage.pdfsGenerated += 1 },
+        incrementPDFsFailed: { storage.pdfsFailed += 1 },
+        incrementPoolReplacements: { storage.poolReplacements += 1 },
+        recordRenderDuration: { duration, mode in
+            storage.renderDurations.append((duration, mode))
+        },
+        updatePoolUtilization: { count in storage.poolUtilization = count },
+        updateThroughput: { throughput in storage.currentThroughput = throughput }
+    )
+
+    return (metrics, storage)
+}
+
+/// In-memory storage for test metrics
+public final class TestMetricsStorage: @unchecked Sendable {
+    private let lock = NSLock()
+
+    private var _pdfsGenerated: Int64 = 0
+    private var _pdfsFailed: Int64 = 0
+    private var _poolReplacements: Int64 = 0
+    private var _renderDurations: [(Duration, PDF.PaginationMode?)] = []
+    private var _poolUtilization: Int = 0
+    private var _currentThroughput: Double = 0
+
+    public init() {}
+
+    public var pdfsGenerated: Int64 {
+        get { lock.withLock { _pdfsGenerated } }
+        set { lock.withLock { _pdfsGenerated = newValue } }
+    }
+
+    public var pdfsFailed: Int64 {
+        get { lock.withLock { _pdfsFailed } }
+        set { lock.withLock { _pdfsFailed = newValue } }
+    }
+
+    public var poolReplacements: Int64 {
+        get { lock.withLock { _poolReplacements } }
+        set { lock.withLock { _poolReplacements = newValue } }
+    }
+
+    public var renderDurations: [(Duration, PDF.PaginationMode?)] {
+        get { lock.withLock { _renderDurations } }
+        set { lock.withLock { _renderDurations = newValue } }
+    }
+
+    public var poolUtilization: Int {
+        get { lock.withLock { _poolUtilization } }
+        set { lock.withLock { _poolUtilization = newValue } }
+    }
+
+    public var currentThroughput: Double {
+        get { lock.withLock { _currentThroughput } }
+        set { lock.withLock { _currentThroughput = newValue } }
+    }
+
+    // Computed properties
+    public var p95Duration: Duration? {
+        let durations = renderDurations.map { $0.0 }.sorted()
+        guard !durations.isEmpty else { return nil }
+        let index = Int(Double(durations.count) * 0.95)
+        return durations[min(index, durations.count - 1)]
+    }
+
+    public func reset() {
+        lock.withLock {
+            _pdfsGenerated = 0
+            _pdfsFailed = 0
+            _poolReplacements = 0
+            _renderDurations = []
+            _poolUtilization = 0
+            _currentThroughput = 0
+        }
+    }
+}
+
+
+// ========================================
+// File: Sources/PDFTestSupport/PDFVerification.swift
+// ========================================
+
 //
 //  PDFVerification.swift
 //  PDFTestSupport
@@ -3492,7 +4377,10 @@ public enum TestError: Error, CustomStringConvertible {
 #endif
 
 
-// ===== Sources/PDFTestSupport/TestHTML.swift =====
+// ========================================
+// File: Sources/PDFTestSupport/TestHTML.swift
+// ========================================
+
 //
 //  TestHTML.swift
 //  PDFTestSupport
@@ -3646,7 +4534,494 @@ public enum TestHTML {
 }
 
 
-// ===== Sources/PDFTestSupport/withTemporaryDirectory.swift =====
+// ========================================
+// File: Sources/PDFTestSupport/TestMetricsBackend.swift
+// ========================================
+
+//
+//  TestMetricsBackend.swift
+//  PDFTestSupport
+//
+//  Test-specific metrics backend for capturing and asserting on metrics
+//
+
+import Foundation
+import Metrics
+@testable import CoreMetrics  // Access internal bootstrapInternal for testing
+import Dependencies
+
+/// Test metrics backend that captures all recorded metrics for testing
+///
+/// Use this to validate that metrics are actually being recorded during tests:
+///
+/// ```swift
+/// let metricsBackend = TestMetricsBackend()
+/// MetricsSystem.bootstrap(metricsBackend)
+///
+/// // Run your test code that generates metrics
+/// try await pdf.render.client.html(htmls, to: output)
+///
+/// // Assert on captured metrics
+/// #expect(metricsBackend.counters["htmltopdf_pdfs_generated_total"]?.value == 100)
+/// #expect(metricsBackend.timers["htmltopdf_render_duration_seconds"]?.p95 < 0.1)
+/// ```
+public final class TestMetricsBackend: MetricsFactory, @unchecked Sendable {
+
+    // MARK: - Captured Metrics
+
+    private let lock = NSLock()
+    private var _counters: [String: TestCounter] = [:]
+    private var _meters: [String: TestMeter] = [:]
+    private var _timers: [String: TestTimer] = [:]
+    private var _recorders: [String: TestRecorder] = [:]
+
+    public var counters: [String: TestCounter] {
+        lock.withLock { _counters }
+    }
+
+    public var meters: [String: TestMeter] {
+        lock.withLock { _meters }
+    }
+
+    public var timers: [String: TestTimer] {
+        lock.withLock { _timers }
+    }
+
+    public var recorders: [String: TestRecorder] {
+        lock.withLock { _recorders }
+    }
+
+    public init() {}
+
+    // MARK: - MetricsFactory Implementation
+
+    public func makeCounter(label: String, dimensions: [(String, String)]) -> CounterHandler {
+        lock.withLock {
+            let key = makeKey(label: label, dimensions: dimensions)
+            if let existing = _counters[key] {
+                return existing
+            }
+            let counter = TestCounter(label: label, dimensions: dimensions)
+            _counters[key] = counter
+            return counter
+        }
+    }
+
+    public func makeFloatingPointCounter(label: String, dimensions: [(String, String)]) -> FloatingPointCounterHandler {
+        lock.withLock {
+            let key = makeKey(label: label, dimensions: dimensions)
+            if let existing = _counters[key] {
+                return existing
+            }
+            let counter = TestCounter(label: label, dimensions: dimensions)
+            _counters[key] = counter
+            return counter
+        }
+    }
+
+    public func makeMeter(label: String, dimensions: [(String, String)]) -> MeterHandler {
+        lock.withLock {
+            let key = makeKey(label: label, dimensions: dimensions)
+            if let existing = _meters[key] {
+                return existing
+            }
+            let meter = TestMeter(label: label, dimensions: dimensions)
+            _meters[key] = meter
+            return meter
+        }
+    }
+
+    public func makeTimer(label: String, dimensions: [(String, String)]) -> TimerHandler {
+        lock.withLock {
+            let key = makeKey(label: label, dimensions: dimensions)
+            if let existing = _timers[key] {
+                return existing
+            }
+            let timer = TestTimer(label: label, dimensions: dimensions)
+            _timers[key] = timer
+            return timer
+        }
+    }
+
+    public func makeRecorder(label: String, dimensions: [(String, String)], aggregate: Bool) -> RecorderHandler {
+        lock.withLock {
+            let key = makeKey(label: label, dimensions: dimensions)
+            if let existing = _recorders[key] {
+                return existing
+            }
+            let recorder = TestRecorder(label: label, dimensions: dimensions)
+            _recorders[key] = recorder
+            return recorder
+        }
+    }
+
+    public func destroyCounter(_ handler: CounterHandler) {
+        lock.withLock {
+            if let testCounter = handler as? TestCounter {
+                _counters.removeValue(forKey: testCounter.key)
+            }
+        }
+    }
+
+    public func destroyFloatingPointCounter(_ handler: FloatingPointCounterHandler) {
+        lock.withLock {
+            if let testCounter = handler as? TestCounter {
+                _counters.removeValue(forKey: testCounter.key)
+            }
+        }
+    }
+
+    public func destroyMeter(_ handler: MeterHandler) {
+        lock.withLock {
+            if let testMeter = handler as? TestMeter {
+                _meters.removeValue(forKey: testMeter.key)
+            }
+        }
+    }
+
+    public func destroyTimer(_ handler: TimerHandler) {
+        lock.withLock {
+            if let testTimer = handler as? TestTimer {
+                _timers.removeValue(forKey: testTimer.key)
+            }
+        }
+    }
+
+    public func destroyRecorder(_ handler: RecorderHandler) {
+        lock.withLock {
+            if let testRecorder = handler as? TestRecorder {
+                _recorders.removeValue(forKey: testRecorder.key)
+            }
+        }
+    }
+
+    // MARK: - Test Utilities
+
+    /// Reset all captured metrics
+    public func reset() {
+        lock.withLock {
+            _counters.removeAll()
+            _meters.removeAll()
+            _timers.removeAll()
+            _recorders.removeAll()
+        }
+    }
+
+    /// Get counter by label (without dimensions)
+    public func counter(_ label: String) -> TestCounter? {
+        lock.withLock { _counters[label] }
+    }
+
+    /// Get gauge by label (without dimensions)
+    /// Note: In swift-metrics, Gauge is implemented as a Recorder
+    public func gauge(_ label: String) -> TestRecorder? {
+        lock.withLock { _recorders[label] }
+    }
+
+    /// Get meter by label (without dimensions)
+    public func meter(_ label: String) -> TestMeter? {
+        lock.withLock { _meters[label] }
+    }
+
+    /// Get timer by label (without dimensions)
+    public func timer(_ label: String) -> TestTimer? {
+        lock.withLock { _timers[label] }
+    }
+
+    /// Get all counters with a specific label (across all dimensions)
+    public func counters(withLabel label: String) -> [TestCounter] {
+        lock.withLock { _counters.values.filter { $0.label == label } }
+    }
+
+    /// Get all timers with a specific label (across all dimensions)
+    public func timers(withLabel label: String) -> [TestTimer] {
+        lock.withLock { _timers.values.filter { $0.label == label } }
+    }
+
+    /// Print summary of all captured metrics
+    public func printSummary() {
+        lock.withLock {
+            print("\n╔══════════════════════════════════════════════════════════╗")
+            print("║              TEST METRICS SUMMARY                        ║")
+            print("╚══════════════════════════════════════════════════════════╝")
+
+            if !_counters.isEmpty {
+                print("\n📊 Counters:")
+                for (_, counter) in _counters.sorted(by: { $0.key < $1.key }) {
+                    let dims = counter.dimensions.isEmpty ? "" : " (\(formatDimensions(counter.dimensions)))"
+                    print("  • \(counter.label)\(dims): \(counter.value)")
+                }
+            }
+
+            if !_meters.isEmpty {
+                print("\n📏 Meters/Gauges:")
+                for (_, meter) in _meters.sorted(by: { $0.key < $1.key }) {
+                    let dims = meter.dimensions.isEmpty ? "" : " (\(formatDimensions(meter.dimensions)))"
+                    print("  • \(meter.label)\(dims): \(meter.value)")
+                }
+            }
+
+            if !_timers.isEmpty {
+                print("\n⏱️  Timers:")
+                for (_, timer) in _timers.sorted(by: { $0.key < $1.key }) {
+                    let dims = timer.dimensions.isEmpty ? "" : " (\(formatDimensions(timer.dimensions)))"
+                    print("  • \(timer.label)\(dims):")
+                    print("      count: \(timer.values.count)")
+                    if !timer.values.isEmpty {
+                        print("      p50: \(String(format: "%.3f", timer.p50 * 1000))ms")
+                        print("      p95: \(String(format: "%.3f", timer.p95 * 1000))ms")
+                        print("      p99: \(String(format: "%.3f", timer.p99 * 1000))ms")
+                    }
+                }
+            }
+
+            print("\n╚══════════════════════════════════════════════════════════╝\n")
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    private func makeKey(label: String, dimensions: [(String, String)]) -> String {
+        if dimensions.isEmpty {
+            return label
+        }
+        let dimStr = dimensions.sorted(by: { $0.0 < $1.0 })
+            .map { "\($0.0)=\($0.1)" }
+            .joined(separator: ",")
+        return "\(label){\(dimStr)}"
+    }
+
+    private func formatDimensions(_ dimensions: [(String, String)]) -> String {
+        dimensions.map { "\($0.0)=\($0.1)" }.joined(separator: ", ")
+    }
+}
+
+// MARK: - Test Metric Handlers
+
+public final class TestCounter: CounterHandler, FloatingPointCounterHandler, @unchecked Sendable {
+    public let label: String
+    public let dimensions: [(String, String)]
+    fileprivate let key: String
+
+    private let lock = NSLock()
+    private var _value: Int64 = 0
+
+    public var value: Int64 {
+        lock.withLock { _value }
+    }
+
+    init(label: String, dimensions: [(String, String)]) {
+        self.label = label
+        self.dimensions = dimensions
+        self.key = dimensions.isEmpty ? label :
+            "\(label){\(dimensions.sorted(by: { $0.0 < $1.0 }).map { "\($0.0)=\($0.1)" }.joined(separator: ","))}"
+    }
+
+    public func increment(by amount: Int64) {
+        lock.withLock {
+            _value += amount
+        }
+    }
+
+    public func increment(by amount: Double) {
+        lock.withLock {
+            _value += Int64(amount)
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            _value = 0
+        }
+    }
+}
+
+public final class TestMeter: MeterHandler, @unchecked Sendable {
+    public let label: String
+    public let dimensions: [(String, String)]
+    fileprivate let key: String
+
+    private let lock = NSLock()
+    private var _value: Double = 0
+
+    public var value: Double {
+        lock.withLock { _value }
+    }
+
+    init(label: String, dimensions: [(String, String)]) {
+        self.label = label
+        self.dimensions = dimensions
+        self.key = dimensions.isEmpty ? label :
+            "\(label){\(dimensions.sorted(by: { $0.0 < $1.0 }).map { "\($0.0)=\($0.1)" }.joined(separator: ","))}"
+    }
+
+    public func set(_ value: Int64) {
+        lock.withLock {
+            _value = Double(value)
+        }
+    }
+
+    public func set(_ value: Double) {
+        lock.withLock {
+            _value = value
+        }
+    }
+
+    public func increment(by amount: Double) {
+        lock.withLock {
+            _value += amount
+        }
+    }
+
+    public func decrement(by amount: Double) {
+        lock.withLock {
+            _value -= amount
+        }
+    }
+}
+
+public final class TestTimer: TimerHandler, @unchecked Sendable {
+    public let label: String
+    public let dimensions: [(String, String)]
+    fileprivate let key: String
+
+    private let lock = NSLock()
+    private var _values: [Int64] = []
+
+    public var values: [Int64] {
+        lock.withLock { _values }
+    }
+
+    /// Average duration in seconds
+    public var average: TimeInterval {
+        let vals = values
+        guard !vals.isEmpty else { return 0 }
+        let sum = vals.reduce(0, +)
+        return TimeInterval(sum) / TimeInterval(vals.count) / 1_000_000_000
+    }
+
+    /// Minimum duration in seconds
+    public var min: TimeInterval {
+        guard let minVal = values.min() else { return 0 }
+        return TimeInterval(minVal) / 1_000_000_000
+    }
+
+    /// Maximum duration in seconds
+    public var max: TimeInterval {
+        guard let maxVal = values.max() else { return 0 }
+        return TimeInterval(maxVal) / 1_000_000_000
+    }
+
+    /// 50th percentile (median) in seconds
+    public var p50: TimeInterval {
+        percentile(0.50)
+    }
+
+    /// 95th percentile in seconds
+    public var p95: TimeInterval {
+        percentile(0.95)
+    }
+
+    /// 99th percentile in seconds
+    public var p99: TimeInterval {
+        percentile(0.99)
+    }
+
+    init(label: String, dimensions: [(String, String)]) {
+        self.label = label
+        self.dimensions = dimensions
+        self.key = dimensions.isEmpty ? label :
+            "\(label){\(dimensions.sorted(by: { $0.0 < $1.0 }).map { "\($0.0)=\($0.1)" }.joined(separator: ","))}"
+    }
+
+    public func recordNanoseconds(_ duration: Int64) {
+        lock.withLock {
+            _values.append(duration)
+        }
+    }
+
+    private func percentile(_ p: Double) -> TimeInterval {
+        let vals = values.sorted()
+        guard !vals.isEmpty else { return 0 }
+        let index = Int(Double(vals.count) * p)
+        let clampedIndex = Swift.min(index, vals.count - 1)
+        return TimeInterval(vals[clampedIndex]) / 1_000_000_000
+    }
+}
+
+public final class TestRecorder: RecorderHandler, @unchecked Sendable {
+    public let label: String
+    public let dimensions: [(String, String)]
+    fileprivate let key: String
+
+    private let lock = NSLock()
+    private var _values: [Double] = []
+
+    public var values: [Double] {
+        lock.withLock { _values }
+    }
+
+    /// Current value (for gauge-like usage, returns last recorded value)
+    public var value: Double {
+        lock.withLock { _values.last ?? 0 }
+    }
+
+    init(label: String, dimensions: [(String, String)]) {
+        self.label = label
+        self.dimensions = dimensions
+        self.key = dimensions.isEmpty ? label :
+            "\(label){\(dimensions.sorted(by: { $0.0 < $1.0 }).map { "\($0.0)=\($0.1)" }.joined(separator: ","))}"
+    }
+
+    public func record(_ value: Int64) {
+        lock.withLock {
+            _values.append(Double(value))
+        }
+    }
+
+    public func record(_ value: Double) {
+        lock.withLock {
+            _values.append(value)
+        }
+    }
+}
+
+// MARK: - Direct Usage (for tests that don't use Dependencies)
+
+extension TestMetricsBackend {
+    /// Create and bootstrap a test backend for direct use
+    ///
+    /// Use this when you need a standalone metrics backend for testing,
+    /// outside of the Dependencies framework:
+    ///
+    /// ```swift
+    /// let backend = TestMetricsBackend.forTest()
+    /// // Metrics are now captured in this backend
+    /// #expect(backend.counter("my_counter")?.value == 1)
+    /// ```
+    ///
+    /// **Note**: For testing with Dependencies, use `@Dependency(\.pdf).render.metrics.testBackend` instead.
+    public static func forTest() -> TestMetricsBackend {
+        let backend = TestMetricsBackend()
+        MetricsSystem.bootstrapInternal(backend)
+        return backend
+    }
+}
+
+// MARK: - Note on Test Isolation with Dependencies
+//
+// TestMetricsBackend is NOT exposed as a standalone dependency key.
+// Instead, it's embedded within PDF.Render.Metrics.testValue.
+//
+// This ensures the same backend instance used for recording metrics
+// is the one tests inspect, solving the "separate instances" problem
+// that occurs with Swift 6.2+ where testValue is evaluated once globally.
+
+
+// ========================================
+// File: Sources/PDFTestSupport/withTemporaryDirectory.swift
+// ========================================
+
 //
 //  TestOutput.swift
 //  PDFTestSupport

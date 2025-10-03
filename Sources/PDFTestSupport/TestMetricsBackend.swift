@@ -7,6 +7,7 @@
 
 import Foundation
 import Metrics
+@testable import CoreMetrics  // Access internal bootstrapInternal for testing
 import Dependencies
 
 /// Test metrics backend that captures all recorded metrics for testing
@@ -445,49 +446,33 @@ public final class TestRecorder: RecorderHandler, @unchecked Sendable {
     }
 }
 
-// MARK: - Shared Resource Integration
+// MARK: - Direct Usage (for tests that don't use Dependencies)
 
 extension TestMetricsBackend {
-    /// Shared singleton for test metrics backend
+    /// Create and bootstrap a test backend for direct use
     ///
-    /// This ensures MetricsSystem is only bootstrapped once per process.
-    /// Call `reset()` at the start of each test for isolation.
+    /// Use this when you need a standalone metrics backend for testing,
+    /// outside of the Dependencies framework:
     ///
-    /// Usage in tests:
     /// ```swift
-    /// @Test func myTest() async throws {
-    ///     let metrics = TestMetricsBackend.shared
-    ///     metrics.reset()  // Clear any previous test data
-    ///
-    ///     // Test code that generates metrics
-    ///     #expect(metrics.counter("htmltopdf_pdfs_generated_total")?.value == 10)
-    /// }
+    /// let backend = TestMetricsBackend.forTest()
+    /// // Metrics are now captured in this backend
+    /// #expect(backend.counter("my_counter")?.value == 1)
     /// ```
-    public static let shared: TestMetricsBackend = {
-        let backend = TestMetricsBackend()
-        // Bootstrap metrics system once per process
-        MetricsSystem.bootstrap(backend)
-        return backend
-    }()
-
-    /// Convenience method to get and reset the shared instance
+    ///
+    /// **Note**: For testing with Dependencies, use `@Dependency(\.pdf).render.metrics.testBackend` instead.
     public static func forTest() -> TestMetricsBackend {
-        shared.reset()
-        return shared
+        let backend = TestMetricsBackend()
+        MetricsSystem.bootstrapInternal(backend)
+        return backend
     }
 }
 
-// MARK: - Dependency Key
-
-extension DependencyValues {
-    /// Test metrics backend for capturing metrics in tests
-    public var testMetrics: TestMetricsBackend {
-        get { self[TestMetricsBackendKey.self] }
-        set { self[TestMetricsBackendKey.self] = newValue }
-    }
-}
-
-private enum TestMetricsBackendKey: DependencyKey {
-    static let liveValue = TestMetricsBackend.shared
-    static let testValue = TestMetricsBackend.shared
-}
+// MARK: - Note on Test Isolation with Dependencies
+//
+// TestMetricsBackend is NOT exposed as a standalone dependency key.
+// Instead, it's embedded within PDF.Render.Metrics.testValue.
+//
+// This ensures the same backend instance used for recording metrics
+// is the one tests inspect, solving the "separate instances" problem
+// that occurs with Swift 6.2+ where testValue is evaluated once globally.

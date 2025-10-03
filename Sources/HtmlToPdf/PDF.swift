@@ -73,6 +73,13 @@ public struct PDF: Sendable {
 
 // MARK: - Dependency Registration
 
+extension PDF: DependencyKey {
+    public static let liveValue = PDF(
+        render: .liveValue
+    )
+}
+
+
 extension PDF: TestDependencyKey {
     public static let testValue = PDF(
         render: .testValue
@@ -85,3 +92,4 @@ extension DependencyValues {
         set { self[PDF.self] = newValue }
     }
 }
+

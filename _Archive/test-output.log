@@ -1,0 +1,384 @@
+Building for debugging...
+[0/6] Write sources
+[1/6] Write swift-version-72127F182D42384D.txt
+[3/9] Compiling HtmlToPdfTests PaginationModeTests.swift
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:39:67: error: extra argument in call
+ 37 |             """
+ 38 | 
+ 39 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                                   `- error: extra argument in call
+ 40 | 
+ 41 |             // Verify multiple pages were created
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:39:61: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 37 |             """
+ 38 | 
+ 39 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                             `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 40 | 
+ 41 |             // Verify multiple pages were created
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:80:67: error: extra argument in call
+ 78 |             """
+ 79 | 
+ 80 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                                   `- error: extra argument in call
+ 81 | 
+ 82 |             // Verify single page was created
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:80:61: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 78 |             """
+ 79 | 
+ 80 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                             `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 81 | 
+ 82 |             // Verify single page was created
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:119:67: error: extra argument in call
+117 |             """
+118 | 
+119 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                                   `- error: extra argument in call
+120 | 
+121 |             guard let pdfDoc = PDFDocument(url: url) else {
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:119:61: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+117 |             """
+118 | 
+119 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                             `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+120 | 
+121 |             guard let pdfDoc = PDFDocument(url: url) else {
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:153:67: error: extra argument in call
+151 |             """
+152 | 
+153 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                                   `- error: extra argument in call
+154 | 
+155 |             guard let pdfDoc = PDFDocument(url: url) else {
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:153:61: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+151 |             """
+152 | 
+153 |             let url = try await pdf.render.client.documents(html, output)
+    |                                                             `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+154 | 
+155 |             guard let pdfDoc = PDFDocument(url: url) else {
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:187:61: error: extra argument in call
+185 | 
+186 |             let html = "<html><body><p>Test margins in paginated mode</p></body></html>"
+187 |             _ = try await pdf.render.client.documents(html, output)
+    |                                                             `- error: extra argument in call
+188 | 
+189 |             #expect(FileManager.default.fileExists(atPath: output.path), "Paginated PDF with margins should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:187:55: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+185 | 
+186 |             let html = "<html><body><p>Test margins in paginated mode</p></body></html>"
+187 |             _ = try await pdf.render.client.documents(html, output)
+    |                                                       `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+188 | 
+189 |             #expect(FileManager.default.fileExists(atPath: output.path), "Paginated PDF with margins should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:204:61: error: extra argument in call
+202 | 
+203 |             let html = "<html><body><p>Test margins in continuous mode</p></body></html>"
+204 |             _ = try await pdf.render.client.documents(html, output)
+    |                                                             `- error: extra argument in call
+205 | 
+206 |             #expect(FileManager.default.fileExists(atPath: output.path), "Continuous PDF with margins should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/PaginationModeTests.swift:204:55: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+202 | 
+203 |             let html = "<html><body><p>Test margins in continuous mode</p></body></html>"
+204 |             _ = try await pdf.render.client.documents(html, output)
+    |                                                       `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+205 | 
+206 |             #expect(FileManager.default.fileExists(atPath: output.path), "Continuous PDF with margins should be created")
+[4/9] Emitting module HtmlToPdfTests
+[5/9] Compiling HtmlToPdfTests BasicFunctionalityTests.swift
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:33:70: error: extra argument in call
+ 31 |             }
+ 32 | 
+ 33 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                      `- error: extra argument in call
+ 34 | 
+ 35 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:33:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 31 |             }
+ 32 | 
+ 33 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 34 | 
+ 35 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:58:63: error: extra arguments at positions #2, #3 in call
+ 56 |             }
+ 57 | 
+ 58 |             let result = try await pdf.render.client.documents(html, title: filename, in: directory)
+    |                                                               `- error: extra arguments at positions #2, #3 in call
+ 59 | 
+ 60 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with correct filename should exist")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Sources/HtmlToPdf/PDF.Render.Client.swift:46:20: note: 'documents' declared here
+44 |         /// - Throws: Rendering errors
+45 |         @DependencyEndpoint
+46 |         public var documents: @Sendable (
+   |                    `- note: 'documents' declared here
+47 |             _ documents: [PDF.Document]
+48 |         ) async throws -> AsyncThrowingStream<PDF.Result, Error>
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:58:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 56 |             }
+ 57 | 
+ 58 |             let result = try await pdf.render.client.documents(html, title: filename, in: directory)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 59 | 
+ 60 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with correct filename should exist")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:80:70: error: extra argument in call
+ 78 |             }
+ 79 | 
+ 80 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                      `- error: extra argument in call
+ 81 | 
+ 82 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with custom config should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:80:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 78 |             }
+ 79 | 
+ 80 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+ 81 | 
+ 82 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with custom config should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:105:70: error: extra argument in call
+103 |             // Test batch from strings
+104 |             let html = [String](repeating: .html, count: count)
+105 |             let urls = try await pdf.render.client.renderSync(html, output)
+    |                                                                      `- error: extra argument in call
+106 | 
+107 |             #expect(urls.count == count, "Should create \(count) PDF files from strings")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:105:63: error: cannot convert value of type '[String]' to expected argument type '[PDF.Document]'
+103 |             // Test batch from strings
+104 |             let html = [String](repeating: .html, count: count)
+105 |             let urls = try await pdf.render.client.renderSync(html, output)
+    |                                                               |- error: cannot convert value of type '[String]' to expected argument type '[PDF.Document]'
+    |                                                               `- note: arguments to generic parameter 'Element' ('String' and 'PDF.Document') are expected to be equal
+106 | 
+107 |             #expect(urls.count == count, "Should create \(count) PDF files from strings")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:156:70: error: extra argument in call
+154 |             }
+155 | 
+156 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                      `- error: extra argument in call
+157 | 
+158 |             #expect(FileManager.default.fileExists(atPath: result.path), "Complex HTML PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:156:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+154 |             }
+155 | 
+156 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+157 | 
+158 |             #expect(FileManager.default.fileExists(atPath: result.path), "Complex HTML PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:186:9: warning: no calls to throwing functions occur within 'try' expression
+184 |     @Test("capabilities returns platform info")
+185 |     func testCapabilities() throws {
+186 |         try withDependencies {
+    |         `- warning: no calls to throwing functions occur within 'try' expression
+187 |             $0.pdf = .liveValue
+188 |         } operation: {
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:231:70: error: extra argument in call
+229 |             }
+230 | 
+231 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                      `- error: extra argument in call
+232 | 
+233 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with baseURL should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:231:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+229 |             }
+230 | 
+231 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+232 | 
+233 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with baseURL should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:253:70: error: extra argument in call
+251 |             }
+252 | 
+253 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                      `- error: extra argument in call
+254 | 
+255 |             #expect(FileManager.default.fileExists(atPath: result.path), "US Letter PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:253:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+251 |             }
+252 | 
+253 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+254 | 
+255 |             #expect(FileManager.default.fileExists(atPath: result.path), "US Letter PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:275:70: error: extra argument in call
+273 |             }
+274 | 
+275 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                      `- error: extra argument in call
+276 | 
+277 |             #expect(FileManager.default.fileExists(atPath: result.path), "A3 PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:275:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+273 |             }
+274 | 
+275 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+276 | 
+277 |             #expect(FileManager.default.fileExists(atPath: result.path), "A3 PDF should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:297:70: error: extra argument in call
+295 |             }
+296 | 
+297 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                      `- error: extra argument in call
+298 | 
+299 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with minimal margins should be created")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/BasicFunctionalityTests.swift:297:64: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+295 |             }
+296 | 
+297 |             let result = try await pdf.render.client.documents(html, output)
+    |                                                                `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+298 | 
+299 |             #expect(FileManager.default.fileExists(atPath: result.path), "PDF with minimal margins should be created")
+[6/9] Compiling HtmlToPdfTests ErrorHandlingTests.swift
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:54:41: warning: result of call to function returning 'URL' is unused [#no-usage]
+ 52 |                 .appendingPathExtension("pdf")
+ 53 | 
+ 54 |             try await pdf.render.client.html(emptyHTML, output)
+    |                                         `- warning: result of call to function returning 'URL' is unused [#no-usage]
+ 55 | 
+ 56 |             #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created even with empty HTML")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:104:45: warning: result of call to function returning 'URL' is unused [#no-usage]
+102 | 
+103 |             do {
+104 |                 try await pdf.render.client.html(html, invalidPath)
+    |                                             `- warning: result of call to function returning 'URL' is unused [#no-usage]
+105 |                 Issue.record("Should have thrown an error for invalid path")
+106 |             } catch {
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:93:9: warning: no calls to throwing functions occur within 'try' expression
+ 91 |     @Test("Handles invalid file path")
+ 92 |     func testInvalidFilePath() async throws {
+ 93 |         try await withDependencies {
+    |         `- warning: no calls to throwing functions occur within 'try' expression
+ 94 |             $0.pdf = .liveValue
+ 95 |             // $0.pdf.render.configuration = .default
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:147:9: warning: no calls to throwing functions occur within 'try' expression
+145 |     @Test("Handles WebView pool resource timeout")
+146 |     func testWebViewPoolTimeout() async throws {
+147 |         try await withDependencies {
+    |         `- warning: no calls to throwing functions occur within 'try' expression
+148 |             $0.pdf = .liveValue
+149 |             // $0.pdf.render.configuration = .default
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:215:70: error: extra argument in call
+213 |             }
+214 | 
+215 |             let urls = try await pdf.render.client.renderSync(html, output)
+    |                                                                      `- error: extra argument in call
+216 | 
+217 |             #expect(urls.count == count, "All documents should complete despite pool queueing")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:215:63: error: cannot convert value of type '[String]' to expected argument type '[PDF.Document]'
+213 |             }
+214 | 
+215 |             let urls = try await pdf.render.client.renderSync(html, output)
+    |                                                               |- error: cannot convert value of type '[String]' to expected argument type '[PDF.Document]'
+    |                                                               `- note: arguments to generic parameter 'Element' ('String' and 'PDF.Document') are expected to be equal
+216 | 
+217 |             #expect(urls.count == count, "All documents should complete despite pool queueing")
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:253:68: error: extra argument in call
+251 | 
+252 |             do {
+253 |                 try await pdf.render.client.documents(complexHTML, output)
+    |                                                                    `- error: extra argument in call
+254 |                 // If we get here, the timeout might not have worked, but the document might be simple enough
+255 |                 // Check if file was created
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:253:55: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+251 | 
+252 |             do {
+253 |                 try await pdf.render.client.documents(complexHTML, output)
+    |                                                       `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+254 |                 // If we get here, the timeout might not have worked, but the document might be simple enough
+255 |                 // Check if file was created
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:293:58: error: extra arguments at positions #2, #3 in call
+291 | 
+292 |             for name in specialNames {
+293 |                 _ = try await pdf.render.client.documents(html, title: name, in: outputDir)
+    |                                                          `- error: extra arguments at positions #2, #3 in call
+294 |             }
+295 | 
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Sources/HtmlToPdf/PDF.Render.Client.swift:46:20: note: 'documents' declared here
+44 |         /// - Throws: Rendering errors
+45 |         @DependencyEndpoint
+46 |         public var documents: @Sendable (
+   |                    `- note: 'documents' declared here
+47 |             _ documents: [PDF.Document]
+48 |         ) async throws -> AsyncThrowingStream<PDF.Result, Error>
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:293:59: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+291 | 
+292 |             for name in specialNames {
+293 |                 _ = try await pdf.render.client.documents(html, title: name, in: outputDir)
+    |                                                           `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+294 |             }
+295 | 
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:351:61: error: extra argument in call
+349 | 
+350 |             // Should still succeed even with resource constraints
+351 |             _ = try await pdf.render.client.documents(html, output)
+    |                                                             `- error: extra argument in call
+352 |             #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created despite resource constraints")
+353 |         }
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ErrorHandlingTests.swift:351:55: error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+349 | 
+350 |             // Should still succeed even with resource constraints
+351 |             _ = try await pdf.render.client.documents(html, output)
+    |                                                       `- error: cannot convert value of type 'String' to expected argument type '[PDF.Document]'
+352 |             #expect(FileManager.default.fileExists(atPath: output.path), "PDF should be created despite resource constraints")
+353 |         }
+[7/9] Compiling HtmlToPdfTests ConcurrencyTests.swift
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ConcurrencyTests.swift:224:71: error: extra argument in call
+222 |                 } operation: {
+223 |                     let html = [String](repeating: .html, count: 10)
+224 |                     _ = try await pdf.render.client.renderSync(html, output)
+    |                                                                       `- error: extra argument in call
+225 |                 }
+226 |             }
+
+/Users/coen/Developer/coenttb/swift-html-to-pdf/Tests/HtmlToPdfTests/ConcurrencyTests.swift:224:64: error: cannot convert value of type '[String]' to expected argument type '[PDF.Document]'
+222 |                 } operation: {
+223 |                     let html = [String](repeating: .html, count: 10)
+224 |                     _ = try await pdf.render.client.renderSync(html, output)
+    |                                                                |- error: cannot convert value of type '[String]' to expected argument type '[PDF.Document]'
+    |                                                                `- note: arguments to generic parameter 'Element' ('String' and 'PDF.Document') are expected to be equal
+225 |                 }
+226 |             }
+error: fatalError

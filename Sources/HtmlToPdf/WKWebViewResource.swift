@@ -12,22 +12,10 @@ import ResourcePool
 import Dependencies
 import LoggingExtras
 
-/// Configuration for creating WKWebView resources
-public struct WKWebViewResourceConfig: Sendable {
-    /// Whether to use persistent data store
-    public let usePersistentDataStore: Bool
-
-    public init(
-        usePersistentDataStore: Bool = false
-    ) {
-        self.usePersistentDataStore = usePersistentDataStore
-    }
-}
-
 /// WKWebView wrapper that conforms to PoolableResource
 @MainActor
 public final class WKWebViewResource: PoolableResource {
-    public typealias Config = WKWebViewResourceConfig
+    public typealias Config = Void
 
     /// The underlying WKWebView
     public let webView: WKWebView
@@ -49,8 +37,8 @@ public final class WKWebViewResource: PoolableResource {
         webViewConfig.preferences.setValue(false, forKey: "acceleratedDrawingEnabled")
         webViewConfig.preferences.setValue(false, forKey: "displayListDrawingEnabled")
 
-        // Use data store based on configuration
-        webViewConfig.websiteDataStore = config.usePersistentDataStore ? .default() : .nonPersistent()
+        // Use non-persistent data store (correct for stateless PDF generation)
+        webViewConfig.websiteDataStore = .nonPersistent()
 
         // Disable JavaScript for PDF rendering
         if #available(macOS 11.0, iOS 14.0, *) {

@@ -879,12 +879,9 @@ Contributions are welcome! Please:
 Part of the [coenttb Swift ecosystem](https://github.com/coenttb):
 
 - **[swift-html](https://github.com/coenttb/swift-html)** - Type-safe HTML & CSS DSL
-- **[swift-css](https://github.com/coenttb/swift-css)** - Type-safe CSS in Swift
-- **[swift-web](https://github.com/coenttb/swift-web)** - Foundational web development tools
-- **[coenttb-server](https://github.com/coenttb/coenttb-server)** - Full-stack Swift server framework
+- **[swift-html](https://github.com/coenttb/swift-html)** - Type-safe HTML & CSS DSL
 
 Built on [Point-Free](https://www.pointfree.co) foundations:
-
 - **[swift-dependencies](https://github.com/pointfreeco/swift-dependencies)** - Dependency injection
 - **[pointfree-html](https://github.com/coenttb/pointfree-html)** - HTML DSL foundation
 

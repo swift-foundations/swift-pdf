@@ -15,12 +15,6 @@ import ResourcePool
 import PDFKit
 import LoggingExtras
 
-extension PDF: DependencyKey {
-    public static let liveValue = PDF(
-        render: .liveValue
-    )
-}
-
 extension PDF.Render: DependencyKey {
     public static let liveValue = PDF.Render(
         client: .macOS,

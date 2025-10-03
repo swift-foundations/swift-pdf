@@ -64,6 +64,26 @@ extension PDF {
         /// Default is `false` for backward compatibility.
         public var adaptiveThroughputOptimization: Bool = false
 
+        /// Pool replacement threshold (number of PDFs before triggering pool replacement)
+        ///
+        /// The WebView pool is automatically replaced after processing this many PDFs to mitigate
+        /// WebKit process-level memory leaks that accumulate over long batch operations.
+        ///
+        /// **Rationale:**
+        /// - WebKit processes accumulate memory over time even with proper cleanup
+        /// - Periodic pool replacement ensures sustained performance for long-running services
+        /// - Default (30,000) balances performance with resource management
+        ///
+        /// **Tuning Guidelines:**
+        /// - **Long-running services**: Use default (30,000) or higher
+        /// - **Short-lived CLIs**: Set to `nil` to disable automatic replacement
+        /// - **Memory-constrained environments**: Lower to 10,000-15,000
+        /// - **High-throughput systems**: Rely on `adaptiveThroughputOptimization` instead
+        ///
+        /// Set to `nil` to disable automatic pool replacement entirely.
+        /// Default is `30_000` for long-running services.
+        public var poolReplacementThreshold: Int? = 30_000
+
         /// Timeout per document (nil = no timeout)
         public var documentTimeout: Duration?
 
@@ -71,6 +91,10 @@ extension PDF {
         public var batchTimeout: Duration?
 
         /// Timeout for acquiring WebView from pool
+        ///
+        /// Default is 60 seconds, which is appropriate for interactive apps and services.
+        /// For bulk/offline jobs or CI environments, consider increasing to 300-600 seconds
+        /// using the `.largeBatch` preset or setting explicitly.
         public var webViewAcquisitionTimeout: Duration
 
         // MARK: - File System
@@ -113,9 +137,10 @@ extension PDF {
             paginationMode: PaginationMode = .continuous,
             concurrency: ConcurrencyStrategy = .automatic,
             adaptiveThroughputOptimization: Bool = false,
+            poolReplacementThreshold: Int? = 30_000,
             documentTimeout: Duration? = nil,
             batchTimeout: Duration? = nil,
-            webViewAcquisitionTimeout: Duration = .seconds(300),
+            webViewAcquisitionTimeout: Duration = .seconds(60),
             createDirectories: Bool = true,
             namingStrategy: NamingStrategy = .sequential
         ) {
@@ -125,6 +150,7 @@ extension PDF {
             self.paginationMode = paginationMode
             self.concurrency = concurrency
             self.adaptiveThroughputOptimization = adaptiveThroughputOptimization
+            self.poolReplacementThreshold = poolReplacementThreshold
             self.documentTimeout = documentTimeout
             self.batchTimeout = batchTimeout
             self.webViewAcquisitionTimeout = webViewAcquisitionTimeout
@@ -178,7 +204,7 @@ extension PDF.Configuration {
             paperSize: .a4,
             margins: .standard,
             concurrency: .automatic,
-            webViewAcquisitionTimeout: .seconds(300)
+            webViewAcquisitionTimeout: .seconds(60)
         )
     }
 }

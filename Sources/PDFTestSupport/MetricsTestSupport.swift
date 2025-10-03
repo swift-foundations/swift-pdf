@@ -181,6 +181,20 @@ public struct MetricsComparison: Sendable {
     public let baselineThroughput: Double
     public let tolerance: Double
 
+    public init(
+        currentP95Latency: TimeInterval,
+        baselineP95Latency: TimeInterval,
+        currentThroughput: Double,
+        baselineThroughput: Double,
+        tolerance: Double
+    ) {
+        self.currentP95Latency = currentP95Latency
+        self.baselineP95Latency = baselineP95Latency
+        self.currentThroughput = currentThroughput
+        self.baselineThroughput = baselineThroughput
+        self.tolerance = tolerance
+    }
+
     public var latencyRegression: Double {
         (currentP95Latency - baselineP95Latency) / baselineP95Latency
     }

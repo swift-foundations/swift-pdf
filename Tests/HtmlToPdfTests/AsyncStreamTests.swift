@@ -26,12 +26,10 @@ struct AsyncStreamTests {
         .dependency(\.pdf.render.configuration.namingStrategy, .init { _ in UUID().uuidString })
     )
     func testAsyncStreamProgressive() async throws {
-        let metricsBackend = TestMetricsBackend.shared
-
         try await withTemporaryDirectory { output in
             let count = 20
 
-            // Track URLs separately, use metrics for counting
+            // Track URLs as stream yields them
             var yieldedURLs: [URL] = []
 
             let htmls = [String](repeating: TestHTML.simple, count: count)
@@ -42,10 +40,8 @@ struct AsyncStreamTests {
                 #expect(FileManager.default.fileExists(atPath: result.url.path), "Yielded URL should exist")
             }
 
-            // Verify via metrics instead of manual tracking
-            let pdfsGenerated = metricsBackend.counter("htmltopdf_pdfs_generated_total")
-            #expect(pdfsGenerated?.value == Int64(count), "Should yield all \(count) results")
-            #expect(yieldedURLs.count == count, "Should track all completions")
+            // Verify all results were yielded
+            #expect(yieldedURLs.count == count, "Should yield all \(count) results")
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "All files should exist after stream completes")

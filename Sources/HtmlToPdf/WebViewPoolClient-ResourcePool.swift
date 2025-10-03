@@ -11,7 +11,6 @@ import WebKit
 import Dependencies
 import LoggingExtras
 import ResourcePool
-import EnvironmentVariables
 import IssueReporting
 
 /// Adaptive throughput optimizer that monitors performance and triggers optimizations
@@ -131,7 +130,6 @@ private actor WebViewPoolActor {
 
     private var sharedPool: ResourcePool<WKWebViewResource>?
     private var totalPDFsGenerated: Int = 0
-    private var batchReplacementThreshold = 30_000 // Reduced from 50K for better sustained performance
     private var poolProvider: (@Sendable () async throws -> ResourcePool<WKWebViewResource>)?
     private var isReplacing: Bool = false  // Prevent concurrent replacements
     private var adaptiveOptimizer: AdaptiveThroughputOptimizer?
@@ -299,29 +297,15 @@ extension WebViewPoolClient: DependencyKey {
     public static var liveValue: WebViewPoolClient {
         return WebViewPoolClient(
             poolProvider: { @MainActor in
-                @Dependency(\.envVars) var env
-
-                // Determine pool size
-                let poolSize: Int
-                if let envPoolSize = env["WEBVIEW_POOL_SIZE"],
-                   let customSize = Int(envPoolSize), customSize > 0 {
-                    poolSize = customSize
-                } else {
-                    // Use intelligent defaults based on hardware
-                    poolSize = PDF.ConcurrencyStrategy.calculateDefaultConcurrency()
-                }
-
-                // Create configuration
-                let usePersistentDataStore = env["WEBVIEW_PERSISTENT_DATA_STORE"]?.lowercased() == "true"
-                let config = WKWebViewResourceConfig(
-                    usePersistentDataStore: usePersistentDataStore
-                )
+                // Pool size comes from configuration via dependencies
+                @Dependency(\.pdf.render.configuration) var configuration
+                let poolSize = configuration.concurrency.resolved
 
                 // Create pool with warmup
                 // Batch replacement (every 30K PDFs) handles memory leaks at pool level
                 return try await ResourcePool<WKWebViewResource>(
                     capacity: poolSize,
-                    resourceConfig: config,
+                    resourceConfig: (),
                     warmup: true,
                     maxUsesBeforeCycling: nil  // No per-resource cycling - using batch replacement
                 )
@@ -331,10 +315,9 @@ extension WebViewPoolClient: DependencyKey {
 
     public static var testValue: WebViewPoolClient {
         WebViewPoolClient(poolProvider: { @MainActor in
-            let config = WKWebViewResourceConfig(usePersistentDataStore: false)
             return try await ResourcePool<WKWebViewResource>(
                 capacity: 2,
-                resourceConfig: config,
+                resourceConfig: (),
                 warmup: false
             )
         })
