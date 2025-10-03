@@ -30,7 +30,7 @@ struct StressTests {
     
     @Test(
         "Generate 1,000,000 PDFs",
-        .disabled(),
+//        .disabled(),
         .timeLimit(.minutes(120)),
         .dependencies {
             $0.pdf.render.configuration.concurrency = 8
@@ -39,23 +39,15 @@ struct StressTests {
         //        .disabled { false }
     )
     func test1MPDFs() async throws {
-        let metricsBackend = TestMetricsBackend.forTest()
         try await withTemporaryDirectory { output in
             // Suppress WebKit console warnings
             setenv("OS_ACTIVITY_MODE", "disable", 1)
-            
+
             let count = 1_000_000
             let filesPerDirectory = 1_000 // Keep directories manageable
-            
+
+            let tracker = ProgressTracker(totalCount: count, reportInterval: 10.0)
             let startTime = Date()
-            
-            // Setup live metrics display
-            let metricsTracker = MetricsProgressTracker(
-                totalCount: count,
-                metricsBackend: metricsBackend,
-                reportInterval: .seconds(10)
-            )
-            await metricsTracker.start()
             
             // Create subdirectories to avoid file system degradation
             // 1M files split into 1000 directories of 1000 files each
@@ -88,15 +80,14 @@ struct StressTests {
             print("Starting generation...\n")
             
             let stream = try await pdf.render.client.documents(documents)
-            
+
             for try await _ in stream {
-                // Metrics automatically recorded, live display updates
+                _ = await tracker.recordCompletion()
             }
-            
-            await metricsTracker.stop()
-            
+
             let duration = Date().timeIntervalSince(startTime)
-            
+            _ = await tracker.completed
+
             // Verify all files were created by counting across all subdirectories
             var totalFiles = 0
             let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
@@ -105,17 +96,14 @@ struct StressTests {
                 totalFiles += files.count
             }
             #expect(totalFiles == count, "Should create all \(count) PDFs")
-            
-            // Get stats from metrics instead of manual calculation
-            let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? (Double(count) / duration)
-            let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
-            let avgMs = (timer?.average ?? 0) * 1000
+
+            // Calculate stats
+            let throughput = Double(count) / duration
+            let avgMs = duration * 1000 / Double(count)
             let minutes = Int(duration / 60)
             let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
-            
-            // Print final statistics with metrics summary
-            await metricsTracker.printSummary()
-            
+
+            // Print final statistics
             print("\n╔═══════════════════════════════════════════════════════════╗")
             print("║         1 MILLION PDF TEST - RESULTS                     ║")
             print("╚═══════════════════════════════════════════════════════════╝")
@@ -123,11 +111,10 @@ struct StressTests {
             print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
             print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
             print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
-            print("p95 per PDF:     \(String(format: "%.3f", (timer?.p95 ?? 0) * 1000))ms")
             print("Files created:   \(totalFiles.formatted())")
             print("Subdirectories:  \(subdirs.count)")
             print("╚═══════════════════════════════════════════════════════════╝\n")
-            
+
             // Verify reasonable throughput (at least 100 PDFs/sec)
             #expect(throughput > 100, "Should maintain reasonable throughput")
         }
@@ -136,7 +123,7 @@ struct StressTests {
     
     @Test(
         "Generate 200,000 PDFs",
-//        .disabled(),
+        .disabled(),
         .timeLimit(.minutes(30))
     )
     func test100kPDFs() async throws {

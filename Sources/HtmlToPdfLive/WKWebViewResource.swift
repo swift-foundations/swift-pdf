@@ -17,11 +17,11 @@ import LoggingExtras
 public final class WKWebViewResource: PoolableResource {
     public struct Config: Sendable {
         public var maxUsesBeforeRecreate: Int
-        public var clearCachesEvery: Int
+        public var clearCachesEvery: Int  // 0 = disabled
 
         public init(
             maxUsesBeforeRecreate: Int = 2000,
-            clearCachesEvery: Int = 100
+            clearCachesEvery: Int = 0  // Disabled by default - rely on TTL recycling
         ) {
             self.maxUsesBeforeRecreate = maxUsesBeforeRecreate
             self.clearCachesEvery = clearCachesEvery
@@ -69,8 +69,8 @@ public final class WKWebViewResource: PoolableResource {
             webViewConfig.preferences.isFraudulentWebsiteWarningEnabled = false
         }
 
-        // Suppress WebKit logging warnings
-        webViewConfig.preferences.setValue(true, forKey: "logsPageMessagesToSystemConsoleEnabled")
+        // Suppress WebKit logging warnings (IMPORTANT: false prevents log spam)
+        webViewConfig.preferences.setValue(false, forKey: "logsPageMessagesToSystemConsoleEnabled")
         webViewConfig.preferences.setValue(false, forKey: "developerExtrasEnabled")
 
         #if os(iOS)
@@ -134,7 +134,7 @@ public final class WKWebViewResource: PoolableResource {
 
         // Periodic cache clearing: Clear caches every N uses to prevent buildup
         // This is cheaper than clearing on every use (15% overhead) but prevents accumulation
-        if uses % config.clearCachesEvery == 0 {
+        if config.clearCachesEvery > 0, uses % config.clearCachesEvery == 0 {
             let dataTypes: Set<String> = [
                 WKWebsiteDataTypeDiskCache,
                 WKWebsiteDataTypeMemoryCache

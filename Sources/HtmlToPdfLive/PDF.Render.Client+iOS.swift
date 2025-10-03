@@ -6,11 +6,11 @@
 //
 
 #if canImport(UIKit)
+import CoreGraphics
 import Dependencies
 import DependenciesMacros
 import Foundation
 import LoggingExtras
-import PDFKit
 import UIKit
 import WebKit
 
@@ -136,7 +136,7 @@ private func renderDocumentsInternal(
     let documentsArray = Array(documents)
 
     return AsyncThrowingStream<PDF.Result, Error> { continuation in
-        Task { @MainActor in
+        Task {
             var completedCount = 0
             do {
                 @Dependency(\.pdf.render.metrics) var metrics
@@ -221,15 +221,22 @@ private func renderDocumentsInternal(
     }
 }
 
-/// Extract page count and dimensions from PDF file (thread-safe, can run off main actor)
+/// Extract page count and dimensions from PDF file using Core Graphics (faster than PDFKit)
+/// Thread-safe, can run off main actor. Avoids PDFDocument allocation/caching overhead.
 private func extractPageInfo(from url: URL, fallbackSize: CGSize) -> (pageCount: Int, dimensions: [CGSize]) {
-    guard let pdfDoc = PDFDocument(url: url) else {
+    guard let provider = CGDataProvider(url: url as CFURL),
+          let pdfDoc = CGPDFDocument(provider) else {
         return (1, [fallbackSize])
     }
 
-    let pageCount = pdfDoc.pageCount
-    let dimensions = (0..<pageCount).compactMap { index -> CGSize? in
-        pdfDoc.page(at: index)?.bounds(for: .mediaBox).size
+    let pageCount = pdfDoc.numberOfPages
+    var dimensions: [CGSize] = []
+    dimensions.reserveCapacity(pageCount)
+
+    for pageIndex in 1...pageCount {
+        guard let page = pdfDoc.page(at: pageIndex) else { continue }
+        let mediaBox = page.getBoxRect(.mediaBox)
+        dimensions.append(mediaBox.size)
     }
 
     // Fallback if no pages found
