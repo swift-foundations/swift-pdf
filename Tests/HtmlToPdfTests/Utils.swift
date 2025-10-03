@@ -1,8 +1,11 @@
 //
-//  File.swift
+//  Utils.swift
+//  HtmlToPdfTests
 //
+//  Test utilities and fixtures for HtmlToPdf tests
 //
-//  Created by Coen ten Thije Boonkkamp on 15/07/2024.
+//  Note: General-purpose test utilities have been moved to PDFTestSupport/TestUtilities.swift
+//  This file contains HtmlToPdf-specific helpers (HTML fixtures, progress tracking, etc.)
 //
 
 import Foundation
@@ -10,75 +13,6 @@ import HtmlToPdf
 import Testing
 import PDFTestSupport
 import Metrics
-
-extension URL {
-
-    static func output(id: UUID = UUID()) -> Self {
-        FileManager.default.temporaryDirectory.appendingPathComponent("html-to-pdf").appendingPathComponent(id.uuidString)
-    }
-
-    static var localHtmlToPdf: Self {
-        #if os(macOS)
-        return URL.documentsDirectory.appendingPathComponent("HtmlToPdf")
-        #endif
-        #if os(iOS)
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        return paths.first!.appendingPathComponent("HtmlToPdf")
-        #endif
-    }
-}
-
-extension FileManager {
-    func removeItems(at url: URL) throws {
-        let fileURLs = try contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [])
-        for fileURL in fileURLs {
-            try removeItem(at: fileURL)
-        }
-    }
-
-    /// Clean up any leftover test directories from interrupted tests
-    /// This is useful when tests timeout or are interrupted before cleanup can run
-    static func cleanupTestDirectories() {
-        let fm = FileManager.default
-        let tempDir = fm.temporaryDirectory.appendingPathComponent("html-to-pdf")
-
-        guard fm.fileExists(atPath: tempDir.path) else { return }
-
-        do {
-            let subdirs = try fm.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
-            print("🧹 Cleaning up \(subdirs.count) leftover test directories...")
-
-            for subdir in subdirs {
-                try? fm.removeItem(at: subdir)
-            }
-
-            try? fm.removeItem(at: tempDir)
-            print("✅ Cleanup complete")
-        } catch {
-            print("⚠️ Cleanup failed: \(error)")
-        }
-    }
-}
-
-extension AsyncStream<URL> {
-    func testIfYieldedUrlExistsOnFileSystem(directory: URL) async throws {
-        for await url in self {
-            let contents = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-                .map(\.lastPathComponent)
-            #expect(contents.contains(where: { $0 == url.lastPathComponent }))
-        }
-    }
-}
-
-extension AsyncThrowingStream<URL, Error> {
-    func testIfYieldedUrlExistsOnFileSystem(directory: URL) async throws {
-        for try await url in self {
-            let contents = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-                .map(\.lastPathComponent)
-            #expect(contents.contains(where: { $0 == url.lastPathComponent }))
-        }
-    }
-}
 
 extension String {
     static let html = """
