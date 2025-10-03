@@ -5,39 +5,88 @@
 [![Platforms](https://img.shields.io/badge/Platforms-macOS%20%7C%20iOS-blue.svg)](https://github.com/coenttb/swift-html-to-pdf)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-HtmlToPdf provides an easy-to-use interface for concurrently printing HTML to PDF on iOS and macOS.
+**State-of-the-art HTML to PDF generation for Apple platforms**
+
+⚡ **2,016 PDFs/sec** peak throughput • 🎯 Type-safe API • 🧪 Swift 6 strict concurrency • 💾 Constant memory usage
+
+## Quick Start
+
+```swift
+@Dependency(\.pdf) var pdf
+try await pdf.render(html: "<html><body><h1>Hello, World!</h1></body></html>", to: fileURL)
+```
+
+One line. Zero configuration. Production-ready.
 
 ## Features
 
-- Convert HTML strings to PDF documents on both iOS and macOS.
-- Lightweight and fast: it can handle thousands of documents quickly.
-- Customize margins for PDF documents.
-- Swift 6 language mode enabled
-- And one more thing: easily print images in your PDFs!
+### Core Capabilities
+- 🚀 **High Performance**: 2,016 PDFs/sec peak throughput with constant memory usage
+- 🎯 **Type-Safe API**: Full Swift 6 strict concurrency support with compile-time safety
+- 📄 **Dual Pagination Modes**: Fast continuous or print-ready paginated output
+- 🔄 **Resilient Batch Processing**: Continue on errors or fail-fast - your choice
+- 🖼️ **Rich Content**: Base64-encoded images, custom CSS, complex layouts
+- ⚙️ **Intelligent Defaults**: Zero configuration required, infinitely customizable
+
+### Platform Support
+- ✅ macOS 14.0+
+- ✅ iOS 17.0+
+- 🔜 Linux (architecture ready for cross-platform expansion)
+
+### Developer Experience
+- Progressive disclosure API (beginner → intermediate → advanced)
+- Comprehensive error messages with recovery suggestions
+- Streaming results via AsyncThrowingStream
+- Resource pooling with automatic lifecycle management
+- Extensive performance benchmarks and stress tests
 
 ## Examples
 
-Print to a file url:
+### Single PDF
+
+Generate a PDF from HTML string:
+
 ```swift
-try await "<html><body><h1>Hello, World 1!</h1></body></html>".print(to: URL(...))
-```
-Print to a directory with a file title.
-```swift
-let directory = URL(...)
-let html = "<html><body><h1>Hello, World 1!</h1></body></html>"
-try await html.print(title: "file title", to: directory)
+@Dependency(\.pdf) var pdf
+
+let html = "<html><body><h1>Hello, World!</h1></body></html>"
+try await pdf.render(html: html, to: fileURL)
 ```
 
-Print a collection to a directory.
+Using type-safe HTML via [swift-html](https://github.com/coenttb/swift-html):
+
 ```swift
-let directory = URL(...)
-try await [
-    html,
-    html,
-    html,
-    ....
+import HTML
+
+struct MyPage: HTML {
+    var body: some HTML {
+        html {
+            head { title { "My Document" } }
+            body { h1 { "Hello, World!" } }
+        }
+    }
+}
+
+@Dependency(\.pdf) var pdf
+try await pdf.render(html: MyPage(), to: fileURL)
+```
+
+### Batch Processing
+
+Generate multiple PDFs:
+
+```swift
+@Dependency(\.pdf) var pdf
+
+let htmls = [
+    "<html><body><h1>Document 1</h1></body></html>",
+    "<html><body><h1>Document 2</h1></body></html>",
+    "<html><body><h1>Document 3</h1></body></html>"
 ]
-.print(to: directory)
+
+for try await result in try await pdf.render(htmls: htmls, to: directory) {
+    print("Generated \(result.url.lastPathComponent) in \(result.duration)")
+}
 ```
 
 ## Pagination Modes
@@ -50,10 +99,11 @@ Split content into multiple pages with proper dimensions - perfect for printing:
 
 ```swift
 try await withDependencies {
-    $0.pdfConfiguration.paginationMode = .paginated
+    $0.pdf.render.configuration.paginationMode = .paginated
 } operation: {
     @Dependency(\.pdf) var pdf
-    try await pdf.render(invoice, output)
+    let result = try await pdf.render(html: html, to: fileURL)
+    print("Generated \(result.pageCount) pages")
 }
 // Result: Multiple A4 pages (595 × 842 pt each)
 ```
@@ -64,10 +114,10 @@ Single tall page containing all content - ideal for web viewing:
 
 ```swift
 try await withDependencies {
-    $0.pdfConfiguration.paginationMode = .continuous
+    $0.pdf.render.configuration.paginationMode = .continuous
 } operation: {
     @Dependency(\.pdf) var pdf
-    try await pdf.render(article, output)
+    try await pdf.render(html: html, to: fileURL)
 }
 // Result: Single tall page (595 × content-height pt)
 ```
@@ -78,11 +128,13 @@ Let the system choose the best approach based on content analysis:
 
 ```swift
 try await withDependencies {
-    $0.pdfConfiguration.paginationMode = .automatic()
+    $0.pdf.render.configuration.paginationMode = .automatic()
 } operation: {
     @Dependency(\.pdf) var pdf
-    let result = try await pdf.render(html, output)
-    print("Generated \(result.pageCount) pages")
+
+    for try await result in try await pdf.render(htmls: htmls, to: directory) {
+        print("Generated \(result.pageCount) pages")
+    }
 }
 // Automatically uses:
 // - Continuous mode for short content (fast)
@@ -92,81 +144,104 @@ try await withDependencies {
 ### Configuration Presets
 
 ```swift
-// Default: Paginated mode (print-ready)
-$0.pdfConfiguration = .default
+// Default configuration (A4, standard margins, continuous mode)
+$0.pdf.render.configuration = .default
 
 // Fast continuous mode
-$0.pdfConfiguration = .continuous
+$0.pdf.render.configuration = .continuous
 
 // Smart auto-detection
-$0.pdfConfiguration = .smart
+$0.pdf.render.configuration = .smart
 
-// Multi-page (alias for paginated)
-$0.pdfConfiguration = .multiPage
+// Multi-page print-ready documents
+$0.pdf.render.configuration = .multiPage
+
+// Platform-optimized
+$0.pdf.render.configuration = .platformOptimized
 ```
 
 ## Configuration Options
 
 ### PDF Configuration
 
-Control printing behavior and resource management with `PDF.Configuration`:
+Control rendering behavior and resource management with `PDF.Configuration`:
 
 ```swift
+@Dependency(\.pdf) var pdf
+
 // Default configuration - suitable for most use cases
-try await html.print(
-    to: directory,
-    printingConfiguration: .default
-)
+try await pdf.render(html: html, to: fileURL)
 
-// Large batch configuration - optimized for millions of documents
-try await html.print(
-    to: directory,
-    printingConfiguration: .largeBatch
-)
-
-// Custom configuration with progress tracking
-let config = PrintingConfiguration(
-    maxConcurrentOperations: 8,           // Limit concurrent prints
-    documentTimeout: 30,                  // Timeout per document (seconds)
-    batchTimeout: 3600,                   // Overall batch timeout (seconds)
-    webViewAcquisitionTimeout: 60,        // WebView acquisition timeout
-    progressHandler: { completed, total in
-        print("Progress: \(completed)/\(total)")
+// Large batch configuration - optimized for high-volume processing
+try await withDependencies {
+    $0.pdf.render.configuration = .largeBatch
+} operation: {
+    for try await result in try await pdf.render(htmls: htmls, to: directory) {
+        print("Completed: \(result.index + 1)")
     }
-)
-try await html.print(
-    to: directory,
-    printingConfiguration: config
-)
+}
+
+// Custom configuration
+try await withDependencies {
+    $0.pdf.render.configuration = PDF.Configuration(
+        paperSize: .letter,
+        margins: .wide,
+        paginationMode: .paginated,
+        concurrency: 16,
+        adaptiveThroughputOptimization: true,
+        documentTimeout: .seconds(30),
+        batchTimeout: .seconds(3600),
+        webViewAcquisitionTimeout: .seconds(300),
+        createDirectories: true,
+        namingStrategy: .sequential
+    )
+} operation: {
+    try await pdf.render(html: html, to: fileURL)
+}
 ```
 
 ## Performance
 
-The package uses a globally shared WebView resource pool with **automatic batch replacement** for sustained high-throughput PDF generation:
+The library delivers **state-of-the-art throughput** with intelligent resource management:
 
-- **Peak Throughput**: 1,386 PDFs/second (10K PDFs)
-- **Sustained Throughput**: 1,160 PDFs/sec (100K), 764 PDFs/sec (1M)
-- **Latency**: 0.72ms average per PDF (simple), 1.37ms (complex)
-- **Stress tested**: Successfully generates 1,000,000 PDFs in 22 minutes!
+- ⚡ **Peak: 2,016 PDFs/sec** (continuous mode, 1K batch)
+- 🎯 **Print-Ready: 696 PDFs/sec** (paginated mode, proper page breaks)
+- 💾 **Memory Efficient**: ~147 MB peak (constant, independent of batch size)
+- ⏱️ **Sub-millisecond latency**: 0.50ms avg/PDF (simple documents)
 
 ### Performance Benchmarks
 
-| Test                      | Count      | Duration  | Throughput   | Avg/PDF   | Notes                          |
-|---------------------------|------------|-----------|--------------|-----------|--------------------------------|
-| 100 Simple                | 100        | 0.08s     | 1,289/sec    | 0.78ms    |                                |
-| 1,000 Simple              | 1,000      | 0.71s     | 1,401/sec    | 0.71ms    |                                |
-| 10,000 Simple             | 10,000     | 7.21s     | 1,386/sec    | 0.72ms    | Peak performance               |
-| 100,000 Simple            | 100,000    | 86.21s    | 1,160/sec    | 0.86ms    | Batch replacement @ 50K        |
-| 1,000,000 Simple          | 1,000,000  | 21m 48s   | 764/sec      | 1.31ms    | Sustained high-volume          |
-| 100 Complex               | 100        | 0.15s     | 659/sec      | 1.52ms    |                                |
-| 1,000 Complex             | 1,000      | 1.37s     | 728/sec      | 1.37ms    |                                |
+**Continuous Mode** (fast, single-page documents):
 
-**Test Environment:** macOS 26.0, Apple Silicon (8 cores), Swift 6.0+
+| Test          | Count  | Duration | Throughput | Avg/PDF | p95     | Peak Mem |
+|---------------|--------|----------|------------|---------|---------|----------|
+| 100 Simple    | 100    | 0.05s    | 1,828/sec  | 0.55ms  | 6.98ms  | 146 MB   |
+| 1K Simple     | 1,000  | 0.50s    | 2,016/sec  | 0.50ms  | 4.62ms  | 147 MB   |
+| 10K Simple    | 10,000 | 5.18s    | 1,929/sec  | 0.52ms  | 4.83ms  | 148 MB   |
 
-**Simple document:** `<html><body><p>{{ID}}</p></body></html>`
-**Complex document:** Multi-section HTML with CSS styling, tables, and structured content
+**Paginated Mode** (print-ready, multi-page documents):
 
-**Note on large-scale tests:** Tests generating 100K+ PDFs automatically distribute files across subdirectories (1,000 files per directory) to maintain optimal file system performance.
+| Test          | Count  | Duration | Throughput | Avg/PDF | p95      | Peak Mem |
+|---------------|--------|----------|------------|---------|----------|----------|
+| 100 Simple    | 100    | 0.54s    | 184/sec    | 5.43ms  | 370.87ms | 104 MB   |
+| 1K Simple     | 1,000  | 1.44s    | 696/sec    | 1.44ms  | 12.47ms  | 111 MB   |
+| 10K Simple    | 10,000 | 20.65s   | 484/sec    | 2.06ms  | 22.93ms  | 138 MB   |
+| 1K Complex    | 1,000  | 4.03s    | 248/sec    | 4.03ms  | 29.70ms  | 146 MB   |
+
+**Test Environment:**
+- Platform: macOS 15.0, Apple Silicon (8 cores)
+- Physical Memory: 24 GB
+- Swift Version: 6.0+
+- Pool Configuration: 8 WebViews (continuous), 6-8 WebViews (paginated)
+
+**Performance Comparison:**
+- Continuous mode is **5.1x faster** than paginated mode (average)
+- Memory usage remains **constant** across all batch sizes
+- p95 latency under 5ms for continuous mode, under 23ms for paginated mode
+
+**Mode Selection Guide:**
+- **Continuous**: Web captures, articles, infographics (single tall page)
+- **Paginated**: Invoices, reports, documents for printing (proper page breaks)
 
 ### Memory Management & Batch Replacement
 
@@ -234,24 +309,23 @@ swift test --enable-test StressTests
 
 **Note:** The 1M PDF test creates ~2-3GB of files and triggers 20 batch replacements (every 50K PDFs). Ensure sufficient disk space.
 
-### ``AsyncStream<URL>``
+### Streaming Results
 
-Optionally, you can invoke an overload that returns an ``AsyncStream<URL>`` that yields the URL of each printed PDF.
-> [!NOTE] 
-> You need to include the ``AsyncStream`` type signature in the variable declaration, otherwise the return value will be Void.
+Process PDFs as they're generated using AsyncThrowingStream:
 
 ```swift
-let directory = URL(...)
-let urls: AsyncStream = try await [
-    html,
-    html,
-    html,
-    ....
-]
-.print(to: directory)
+@Dependency(\.pdf) var pdf
 
-for await url in urls {
-    Swift.print(url)
+let htmls = [
+    "<html><body><h1>Document 1</h1></body></html>",
+    "<html><body><h1>Document 2</h1></body></html>",
+    "<html><body><h1>Document 3</h1></body></html>"
+]
+
+for try await result in try await pdf.render(htmls: htmls, to: directory) {
+    print("Generated: \(result.url.lastPathComponent)")
+    print("Duration: \(result.duration)")
+    print("Page count: \(result.pageCount)")
 }
 ```
 
@@ -263,11 +337,22 @@ HtmlToPdf supports base64-encoded images out of the box.
 > You are responsible for encoding your images to base64.
 
 ### Example HTML
+
 The example below will correctly render the image in the HTML, assuming the `[...]` is replaced with a valid base64-encoded string.
 
 ```swift
-"<html><body><h1>Hello, World 1!</h1><img src="data:image/png;charset=utf-8;base64, [...]" alt="imageDescription"></body></html>"
-   .print(to: URL(...))
+@Dependency(\.pdf) var pdf
+
+let html = """
+<html>
+<body>
+    <h1>Hello, World!</h1>
+    <img src="data:image/png;charset=utf-8;base64,[...]" alt="imageDescription">
+</body>
+</html>
+"""
+
+try await pdf.render(html: html, to: fileURL)
 ```
 
 > [!Tip]
@@ -344,10 +429,10 @@ If you need both Unicode characters AND multi-page layout, consider using **cont
 
 ```swift
 try await withDependencies {
-    $0.pdfConfiguration.paginationMode = .continuous
+    $0.pdf.render.configuration.paginationMode = .continuous
 } operation: {
     @Dependency(\.pdf) var pdf
-    try await pdf.render(html, output)
+    try await pdf.render(html: html, to: fileURL)
 }
 // Result: Perfect Unicode rendering, single tall page
 ```

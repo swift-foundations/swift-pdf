@@ -27,7 +27,7 @@ struct ConvenienceTests {
         }
 
         // Shortest form - forwards through PDF -> Render -> Client
-        let result = try await pdf.html(html, to: output)
+        let result = try await pdf.render(html: html, to: output)
 
         #expect(FileManager.default.fileExists(atPath: result.path), "Top-level convenience should work")
     }
@@ -83,7 +83,7 @@ struct ConvenienceTests {
 
         // Level 2: Capability-level
         var urls2: [URL] = []
-        for try await result in try await pdf.render.html(htmls, to: output) {
+        for try await result in try await pdf.render(htmls: htmls, to: output) {
             urls2.append(result.url)
         }
         #expect(urls2.count == 3, "Capability-level htmls should work")
@@ -105,7 +105,7 @@ struct ConvenienceTests {
         let html = "<html><body><h1>In-memory PDF</h1></body></html>"
 
         // Level 1: Top-level
-        let data1 = try await pdf.data(html)
+        let data1 = try await pdf.render(html: html)
         #expect(data1.count > 1000, "Top-level data should work")
 
         // Level 2: Capability-level
@@ -130,7 +130,7 @@ struct ConvenienceTests {
         let document = PDF.Document(htmlString: "<html><body>Test</body></html>", title: "test", in: output)
 
         // Level 1: Top-level
-        let url1 = try await pdf.document(document)
+        let url1 = try await pdf.render(document: document)
         #expect(FileManager.default.fileExists(atPath: url1.path), "Top-level document should work")
 
         // Clean for next test
@@ -150,7 +150,7 @@ struct ConvenienceTests {
         ]
 
         var count = 0
-        for try await _ in try await pdf.render.client.documents(documents) {
+        for try await _ in try await pdf.render(documents: documents) {
             count += 1
         }
         #expect(count == 2, "Client-level batch documents should work")

@@ -7,6 +7,29 @@
 
 import Foundation
 
+/// Paper size extensions for CGSize
+///
+/// Provides standard paper sizes in points (1 point = 1/72 inch).
+///
+/// ## Important
+///
+/// When creating custom paper sizes, ensure both width and height are positive values.
+/// Using the provided static properties (`.a4`, `.letter`, etc.) is recommended for
+/// standard sizes.
+///
+/// ## Example
+///
+/// ```swift
+/// // Using standard sizes (recommended)
+/// configuration.paperSize = .a4
+/// configuration.paperSize = .letter
+///
+/// // Custom size
+/// configuration.paperSize = CGSize(width: 600, height: 800)
+///
+/// // Landscape orientation
+/// configuration.paperSize = .a4.landscape
+/// ```
 extension CGSize {
     // MARK: - ISO 216 Sizes (in points)
 
