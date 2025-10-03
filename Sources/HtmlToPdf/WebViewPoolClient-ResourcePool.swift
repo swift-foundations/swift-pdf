@@ -184,7 +184,9 @@ private actor WebViewPoolActor {
 
         // Check if we've hit the batch replacement threshold (fallback/safety mechanism)
         // Use isReplacing flag to prevent race condition where multiple PDFs trigger replacement
-        if totalPDFsGenerated >= batchReplacementThreshold,
+        @Dependency(\.pdf.render.configuration) var configuration
+        if let threshold = configuration.poolReplacementThreshold,
+           totalPDFsGenerated >= threshold,
            !isReplacing,
            let provider = poolProvider {
             try await triggerPoolReplacement(provider: provider, reason: "threshold reached")

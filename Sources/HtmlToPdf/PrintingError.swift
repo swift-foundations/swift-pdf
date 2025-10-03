@@ -236,6 +236,57 @@ public enum PrintingError: Error, LocalizedError, Sendable {
     }
 }
 
+// MARK: - Error Code Support
+
+extension PrintingError {
+    /// Stable error code for programmatic branching
+    ///
+    /// Use this for switch statements and error handling logic instead of pattern matching.
+    /// These codes are guaranteed to remain stable across versions for long-term compatibility.
+    ///
+    /// Example:
+    /// ```swift
+    /// do {
+    ///     try await pdf.render(html, to: url)
+    /// } catch let error as PrintingError {
+    ///     switch error.errorCode {
+    ///     case "webview_acquisition_timeout":
+    ///         // Increase timeout and retry
+    ///     case "pdf_generation_failed":
+    ///         // Check underlying error
+    ///         if let underlying = error.underlyingError {
+    ///             // Handle specific underlying error
+    ///         }
+    ///     default:
+    ///         // Generic error handling
+    ///     }
+    /// }
+    /// ```
+    public var errorCode: String {
+        metricsReason
+    }
+
+    /// Access to underlying error for branching logic
+    ///
+    /// Many errors wrap underlying system errors (WKError, URLError, NSError).
+    /// Use this to access the underlying error for more specific error handling.
+    public var underlyingError: Error? {
+        switch self {
+        case .invalidFilePath(_, let error),
+             .webViewPoolInitializationFailed(let error),
+             .printOperationFailed(_, let error):
+            return error
+        case .directoryCreationFailed(_, let error),
+             .webViewLoadingFailed(let error),
+             .webViewNavigationFailed(let error),
+             .pdfGenerationFailed(let error):
+            return error
+        default:
+            return nil
+        }
+    }
+}
+
 // MARK: - Metrics Support
 
 extension PrintingError {

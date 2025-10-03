@@ -13,6 +13,14 @@ import LoggingExtras
 import UIKit
 import WebKit
 
+extension PDF.Render: DependencyKey {
+    public static let liveValue = PDF.Render(
+        client: .iOS,
+        configuration: .default,
+        metrics: .liveValue
+    )
+}
+
 extension PDF.Render.Client: DependencyKey {
     public static let liveValue: Self = .iOS
 }
@@ -90,12 +98,13 @@ private func renderToDataWithFormatter(
 @MainActor
 extension PDF.Document {
     func renderInternal(config: PDF.Configuration) async throws -> URL {
-        if config.createDirectories {
-            try FileManager.default.createDirectory(
-                at: self.destination.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-        }
+        let parentDirectory = self.destination.deletingLastPathComponent()
+
+        // Directory validation with thread-safe cache (shared across platforms)
+        try directoryCache.ensureDirectory(
+            at: parentDirectory,
+            createIfNeeded: config.createDirectories
+        )
 
         // Check if HTML contains images - use WebView if so
         if self.html.containsImages() {
