@@ -9,7 +9,7 @@ import Testing
 import Foundation
 import Dependencies
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Metrics Integration")
 struct MetricsIntegrationTests {

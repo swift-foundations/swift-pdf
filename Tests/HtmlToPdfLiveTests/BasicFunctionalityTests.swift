@@ -10,7 +10,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Basic Functionality", .dependency(\.pdf, .liveValue), .serialized)
 struct BasicFunctionalityTests {

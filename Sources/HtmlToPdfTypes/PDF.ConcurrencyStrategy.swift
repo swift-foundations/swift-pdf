@@ -98,7 +98,7 @@ extension PDF {
         }
 
         /// Resolve to concrete concurrency value
-        internal var resolved: Int {
+        public var resolved: Int {
             switch mode {
             case .fixed(let value):
                 return max(1, value)

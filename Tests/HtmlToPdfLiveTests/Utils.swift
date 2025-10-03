@@ -9,7 +9,7 @@
 //
 
 import Foundation
-import HtmlToPdf
+import HtmlToPdfLive
 import Testing
 import PDFTestSupport
 import Metrics

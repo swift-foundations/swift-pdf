@@ -114,7 +114,7 @@ extension PDF {
     ///
     /// This is the actual implementation strategy chosen after
     /// analyzing the pagination mode and content.
-    enum InternalRenderingMethod {
+    public enum InternalRenderingMethod {
         case webView
         case printOperation
     }

@@ -7,7 +7,7 @@
 
 import Dependencies
 import Foundation
-@testable import HtmlToPdf
+@testable import HtmlToPdfTypes
 
 /// Create test metrics with storage for assertions
 public func makeTestMetrics() -> (metrics: PDF.Render.Metrics, storage: TestMetricsStorage) {

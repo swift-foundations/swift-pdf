@@ -2,11 +2,10 @@
 //  PDF.Document.swift
 //  swift-html-to-pdf
 //
-//  Document model for PDF rendering
+//  Document model for PDF rendering (Types - no HTML library dependencies)
 //
 
 import Foundation
-import PointFreeHTML
 
 // MARK: - CSS Injection Cache
 
@@ -46,13 +45,6 @@ extension PDF {
     ///
     /// Examples:
     /// ```swift
-    /// // Using PointFree HTML DSL (type-safe)
-    /// struct MyPage: HTMLDocumentProtocol {
-    ///     var head: some HTML { title { "My PDF" } }
-    ///     var body: some HTML { h1 { "Hello, World!" } }
-    /// }
-    /// let doc = PDF.Document(html: MyPage(), destination: fileURL)
-    ///
     /// // Using String (simple)
     /// let doc = PDF.Document(htmlString: "<html><body>Hello</body></html>", destination: fileURL)
     ///
@@ -63,22 +55,7 @@ extension PDF {
         let htmlBytes: ContiguousArray<UInt8>
         public let destination: URL
 
-        // MARK: - Primary Initializers (HTML protocol)
-
-        /// Create a document from any HTML-conforming type
-        public init<H: HTML>(html: H, destination: URL) {
-            self.htmlBytes = html.render()
-            self.destination = destination
-        }
-
-        public init<H: HTML>(html: H, title: String, in directory: URL) {
-            self.htmlBytes = html.render()
-            self.destination = directory
-                .appendingPathComponent(title.replacingSlashesWithDivisionSlash())
-                .appendingPathExtension("pdf")
-        }
-
-        // MARK: - Convenience Initializers
+        // MARK: - Initializers
 
         /// Create a document from raw HTML bytes (advanced usage)
         public init(htmlBytes: ContiguousArray<UInt8>, destination: URL) {
@@ -109,7 +86,7 @@ extension PDF {
         // MARK: - Internal Access
 
         /// Access the HTML bytes for rendering
-        var html: ContiguousArray<UInt8> { htmlBytes }
+        public var html: ContiguousArray<UInt8> { htmlBytes }
     }
 }
 
@@ -138,7 +115,7 @@ extension ContiguousArray where Element == UInt8 {
     ///
     /// This method caches the result to avoid redundant work when the same HTML+CSS
     /// combination is processed multiple times (common in batch operations).
-    func injectingCSS(_ cssBytes: ContiguousArray<UInt8>) async -> ContiguousArray<UInt8> {
+    public func injectingCSS(_ cssBytes: ContiguousArray<UInt8>) async -> ContiguousArray<UInt8> {
         // Generate cache key from HTML + CSS content
         let cacheKey = generateCacheKey(html: self, css: cssBytes)
 
@@ -215,7 +192,7 @@ extension ContiguousArray where Element == UInt8 {
     }
 
     /// Convert to Data for WKWebView loading
-    func toData() -> Data {
+    public func toData() -> Data {
         Data(self)
     }
 }

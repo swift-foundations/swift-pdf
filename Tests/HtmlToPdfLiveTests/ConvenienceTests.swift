@@ -9,7 +9,7 @@ import Testing
 import Foundation
 import Dependencies
 import DependenciesTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Convenience API Levels", .dependency(\.pdf, .liveValue), .serialized)
 struct ConvenienceTests {

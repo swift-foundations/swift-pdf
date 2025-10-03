@@ -7,7 +7,7 @@
 
 import Testing
 import Foundation
-import HtmlToPdf
+import HtmlToPdfLive
 import Dependencies
 import DependenciesTestSupport
 

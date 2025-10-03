@@ -10,7 +10,7 @@ import Foundation
 import Dependencies
 import PDFTestSupport
 import Metrics
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 extension Tag {
     @Tag static var benchmark: Self

@@ -11,7 +11,7 @@ import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
 import Metrics
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite(
     "AsyncStream Results",

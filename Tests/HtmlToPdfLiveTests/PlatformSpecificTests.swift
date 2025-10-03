@@ -11,7 +11,7 @@ import Dependencies
 import DependenciesTestSupport
 import PDFKit
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Platform-Specific Behavior", .dependency(\.pdf, .liveValue))
 struct PlatformSpecificTests {

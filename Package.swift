@@ -1,10 +1,11 @@
-// swift-tools-version: 5.9
-// The swift-tools-version declares the minimum version of Swift required to build this package.
+// swift-tools-version: 6.0
 
 import PackageDescription
 
 // MARK: - String Extensions
 extension String {
+    static var htmlToPdfTypes: Self { "HtmlToPdfTypes" }
+    static var htmlToPdfLive: Self { "HtmlToPdfLive" }
     static var htmlToPdf: Self { "HtmlToPdf" }
     static var pdfTestSupport: Self { "PDFTestSupport" }
     static var dependencies: Self { "Dependencies" }
@@ -27,6 +28,8 @@ extension Package.Dependency {
 
 // MARK: - Target Dependency Extensions
 extension Target.Dependency {
+    static var htmlToPdfTypes: Self { .target(name: .htmlToPdfTypes) }
+    static var htmlToPdfLive: Self { .target(name: .htmlToPdfLive) }
     static var htmlToPdf: Self { .target(name: .htmlToPdf) }
     static var pdfTestSupport: Self { .target(name: .pdfTestSupport) }
     static var dependencies: Self { .product(name: .dependencies, package: "swift-dependencies") }
@@ -42,6 +45,14 @@ let package = Package(
     name: "swift-html-to-pdf",
     platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
+        .library(
+            name: .htmlToPdfTypes,
+            targets: [.htmlToPdfTypes]
+        ),
+        .library(
+            name: .htmlToPdfLive,
+            targets: [.htmlToPdfLive]
+        ),
         .library(
             name: .htmlToPdf,
             targets: [.htmlToPdf]
@@ -59,35 +70,73 @@ let package = Package(
         .pointfreeHtml,
     ],
     targets: [
+        // Types target - NO PointFreeHTML dependency
         .target(
-            name: .htmlToPdf,
+            name: .htmlToPdfTypes,
             dependencies: [
+                .dependencies,
+                .dependenciesMacros
+            ]
+        ),
+
+        // Live target - NO PointFreeHTML dependency
+        .target(
+            name: .htmlToPdfLive,
+            dependencies: [
+                .htmlToPdfTypes,
                 .dependencies,
                 .dependenciesMacros,
                 .loggingExtras,
                 .metrics,
-                .resourcePool,
+                .resourcePool
+            ]
+        ),
+
+        // Umbrella + Integration target - ADDS PointFreeHTML
+        .target(
+            name: .htmlToPdf,
+            dependencies: [
+                .htmlToPdfLive,
                 .pointFreeHTML
             ]
         ),
+
         .target(
             name: .pdfTestSupport,
             dependencies: [
-                .htmlToPdf,
+                .htmlToPdfTypes,
                 .dependencies,
                 .metrics
             ]
         ),
+
+        .testTarget(
+            name: .htmlToPdfTypes + "Tests",
+            dependencies: [
+                .htmlToPdfTypes,
+                .dependenciesTestSupport
+            ]
+        ),
+
+        .testTarget(
+            name: .htmlToPdfLive + "Tests",
+            dependencies: [
+                .htmlToPdfLive,
+                .pdfTestSupport,
+                .dependenciesTestSupport
+            ],
+            exclude: ["HtmlToPdf.xctestplan"],
+            resources: [.process("Resources")]
+        ),
+
         .testTarget(
             name: .htmlToPdf + "Tests",
             dependencies: [
                 .htmlToPdf,
                 .pdfTestSupport,
                 .dependenciesTestSupport
-            ],
-            exclude: ["HtmlToPdf.xctestplan"],
-            resources: [.process("Resources")]
+            ]
         )
     ],
-    swiftLanguageVersions: [.v5]
+    swiftLanguageModes: [.v6]
 )

@@ -2,7 +2,7 @@
 //  PDF+Convenience.swift
 //  swift-html-to-pdf
 //
-//  Top-level convenience methods for common operations
+//  Top-level convenience methods for HTML protocol integration
 //
 
 import Dependencies
@@ -11,30 +11,7 @@ import PointFreeHTML
 
 extension PDF {
 
-    // MARK: - Render Operations
-
-    /// Render HTML string to PDF file
-    ///
-    /// ## Usage
-    ///
-    /// ```swift
-    /// @Dependency(\.pdf) var pdf
-    ///
-    /// let html = "<html><body><h1>Hello</h1></body></html>"
-    /// try await pdf.render(html: html, to: fileURL)
-    /// ```
-    ///
-    /// - Parameters:
-    ///   - html: HTML content to render
-    ///   - destination: File URL for the PDF
-    /// - Returns: URL of the generated PDF
-    /// - Throws: Rendering errors
-    public func render(
-        html: String,
-        to destination: URL
-    ) async throws -> URL {
-        try await render.html(html, to: destination)
-    }
+    // MARK: - HTML Protocol Integration
 
     /// Render type-safe HTML to PDF file
     ///
@@ -61,52 +38,12 @@ extension PDF {
     ///   - destination: File URL for the PDF
     /// - Returns: URL of the generated PDF
     /// - Throws: Rendering errors
-    public func render<H: HTML>(
-        html: H,
+    public func render(
+        html: some HTML,
         to destination: URL
     ) async throws -> URL {
         let document = PDF.Document(html: html, destination: destination)
         return try await render.document(document)
-    }
-
-    /// Render a document to PDF
-    ///
-    /// ## Usage
-    ///
-    /// ```swift
-    /// @Dependency(\.pdf) var pdf
-    ///
-    /// let document = PDF.Document(htmlString: html, destination: fileURL)
-    /// try await pdf.render(document: document)
-    /// ```
-    ///
-    /// - Parameter document: Document to render
-    /// - Returns: URL of the generated PDF
-    /// - Throws: Rendering errors
-    public func render(
-        document: PDF.Document
-    ) async throws -> URL {
-        try await render.document(document)
-    }
-
-    /// Render HTML string to PDF data (in-memory)
-    ///
-    /// ## Usage
-    ///
-    /// ```swift
-    /// @Dependency(\.pdf) var pdf
-    ///
-    /// let html = "<html><body><h1>Hello</h1></body></html>"
-    /// let pdfData = try await pdf.render(html: html)
-    /// ```
-    ///
-    /// - Parameter html: HTML content to render
-    /// - Returns: PDF data
-    /// - Throws: Rendering errors
-    public func render(
-        html: String
-    ) async throws -> Data {
-        try await render.data(html)
     }
 
     /// Render type-safe HTML to PDF data (in-memory)
@@ -123,99 +60,11 @@ extension PDF {
     /// - Parameter html: Type-safe HTML content
     /// - Returns: PDF data
     /// - Throws: Rendering errors
-    public func render<H: HTML>(
-        html: H
+    public func render(
+        html: some HTML
     ) async throws -> Data {
         let htmlString = String(decoding: html.render(), as: UTF8.self)
         return try await render.data(htmlString)
-    }
-
-    // MARK: - Batch Operations
-
-    /// Render multiple HTML strings to a directory
-    ///
-    /// ## Usage
-    ///
-    /// ```swift
-    /// @Dependency(\.pdf) var pdf
-    ///
-    /// let htmls = [
-    ///     "<html><body><h1>Doc 1</h1></body></html>",
-    ///     "<html><body><h1>Doc 2</h1></body></html>"
-    /// ]
-    ///
-    /// for try await result in try await pdf.render(htmls: htmls, to: directory) {
-    ///     print("Generated \(result.url.lastPathComponent)")
-    /// }
-    /// ```
-    ///
-    /// - Parameters:
-    ///   - htmls: HTML strings to render
-    ///   - directory: Directory to save PDFs in
-    /// - Returns: Stream of results as PDFs are generated
-    /// - Throws: Rendering errors
-    public func render(
-        htmls: some Sequence<String>,
-        to directory: URL
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await render.html(htmls, to: directory)
-    }
-
-    /// Render multiple documents to PDFs
-    ///
-    /// ## Usage
-    ///
-    /// ```swift
-    /// @Dependency(\.pdf) var pdf
-    ///
-    /// let documents = [
-    ///     PDF.Document(htmlString: html1, destination: url1),
-    ///     PDF.Document(htmlString: html2, destination: url2)
-    /// ]
-    ///
-    /// for try await result in try await pdf.render(documents: documents) {
-    ///     print("Generated \(result.url.lastPathComponent)")
-    /// }
-    /// ```
-    ///
-    /// - Parameter documents: Documents to render
-    /// - Returns: Stream of results as PDFs are generated
-    /// - Throws: Rendering errors
-    public func render(
-        documents: some Sequence<PDF.Document>
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await render.documents(documents)
-    }
-
-    // MARK: - Base URL Configuration
-
-    /// Configure a base URL for resolving relative resources in HTML
-    ///
-    /// Returns a PDF instance that will use the specified base URL when rendering.
-    /// This allows chaining: `pdf.withBaseURL(...).render(...)`
-    ///
-    /// - Parameter baseURL: The base URL to use for resolving relative URLs
-    /// - Returns: A PDF instance configured with the base URL
-    ///
-    /// ## Example
-    ///
-    /// ```swift
-    /// @Dependency(\.pdf) var pdf
-    ///
-    /// let html = #"<img src="logo.png">"#
-    /// let assetsURL = URL(fileURLWithPath: "/path/to/assets")
-    ///
-    /// try await pdf
-    ///     .withBaseURL(assetsURL)
-    ///     .render(html: html, to: output)
-    /// // Image will load from /path/to/assets/logo.png
-    /// ```
-    public func withBaseURL(_ baseURL: URL?) -> PDF {
-        @Dependency(\.pdf) var currentPDF
-
-        var modified = currentPDF
-        modified.render.configuration.baseURL = baseURL
-        return modified
     }
 
 }

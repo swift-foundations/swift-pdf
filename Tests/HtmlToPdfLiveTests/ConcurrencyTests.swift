@@ -11,7 +11,7 @@ import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
 import Metrics
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Concurrency & Pool Behavior", .dependency(\.pdf, .liveValue))
 struct ConcurrencyTests {

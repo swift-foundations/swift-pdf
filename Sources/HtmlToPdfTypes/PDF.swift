@@ -7,7 +7,6 @@
 
 import Dependencies
 import Foundation
-import PointFreeHTML
 
 /// PDF domain containing rendering capability
 ///
@@ -72,24 +71,5 @@ public struct PDF: Sendable {
 }
 
 // MARK: - Dependency Registration
-
-extension PDF: DependencyKey {
-    public static let liveValue = PDF(
-        render: .liveValue
-    )
-}
-
-
-extension PDF: TestDependencyKey {
-    public static let testValue = PDF(
-        render: .testValue
-    )
-}
-
-extension DependencyValues {
-    public var pdf: PDF {
-        get { self[PDF.self] }
-        set { self[PDF.self] = newValue }
-    }
-}
+// DependencyKey conformances and DependencyValues extension are in HtmlToPdfLive target
 
