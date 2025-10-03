@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 
 import PackageDescription
 
@@ -14,6 +14,7 @@ extension String {
     static var loggingExtras: Self { "LoggingExtras" }
     static var metrics: Self { "Metrics" }
     static var pointFreeHTML: Self { "PointFreeHTML" }
+    static var html: Self { "HTML" }
     static var resourcePool: Self { "ResourcePool" }
 }
 
@@ -24,6 +25,7 @@ extension Package.Dependency {
     static var swiftMetrics: Package.Dependency { .package(url: "https://github.com/apple/swift-metrics", from: "2.4.0") }
     static var swiftResourcePool: Package.Dependency { .package(path: "../swift-resource-pool") }
     static var pointfreeHtml: Package.Dependency { .package(path: "../pointfree-html") }
+    static var swiftHtml: Package.Dependency { .package(path: "../swift-html") }
 }
 
 // MARK: - Target Dependency Extensions
@@ -38,6 +40,7 @@ extension Target.Dependency {
     static var loggingExtras: Self { .product(name: .loggingExtras, package: "swift-logging-extras") }
     static var metrics: Self { .product(name: .metrics, package: "swift-metrics") }
     static var pointFreeHTML: Self { .product(name: .pointFreeHTML, package: "pointfree-html") }
+    static var html: Self { .product(name: .html, package: "swift-html") }
     static var resourcePool: Self { .product(name: .resourcePool, package: "swift-resource-pool") }
 }
 
@@ -62,12 +65,18 @@ let package = Package(
             targets: [.pdfTestSupport]
         )
     ],
+    traits: [
+        .trait(
+            name: "HTML",
+            description: "Include HTML integration (swift-html with PointFreeHTML)"
+        )
+    ],
     dependencies: [
         .swiftDependencies,
         .swiftLoggingExtras,
         .swiftMetrics,
         .swiftResourcePool,
-        .pointfreeHtml,
+        .swiftHtml,
     ],
     targets: [
         // Types target - NO PointFreeHTML dependency
@@ -92,12 +101,19 @@ let package = Package(
             ]
         ),
 
-        // Umbrella + Integration target - ADDS PointFreeHTML
+        // Umbrella + Integration target - ADDS swift-html (conditionally)
         .target(
             name: .htmlToPdf,
             dependencies: [
                 .htmlToPdfLive,
-                .pointFreeHTML
+                .product(
+                    name: .html,
+                    package: "swift-html",
+                    condition: .when(traits: ["HTML"])
+                )
+            ],
+            swiftSettings: [
+                .define("HTML", .when(traits: ["HTML"]))
             ]
         ),
 

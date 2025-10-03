@@ -7,7 +7,9 @@
 
 import Dependencies
 import Foundation
-import PointFreeHTML
+
+#if HTML
+import HTML
 
 extension PDF {
 
@@ -68,3 +70,4 @@ extension PDF {
     }
 
 }
+#endif

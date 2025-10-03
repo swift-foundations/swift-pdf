@@ -2,11 +2,13 @@
 //  PDF.Document+HTML.swift
 //  swift-html-to-pdf
 //
-//  swift-html / PointFreeHTML integration
+//  swift-html integration
 //
 
 import HtmlToPdfLive
-import PointFreeHTML
+
+#if HTML
+import HTML
 
 extension PDF.Document {
     /// Create a document from any HTML-conforming type (swift-html integration)
@@ -48,3 +50,4 @@ extension PDF.Document {
         self.init(htmlBytes: html.render(), title: title, in: directory)
     }
 }
+#endif

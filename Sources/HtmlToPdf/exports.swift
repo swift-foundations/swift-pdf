@@ -1,2 +1,5 @@
 @_exported import HtmlToPdfLive
-import PointFreeHTML
+
+#if HTML
+@_exported import HTML
+#endif
