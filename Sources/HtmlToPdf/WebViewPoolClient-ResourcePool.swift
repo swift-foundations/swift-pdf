@@ -9,6 +9,7 @@
 import Foundation
 import WebKit
 import Dependencies
+import LoggingExtras
 import ResourcePool
 import EnvironmentVariables
 import IssueReporting
@@ -88,7 +89,13 @@ private actor AdaptiveThroughputOptimizer {
         // This balances early detection with avoiding false positives
         // 5% degradation is significant enough to warrant pool replacement
         if localPeak > 1500 && recentAverage < localPeak * 0.95 {
-            print("📊 Adaptive replacement: \(String(format: "%.0f", recentAverage)) PDFs/sec (recent avg) vs \(String(format: "%.0f", localPeak)) PDFs/sec (local peak) - \(String(format: "%.1f", (1.0 - recentAverage/localPeak) * 100))% degradation")
+            @Dependency(\.logger) var logger
+            let degradationPercent = (1.0 - recentAverage/localPeak) * 100
+            logger.warning("Adaptive pool replacement triggered due to performance degradation", metadata: [
+                "recent_average_pdfs_sec": "\(Int(recentAverage))",
+                "local_peak_pdfs_sec": "\(Int(localPeak))",
+                "degradation_percent": "\(String(format: "%.1f", degradationPercent))"
+            ])
             return .triggerPoolReplacement
         }
 
@@ -139,7 +146,8 @@ private actor WebViewPoolActor {
         if adaptiveOptimization && adaptiveOptimizer == nil {
             adaptiveOptimizer = AdaptiveThroughputOptimizer()
             adaptiveOptimizationEnabled = true
-            print("🎯 Adaptive throughput optimization ENABLED")
+            @Dependency(\.logger) var logger
+            logger.debug("Adaptive throughput optimization enabled")
         }
 
         if let existing = sharedPool {
@@ -186,7 +194,12 @@ private actor WebViewPoolActor {
     ) async throws {
         isReplacing = true
         let oldCount = totalPDFsGenerated
-        print("🔄 Batch replacement triggered at \(oldCount) PDFs (\(reason)) - replacing entire pool")
+        let startTime = Date()
+        @Dependency(\.logger) var logger
+        logger.info("Pool replacement started", metadata: [
+            "pdf_count": "\(oldCount)",
+            "reason": "\(reason)"
+        ])
 
         // Create new pool (warmup will happen in background)
         let newPool = try await provider()
@@ -204,7 +217,11 @@ private actor WebViewPoolActor {
 
         isReplacing = false
 
-        print("✅ Batch replacement complete - fresh pool ready, old pool will cleanup automatically")
+        let duration = Date().timeIntervalSince(startTime)
+        logger.info("Pool replacement complete", metadata: [
+            "duration_seconds": "\(String(format: "%.2f", duration))",
+            "previous_pdf_count": "\(oldCount)"
+        ])
     }
 }
 

@@ -9,6 +9,7 @@
 import Dependencies
 import DependenciesMacros
 import Foundation
+import LoggingExtras
 import UIKit
 import WebKit
 
@@ -251,7 +252,11 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
                         continuation.resume(throwing: timeoutError)
                     } catch {
                         if !(error is CancellationError) {
-                            print("[DocumentWKRenderer] Unexpected error in timeout task: \(error)")
+                            @Dependency(\.logger) var logger
+                            logger.error("Unexpected error in timeout task", metadata: [
+                                "error": "\(error)",
+                                "error_type": "\(type(of: error))"
+                            ])
                         }
                     }
                 }
