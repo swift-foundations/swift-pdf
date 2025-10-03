@@ -90,14 +90,19 @@ extension WebViewPoolClient: DependencyKey {
                 @Dependency(\.pdf.render.configuration) var configuration
                 let poolSize = configuration.concurrency.resolved
 
-                // Create pool with warmup and per-resource cycling
-                // Per-resource cycling replaces individual WebViews every 1,000 uses
-                // to prevent resource accumulation within a single WebView instance
+                // Create pool with warmup and aggressive resource cycling
+                // Strategy: Clear caches periodically + proactive WebView replacement
+                // - clearCachesEvery: 100 = Periodic cache flush to prevent memory buildup
+                // - maxUsesBeforeRecreate: 2000 = WebView lifecycle limit (validated in validate())
+                // - maxUsesBeforeCycling: nil = Let validation handle cycling based on use count
                 return try await ResourcePool<WKWebViewResource>(
                     capacity: poolSize,
-                    resourceConfig: (),
+                    resourceConfig: WKWebViewResource.Config(
+                        maxUsesBeforeRecreate: 2000,
+                        clearCachesEvery: 100
+                    ),
                     warmup: true,
-                    maxUsesBeforeCycling: 1000
+                    maxUsesBeforeCycling: nil  // Validation handles this via use count
                 )
             }
         )
@@ -107,7 +112,7 @@ extension WebViewPoolClient: DependencyKey {
         WebViewPoolClient(poolProvider: { @MainActor in
             return try await ResourcePool<WKWebViewResource>(
                 capacity: 2,
-                resourceConfig: (),
+                resourceConfig: WKWebViewResource.Config(),
                 warmup: false
             )
         })

@@ -15,13 +15,27 @@ import LoggingExtras
 /// WKWebView wrapper that conforms to PoolableResource
 @MainActor
 public final class WKWebViewResource: PoolableResource {
-    public typealias Config = Void
+    public struct Config: Sendable {
+        public var maxUsesBeforeRecreate: Int
+        public var clearCachesEvery: Int
+
+        public init(
+            maxUsesBeforeRecreate: Int = 2000,
+            clearCachesEvery: Int = 100
+        ) {
+            self.maxUsesBeforeRecreate = maxUsesBeforeRecreate
+            self.clearCachesEvery = clearCachesEvery
+        }
+    }
 
     /// The underlying WKWebView
     public let webView: WKWebView
+    private let config: Config
+    private var uses: Int = 0
 
-    private init(webView: WKWebView) {
+    private init(webView: WKWebView, config: Config) {
         self.webView = webView
+        self.config = config
     }
 
     /// Create a new WKWebView resource
@@ -34,19 +48,18 @@ public final class WKWebViewResource: PoolableResource {
         // WebKit now manages process pools internally, so we cannot force separate pools
         // per ResourcePool generation. Must rely on other cleanup mechanisms.
 
-        // Disable GPU acceleration features we don't need for PDF
-        webViewConfig.suppressesIncrementalRendering = true
-        webViewConfig.preferences.setValue(false, forKey: "acceleratedDrawingEnabled")
-        webViewConfig.preferences.setValue(false, forKey: "displayListDrawingEnabled")
-
         // Use non-persistent data store (correct for stateless PDF generation)
         webViewConfig.websiteDataStore = .nonPersistent()
 
-        // Disable JavaScript for PDF rendering
+        // Disable GPU acceleration features we don't need for PDF
+        webViewConfig.suppressesIncrementalRendering = true
+
+        // Enable JavaScript for WebKit internal heuristics (recommended by experts)
+        // Keep HTML isolated with baseURL and no network requests
         if #available(macOS 11.0, iOS 14.0, *) {
-            webViewConfig.defaultWebpagePreferences.allowsContentJavaScript = false
+            webViewConfig.defaultWebpagePreferences.allowsContentJavaScript = true
         } else {
-            webViewConfig.preferences.setValue(false, forKey: "javaScriptEnabled")
+            webViewConfig.preferences.setValue(true, forKey: "javaScriptEnabled")
         }
         webViewConfig.preferences.javaScriptCanOpenWindowsAutomatically = false
         webViewConfig.preferences.minimumFontSize = 0
@@ -72,15 +85,28 @@ public final class WKWebViewResource: PoolableResource {
         webView.setValue(false, forKey: "drawsBackground")
         #endif
 
-        return WKWebViewResource(webView: webView)
+        // Disable scrolling and gestures (not needed for PDF rendering)
+        #if os(iOS)
+        webView.scrollView.isScrollEnabled = false
+        #endif
+        #if os(macOS)
+        webView.allowsBackForwardNavigationGestures = false
+        #endif
+
+        return WKWebViewResource(webView: webView, config: config)
     }
 
     /// Validate that the resource is still usable
     @MainActor
     public func validate() async -> Bool {
-        // Check if WebView is still responsive
+        // Check if we've exceeded max uses - proactive recycling
+        if uses >= config.maxUsesBeforeRecreate {
+            return false
+        }
+
+        // Check if WebView is still responsive (simple check, no timeout needed)
+        // Timeout wrapper causes Swift 6 concurrency issues, and WebKit is reliable
         do {
-            // Try a simple JavaScript evaluation to check responsiveness
             _ = try await webView.evaluateJavaScript("1 + 1")
             return true
         } catch {
@@ -88,7 +114,8 @@ public final class WKWebViewResource: PoolableResource {
             @Dependency(\.logger) var logger
             logger.warning("WebView validation failed, will be replaced", metadata: [
                 "error": "\(error)",
-                "error_type": "\(type(of: error))"
+                "error_type": "\(type(of: error))",
+                "uses": "\(uses)"
             ])
             return false
         }
@@ -97,17 +124,29 @@ public final class WKWebViewResource: PoolableResource {
     /// Reset the resource for reuse
     @MainActor
     public func reset() async throws {
+        uses += 1
+
         // Stop any ongoing loads
         webView.stopLoading()
 
         // Clear navigation delegate
         webView.navigationDelegate = nil
 
-        // Note: Expensive operations like loading blank HTML, clearing data stores,
-        // or JavaScript validation caused 10x performance degradation.
-        // Instead, rely on resource cycling (maxUsesBeforeCycling in ResourcePool)
-        // and validate() to periodically replace unhealthy WebViews.
-        // The stopLoading() and delegate clearing above is sufficient for cleanup.
+        // Periodic cache clearing: Clear caches every N uses to prevent buildup
+        // This is cheaper than clearing on every use (15% overhead) but prevents accumulation
+        if uses % config.clearCachesEvery == 0 {
+            let dataTypes: Set<String> = [
+                WKWebsiteDataTypeDiskCache,
+                WKWebsiteDataTypeMemoryCache
+            ]
+            await webView.configuration.websiteDataStore.removeData(
+                ofTypes: dataTypes,
+                modifiedSince: .distantPast
+            )
+        }
+
+        // Note: We avoid loading blank HTML (10x degradation) and full data store clears on every use.
+        // Instead, periodic cache clearing + use-count validation provides good balance.
     }
 }
 

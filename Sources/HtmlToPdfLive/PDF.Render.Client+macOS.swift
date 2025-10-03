@@ -12,7 +12,7 @@ import Foundation
 import WebKit
 import ResourcePool
 @preconcurrency import AppKit
-import PDFKit
+import CoreGraphics
 import LoggingExtras
 
 extension PDF.Render: DependencyKey {
@@ -396,15 +396,22 @@ private actor PageInfoContinuationHandler {
     }
 }
 
-/// Extract page info from PDF data (thread-safe, can run off main actor)
+/// Extract page info from PDF data using Core Graphics (faster than PDFKit)
+/// Thread-safe, can run off main actor. Avoids PDFDocument allocation/caching overhead.
 private func extractPageInfoFromData(_ pdfData: Data) -> (pageCount: Int, dimensions: [CGSize]) {
-    guard let pdfDoc = PDFDocument(data: pdfData) else {
+    guard let provider = CGDataProvider(data: pdfData as CFData),
+          let pdfDoc = CGPDFDocument(provider) else {
         return (0, [])
     }
 
-    let pageCount = pdfDoc.pageCount
-    let dimensions = (0..<pageCount).compactMap { index -> CGSize? in
-        pdfDoc.page(at: index)?.bounds(for: .mediaBox).size
+    let pageCount = pdfDoc.numberOfPages
+    var dimensions: [CGSize] = []
+    dimensions.reserveCapacity(pageCount)
+
+    for pageIndex in 1...pageCount {
+        guard let page = pdfDoc.page(at: pageIndex) else { continue }
+        let mediaBox = page.getBoxRect(.mediaBox)
+        dimensions.append(mediaBox.size)
     }
 
     return (pageCount, dimensions)
