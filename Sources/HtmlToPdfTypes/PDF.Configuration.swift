@@ -45,7 +45,6 @@ extension PDF {
     /// // Large batch processing with custom settings
     /// try await withDependencies {
     ///     $0.pdf.render.configuration.concurrency = 24
-    ///     $0.pdf.render.configuration.adaptiveThroughputOptimization = true
     ///     $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
     /// } operation: {
     ///     // Process thousands of PDFs
@@ -66,8 +65,6 @@ extension PDF {
     ///
     /// ### Performance Configuration
     /// - `concurrency`: Concurrent WebView limit (default: automatic based on CPU)
-    /// - `adaptiveThroughputOptimization`: Dynamic performance tuning (default: false)
-    /// - `poolReplacementThreshold`: WebView pool refresh interval (default: 30,000 PDFs)
     ///
     /// ### Timeout Configuration
     /// - `documentTimeout`: Per-PDF time limit (default: nil - no limit)
@@ -77,23 +74,6 @@ extension PDF {
     /// ### File System Configuration
     /// - `createDirectories`: Auto-create destination folders (default: true)
     /// - `namingStrategy`: Batch file naming pattern (default: sequential)
-    ///
-    /// ## Advanced: Pool Management
-    ///
-    /// Long-running services should tune pool replacement settings to prevent memory accumulation:
-    ///
-    /// ```swift
-    /// // 24/7 server with PDF generation
-    /// $0.pdf.render.configuration.poolReplacementThreshold = 50_000
-    /// $0.pdf.render.configuration.adaptiveThroughputOptimization = true
-    ///
-    /// // Short-lived CLI tool (disable automatic pool replacement)
-    /// $0.pdf.render.configuration.poolReplacementThreshold = nil
-    /// ```
-    ///
-    /// The `poolReplacementThreshold` and `adaptiveThroughputOptimization` work together:
-    /// - **Threshold**: Provides periodic full pool replacement (mitigates WebKit memory leaks)
-    /// - **Adaptive optimization**: Triggers early replacement on performance degradation (>15% drop)
     ///
     /// ## Platform Differences & Concurrency
     ///
@@ -172,37 +152,6 @@ extension PDF {
         /// Default is `.automatic`, which calculates optimal concurrency based on CPU count and available memory.
         public var concurrency: ConcurrencyStrategy = .automatic
 
-        /// Enable adaptive throughput optimization
-        ///
-        /// When enabled, the system monitors throughput in real-time and automatically:
-        /// - Detects performance degradation (>15% drop from peak)
-        /// - Triggers early pool replacement to restore performance
-        /// - Adapts to workload characteristics dynamically
-        ///
-        /// This is particularly beneficial for long-running batch operations (>10K PDFs).
-        /// Default is `false` for backward compatibility.
-        public var adaptiveThroughputOptimization: Bool = false
-
-        /// Pool replacement threshold (number of PDFs before triggering pool replacement)
-        ///
-        /// The WebView pool is automatically replaced after processing this many PDFs to mitigate
-        /// WebKit process-level memory leaks that accumulate over long batch operations.
-        ///
-        /// **Rationale:**
-        /// - WebKit processes accumulate memory over time even with proper cleanup
-        /// - Periodic pool replacement ensures sustained performance for long-running services
-        /// - Default (30,000) balances performance with resource management
-        ///
-        /// **Tuning Guidelines:**
-        /// - **Long-running services**: Use default (30,000) or higher
-        /// - **Short-lived CLIs**: Set to `nil` to disable automatic replacement
-        /// - **Memory-constrained environments**: Lower to 10,000-15,000
-        /// - **High-throughput systems**: Rely on `adaptiveThroughputOptimization` instead
-        ///
-        /// Set to `nil` to disable automatic pool replacement entirely.
-        /// Default is `30_000` for long-running services.
-        public var poolReplacementThreshold: Int? = 30_000
-
         /// Timeout per document (nil = no timeout)
         public var documentTimeout: Duration?
 
@@ -263,8 +212,6 @@ extension PDF {
             paginationMode: PaginationMode = .continuous,
             appearance: Appearance = .light,
             concurrency: ConcurrencyStrategy = .automatic,
-            adaptiveThroughputOptimization: Bool = false,
-            poolReplacementThreshold: Int? = 30_000,
             documentTimeout: Duration? = nil,
             batchTimeout: Duration? = nil,
             webViewAcquisitionTimeout: Duration = .seconds(60),
@@ -277,8 +224,6 @@ extension PDF {
             self.paginationMode = paginationMode
             self.appearance = appearance
             self.concurrency = concurrency
-            self.adaptiveThroughputOptimization = adaptiveThroughputOptimization
-            self.poolReplacementThreshold = poolReplacementThreshold
             self.documentTimeout = documentTimeout
             self.batchTimeout = batchTimeout
             self.webViewAcquisitionTimeout = webViewAcquisitionTimeout

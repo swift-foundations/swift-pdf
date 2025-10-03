@@ -141,11 +141,8 @@ struct StressTests {
     )
     func test100kPDFs() async throws {
         try await withDependencies {
-            // Using .automatic now defaults to 3x CPU count (24 on 8-core Mac)
             $0.pdf.render.configuration.concurrency = .automatic
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
-            // Enable adaptive throughput optimization
-            $0.pdf.render.configuration.adaptiveThroughputOptimization = true
         } operation: {
             try await withTemporaryDirectory { output in
                 // Suppress WebKit console warnings
@@ -177,14 +174,13 @@ struct StressTests {
                 
                 @Dependency(\.pdf) var pdf
                 let poolSize = pdf.render.configuration.concurrency.resolved
-                
+
                 print("\n╔═══════════════════════════════════════════════════════════╗")
-                print("║           100K PDF GENERATION TEST                       ║")
+                print("║           200K PDF GENERATION TEST                       ║")
                 print("╚═══════════════════════════════════════════════════════════╝")
                 print("Total documents: \(count.formatted())")
                 print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
                 print("Pool size: \(poolSize) WebViews")
-                print("Adaptive optimization: ENABLED")
                 print("Starting generation...\n")
                 
                 let stream = try await pdf.render.client.documents(documents)
@@ -213,7 +209,7 @@ struct StressTests {
                 
                 // Print final statistics
                 print("\n╔═══════════════════════════════════════════════════════════╗")
-                print("║         100K PDF TEST - RESULTS                          ║")
+                print("║         200K PDF TEST - RESULTS                          ║")
                 print("╚═══════════════════════════════════════════════════════════╝")
                 print("Total PDFs:      \(count.formatted())")
                 print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")

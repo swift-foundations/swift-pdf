@@ -306,10 +306,6 @@ private func renderDocumentsInternal(
 
                         continuation.yield(result)
 
-                        // Record PDF generation for batch replacement tracking
-                        // This triggers pool refresh every 50K PDFs to prevent memory bloat
-                        try? await webViewPool.recordPDFGenerated()
-
                         if nextIndex < documentsArray.count {
                             let document = documentsArray[nextIndex]
                             let capturedIndex = nextIndex
