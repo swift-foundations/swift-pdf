@@ -66,7 +66,7 @@ struct AppearanceTests {
             .appendingPathComponent("light-test-\(UUID()).pdf")
 
         // Should use light appearance by default
-        try await pdf.render(html: html, to: tempFile)
+        _ = try await pdf.render(html: html, to: tempFile)
 
         #expect(FileManager.default.fileExists(atPath: tempFile.path))
 

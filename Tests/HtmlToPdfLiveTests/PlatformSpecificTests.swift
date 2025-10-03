@@ -227,6 +227,9 @@ struct PlatformSpecificTests {
     #endif
 
     // Shared tests with platform-aware expectations
+
+    // MARK: - Concurrency Limits
+
     @Test("Platform concurrency limits are correctly defined (reference values)")
     func platformConcurrencyLimits() {
         #if os(macOS)
@@ -234,6 +237,73 @@ struct PlatformSpecificTests {
         #else
         #expect(PDF.Render.ConcurrencyLimit.testedIOS == 8, "iOS tested maximum is 8")
         #endif
+    }
+
+    @Test("High concurrency is allowed (no artificial limits)")
+    func testHighConcurrencyAllowed() async throws {
+        await withTemporaryDirectory { dir in
+            #if os(macOS)
+            let highConcurrency = 100  // Well above old limit of 16
+            #else
+            let highConcurrency = 20   // Well above old limit of 8
+            #endif
+
+            // This should NOT throw - limits are removed
+            await withDependencies {
+                $0.pdf.render.configuration.concurrency = .fixed(highConcurrency)
+            } operation: {
+                @Dependency(\.pdf) var configuredPDF
+
+                let html = "<html><body>Test</body></html>"
+                let output = dir.appendingPathComponent("test.pdf")
+
+                // Should succeed without throwing
+                do {
+                    _ = try await configuredPDF.render(html: html, to: output)
+                    // Success - no error thrown
+                    #expect(FileManager.default.fileExists(atPath: output.path))
+                } catch {
+                    Issue.record("Should not throw error for high concurrency, got: \(error)")
+                }
+            }
+        }
+    }
+
+    @Test("Automatic concurrency uses optimal defaults")
+    func testAutomaticConcurrencyRespectsPlatform() async throws {
+        try await withTemporaryPDF { output in
+            // Use automatic concurrency
+            try await withDependencies {
+                $0.pdf.render.configuration.concurrency = .automatic
+            } operation: {
+                @Dependency(\.pdf) var configuredPDF
+
+                let html = "<html><body>Test</body></html>"
+
+                // Should not throw - automatic should calculate safe value
+                let result = try await configuredPDF.render(html: html, to: output)
+
+                #expect(FileManager.default.fileExists(atPath: result.path))
+            }
+        }
+    }
+
+    @Test("Capability error messages are informative")
+    func testCapabilityErrorMessages() {
+        let error = PrintingError.capabilityUnavailable(
+            capability: "concurrency=32",
+            platform: "iOS",
+            reason: "Platform maximum is 8. Requested 32 concurrent operations."
+        )
+
+        let description = error.errorDescription ?? ""
+        let failureReason = error.failureReason ?? ""
+        let recoverySuggestion = error.recoverySuggestion ?? ""
+
+        #expect(description.contains("iOS"))
+        #expect(description.contains("concurrency=32"))
+        #expect(failureReason.count > 0)
+        #expect(recoverySuggestion.contains("reduce") || recoverySuggestion.contains("platform"))
     }
 
     @Test("Page count extraction works on both platforms")

@@ -20,8 +20,7 @@ extension Tag {
     "Stress Tests",
     .dependency(\.pdf, .liveValue),
     .serialized,
-    .tags(.stress),
-    .disabled()
+    .tags(.stress)
 )
 struct StressTests {
     
@@ -31,6 +30,7 @@ struct StressTests {
     
     @Test(
         "Generate 1,000,000 PDFs",
+        .disabled(),
         .timeLimit(.minutes(120)),
         .dependencies {
             $0.pdf.render.configuration.concurrency = 8
@@ -134,7 +134,11 @@ struct StressTests {
         
     }
     
-    @Test("Generate 200,000 PDFs", .timeLimit(.minutes(30)))
+    @Test(
+        "Generate 200,000 PDFs",
+        .disabled(),
+        .timeLimit(.minutes(30))
+    )
     func test100kPDFs() async throws {
         try await withDependencies {
             // Using .automatic now defaults to 3x CPU count (24 on 8-core Mac)
@@ -225,7 +229,11 @@ struct StressTests {
         }
     }
     
-    @Test("Generate 1,000 PDFs with complex HTML", .timeLimit(.minutes(5)))
+    @Test(
+        "Generate 1,000 PDFs with complex HTML",
+        .timeLimit(.minutes(5)),
+        .disabled(),
+    )
     func test1kComplexPDFs() async throws {
         try await withDependencies {
             $0.pdf.render.configuration.concurrency = 6
@@ -294,7 +302,10 @@ struct StressTests {
         }
     }
     
-    @Test("Sustained load test - 5 minutes continuous generation")
+    @Test(
+        "Sustained load test - 5 minutes continuous generation",
+        .disabled()
+    )
     func testSustainedLoad() async throws {
         try await withTemporaryDirectory { output in
             let duration: TimeInterval = 300 // 5 minutes

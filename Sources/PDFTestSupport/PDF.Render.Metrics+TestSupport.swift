@@ -21,7 +21,11 @@ public func makeTestMetrics() -> (metrics: PDF.Render.Metrics, storage: TestMetr
             storage.renderDurations.append((duration, mode))
         },
         updatePoolUtilization: { count in storage.poolUtilization = count },
-        updateThroughput: { throughput in storage.currentThroughput = throughput }
+        updateThroughput: { throughput in storage.currentThroughput = throughput },
+        recordPoolAcquisitionTime: { _ in },
+        recordWebViewRenderTime: { _ in },
+        recordCSSInjectionTime: { _ in },
+        recordDataConversionTime: { _ in }
     )
 
     return (metrics, storage)

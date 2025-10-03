@@ -119,14 +119,47 @@ extension PDF.Document {
         await ActiveOperationsTracker.shared.increment()
         defer { Task { await ActiveOperationsTracker.shared.decrement() } }
 
+        let poolStart = ContinuousClock.now
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
         ) { @Sendable resource in
+            let poolTime = ContinuousClock.now - poolStart
+
+            // Record pool acquisition time
+            @Dependency(\.pdf.render.metrics) var metrics
+            metrics.recordPoolAcquisitionTime(poolTime)
+
+            // Pre-compute CSS injection OFF the MainActor to reduce contention
+            let cssStart = ContinuousClock.now
+            let marginCSS = generateMarginCSS(config)
+            var htmlWithCSS = await html.injectingCSS(marginCSS)
+
+            // Inject appearance CSS if needed
+            if let appearanceCSS = config.appearance.cssInjection {
+                htmlWithCSS = await htmlWithCSS.injectingCSS(appearanceCSS)
+            }
+
+            let dataStart = ContinuousClock.now
+            let htmlData = htmlWithCSS.toData()
+            let cssAndDataTime = ContinuousClock.now - cssStart
+            let dataTime = ContinuousClock.now - dataStart
+
+            // Record CSS and data conversion time (done off MainActor)
+            metrics.recordCSSInjectionTime(cssAndDataTime - dataTime)
+            metrics.recordDataConversionTime(dataTime)
+
+            let renderStart = ContinuousClock.now
             let document = PDF.Document(htmlBytes: html, destination: destination)
             let (pageCount, dimensions, mode) = try await document.renderWithWebView(
                 resource.webView,
-                config: config
+                config: config,
+                preComputedHTML: htmlData
             )
+            let renderTime = ContinuousClock.now - renderStart
+
+            // Record WebView render time (now excludes CSS injection - only WebKit + file I/O)
+            metrics.recordWebViewRenderTime(renderTime)
+
             return (destination, pageCount, dimensions, mode)
         }
     }
@@ -134,7 +167,8 @@ extension PDF.Document {
     @MainActor
     private func renderWithWebView(
         _ webView: WKWebView,
-        config: PDF.Configuration
+        config: PDF.Configuration,
+        preComputedHTML: Data? = nil
     ) async throws -> (pageCount: Int, dimensions: [CGSize], mode: PDF.PaginationMode) {
         let delegate = WebViewNavigationDelegate(
             outputURL: self.destination,
@@ -177,24 +211,46 @@ extension PDF.Document {
             )
             delegate.printDelegate = printDelegate
 
-            // Perform CSS injection asynchronously (may use cache)
-            Task {
-                let marginCSS = generateMarginCSS(config)
-                var htmlToLoad = await self.html.injectingCSS(marginCSS)
-
-                // Inject appearance CSS if needed
-                if let appearanceCSS = config.appearance.cssInjection {
-                    htmlToLoad = await htmlToLoad.injectingCSS(appearanceCSS)
-                }
-
-                let htmlData = htmlToLoad.toData()
-
+            // Load HTML - using pre-computed if available (fast path) or compute now (legacy path)
+            if let preComputedHTML = preComputedHTML {
+                // Fast path: Pre-computed HTML (CSS already injected off MainActor)
                 webView.load(
-                    htmlData,
+                    preComputedHTML,
                     mimeType: "text/html",
                     characterEncodingName: "UTF-8",
                     baseURL: config.baseURL ?? URL(string: "about:blank")!
                 )
+            } else {
+                // Legacy path: CSS injection on MainActor (slower)
+                Task {
+                    let cssStart = ContinuousClock.now
+                    let marginCSS = generateMarginCSS(config)
+                    var htmlToLoad = await self.html.injectingCSS(marginCSS)
+
+                    // Inject appearance CSS if needed
+                    if let appearanceCSS = config.appearance.cssInjection {
+                        htmlToLoad = await htmlToLoad.injectingCSS(appearanceCSS)
+                    }
+                    let cssTime = ContinuousClock.now - cssStart
+
+                    let dataStart = ContinuousClock.now
+                    let htmlData = htmlToLoad.toData()
+                    let dataTime = ContinuousClock.now - dataStart
+
+                    // Record timing metrics
+                    @Dependency(\.pdf.render.metrics) var metrics
+                    metrics.recordCSSInjectionTime(cssTime)
+                    metrics.recordDataConversionTime(dataTime)
+
+                    await MainActor.run {
+                        webView.load(
+                            htmlData,
+                            mimeType: "text/html",
+                            characterEncodingName: "UTF-8",
+                            baseURL: config.baseURL ?? URL(string: "about:blank")!
+                        )
+                    }
+                }
             }
         }
     }

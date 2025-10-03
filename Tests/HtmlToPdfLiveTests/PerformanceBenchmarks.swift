@@ -676,3 +676,178 @@ struct PerformanceBenchmarks {
         print("╚════════════════════════════════════════════════════════════╝\n")
     }
 }
+
+// MARK: - Performance Analysis
+
+@Suite("Performance Analysis", .dependency(\.pdf, .liveValue), .serialized)
+struct PerformanceAnalysisTests {
+    @Dependency(\.pdf) var pdf
+
+    // MARK: - Detailed Timing Breakdown
+
+    @Test("Performance breakdown with detailed timing")
+    func performanceBreakdown() async throws {
+        final class TimingStorage: @unchecked Sendable {
+            private let lock = NSLock()
+            private var _poolTimes: [Duration] = []
+            private var _renderTimes: [Duration] = []
+            private var _cssTimes: [Duration] = []
+            private var _dataTimes: [Duration] = []
+
+            func addPool(_ d: Duration) { lock.withLock { _poolTimes.append(d) } }
+            func addRender(_ d: Duration) { lock.withLock { _renderTimes.append(d) } }
+            func addCSS(_ d: Duration) { lock.withLock { _cssTimes.append(d) } }
+            func addData(_ d: Duration) { lock.withLock { _dataTimes.append(d) } }
+
+            func getAvg(_ times: [Duration]) -> Double {
+                guard !times.isEmpty else { return 0 }
+                let total = times.reduce(Duration.zero) { $0 + $1 }
+                let ms = Double(total.components.seconds) * 1000 +
+                        Double(total.components.attoseconds) / 1_000_000_000_000_000
+                return ms / Double(times.count)
+            }
+
+            var poolAvg: Double { lock.withLock { getAvg(_poolTimes) } }
+            var renderAvg: Double { lock.withLock { getAvg(_renderTimes) } }
+            var cssAvg: Double { lock.withLock { getAvg(_cssTimes) } }
+            var dataAvg: Double { lock.withLock { getAvg(_dataTimes) } }
+        }
+
+        let storage = TimingStorage()
+        let customMetrics = PDF.Render.Metrics(
+            incrementPDFsGenerated: {},
+            incrementPDFsFailed: {},
+            incrementPoolReplacements: {},
+            recordRenderDuration: { _, _ in },
+            updatePoolUtilization: { _ in },
+            updateThroughput: { _ in },
+            recordPoolAcquisitionTime: { storage.addPool($0) },
+            recordWebViewRenderTime: { storage.addRender($0) },
+            recordCSSInjectionTime: { storage.addCSS($0) },
+            recordDataConversionTime: { storage.addData($0) }
+        )
+
+        try await withDependencies {
+            $0.pdf.render.metrics = customMetrics
+            $0.pdf.render.configuration.concurrency = .fixed(8)
+            $0.pdf.render.configuration.paginationMode = .continuous
+        } operation: {
+            try await withTemporaryDirectory { output in
+                let count = 1_000
+                let documents = (0..<count).map { i in
+                    PDF.Document(
+                        htmlString: "<html><body><h1>Test \(i)</h1></body></html>",
+                        destination: output.appendingPathComponent("breakdown_\(i).pdf")
+                    )
+                }
+
+                let start = ContinuousClock.now
+                var completed = 0
+
+                for try await _ in try await pdf.render.client.documents(documents) {
+                    completed += 1
+                }
+
+                let duration = ContinuousClock.now - start
+                let seconds = Double(duration.components.seconds) +
+                             Double(duration.components.attoseconds) / 1_000_000_000_000_000_000
+                let throughput = Double(completed) / seconds
+                let perPDFMs = (seconds * 1000) / Double(completed)
+
+                let poolAvg = storage.poolAvg
+                let cssAvg = storage.cssAvg
+                let dataAvg = storage.dataAvg
+                let renderAvg = storage.renderAvg
+                let webKitAvg = renderAvg - poolAvg - cssAvg - dataAvg
+
+                print("\n╔══════════════════════════════════════════════════════════════╗")
+                print("║          PERFORMANCE BREAKDOWN (1,000 PDFs)                 ║")
+                print("╚══════════════════════════════════════════════════════════════╝")
+                print("")
+                print("Overall Performance:")
+                print("  Total time:  \(String(format: "%.2f", TimeInterval(duration.components.seconds)))s")
+                print("  Throughput:  \(Int(throughput)) PDFs/sec")
+                print("  Avg per PDF: \(String(format: "%.2f", perPDFMs))ms")
+                print("")
+                print("Time Breakdown (average per PDF):")
+                print("  Pool acquisition: \(String(format: "%6.2f", poolAvg))ms")
+                print("  CSS injection:    \(String(format: "%6.2f", cssAvg))ms")
+                print("  Data conversion:  \(String(format: "%6.2f", dataAvg))ms")
+                print("  WebKit rendering: \(String(format: "%6.2f", webKitAvg))ms (baseline)")
+                print("")
+                print("Analysis:")
+                print("  Total measured:   \(String(format: "%6.2f", renderAvg))ms")
+                print("  Overhead:         \(String(format: "%6.2f", perPDFMs - renderAvg))ms (queueing, etc.)")
+                print("╚══════════════════════════════════════════════════════════════╝\n")
+            }
+        }
+    }
+
+    // MARK: - Concurrency Sweep
+
+    @Test("Concurrency sweep to find optimal level")
+    func concurrencySweep() async throws {
+        let levels = [4, 8, 12, 16]
+        let sampleSize = 2000
+
+        print("\n╔════════════════════════════════════════════════════════╗")
+        print("║   CONCURRENCY SWEEP (Post-CSS Optimization)          ║")
+        print("╚════════════════════════════════════════════════════════╝")
+        print("Sample size: \(sampleSize) PDFs\n")
+
+        var results: [(concurrency: Int, throughput: Double, duration: Double)] = []
+
+        for concurrency in levels {
+            try await withDependencies {
+                $0.pdf.render.configuration.concurrency = .fixed(concurrency)
+                $0.pdf.render.configuration.paginationMode = .continuous
+            } operation: {
+                @Dependency(\.pdf) var pdf
+
+                let documents = (0..<sampleSize).map { i in
+                    PDF.Document(
+                        htmlString: "<html><body><h1>Test \(i)</h1></body></html>",
+                        destination: FileManager.default.temporaryDirectory
+                            .appendingPathComponent("sweep_\(concurrency)_\(i).pdf")
+                    )
+                }
+
+                let start = ContinuousClock.now
+                var count = 0
+
+                for try await _ in try await pdf.render.client.documents(documents) {
+                    count += 1
+                }
+
+                let duration = ContinuousClock.now - start
+                let seconds = Double(duration.components.seconds) +
+                             Double(duration.components.attoseconds) / 1_000_000_000_000_000_000
+                let throughput = Double(count) / seconds
+
+                results.append((concurrency, throughput, seconds))
+                print("✓ Concurrency \(String(format: "%2d", concurrency)):  \(String(format: "%4.0f", throughput)) PDFs/sec  (\(String(format: "%.2f", seconds))s)")
+
+                // Cleanup
+                for doc in documents {
+                    try? FileManager.default.removeItem(at: doc.destination)
+                }
+            }
+        }
+
+        // Find optimal
+        let optimal = results.max(by: { $0.throughput < $1.throughput })!
+
+        print("\n╔════════════════════════════════════════════════════════╗")
+        print("║                  RESULTS                               ║")
+        print("╚════════════════════════════════════════════════════════╝")
+        print("Optimal concurrency: \(optimal.concurrency) WebViews")
+        print("Peak throughput:     \(String(format: "%.0f", optimal.throughput)) PDFs/sec")
+        print("\nAll results (sorted by throughput):")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        for result in results.sorted(by: { $0.throughput > $1.throughput }) {
+            let marker = result.concurrency == optimal.concurrency ? "🏆 " : "   "
+            print("\(marker)\(String(format: "%2d", result.concurrency)) WebViews:  \(String(format: "%4.0f", result.throughput)) PDFs/sec")
+        }
+        print("╚════════════════════════════════════════════════════════╝\n")
+    }
+}

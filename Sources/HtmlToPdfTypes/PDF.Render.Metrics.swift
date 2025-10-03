@@ -86,6 +86,24 @@ extension PDF.Render {
         @DependencyEndpoint
         public var updateThroughput: @Sendable (_ pdfsPerSecond: Double) -> Void
 
+        // MARK: - Detailed Timing Operations
+
+        /// Record pool acquisition time
+        @DependencyEndpoint
+        public var recordPoolAcquisitionTime: @Sendable (_ duration: Duration) -> Void
+
+        /// Record WebView render time (total time in WebView including all operations)
+        @DependencyEndpoint
+        public var recordWebViewRenderTime: @Sendable (_ duration: Duration) -> Void
+
+        /// Record CSS injection time
+        @DependencyEndpoint
+        public var recordCSSInjectionTime: @Sendable (_ duration: Duration) -> Void
+
+        /// Record HTML data conversion time
+        @DependencyEndpoint
+        public var recordDataConversionTime: @Sendable (_ duration: Duration) -> Void
+
         // MARK: - Convenience Methods
 
         /// Record successful PDF generation

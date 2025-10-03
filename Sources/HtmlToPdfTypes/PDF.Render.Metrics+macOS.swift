@@ -23,6 +23,12 @@ extension PDF.Render.Metrics: DependencyKey {
         let poolUtilization = Gauge(label: "htmltopdf_pool_utilization")
         let currentThroughput = Gauge(label: "htmltopdf_throughput_pdfs_per_sec")
 
+        // Detailed timing metrics for performance analysis
+        let poolAcquisitionTime = Timer(label: "htmltopdf_pool_acquisition_seconds")
+        let webViewRenderTime = Timer(label: "htmltopdf_webview_render_seconds")
+        let cssInjectionTime = Timer(label: "htmltopdf_css_injection_seconds")
+        let dataConversionTime = Timer(label: "htmltopdf_data_conversion_seconds")
+
         return Self(
             incrementPDFsGenerated: { pdfsGenerated.increment() },
             incrementPDFsFailed: { pdfsFailed.increment() },
@@ -40,7 +46,27 @@ extension PDF.Render.Metrics: DependencyKey {
                 }
             },
             updatePoolUtilization: { count in poolUtilization.record(count) },
-            updateThroughput: { pdfsPerSecond in currentThroughput.record(pdfsPerSecond) }
+            updateThroughput: { pdfsPerSecond in currentThroughput.record(pdfsPerSecond) },
+            recordPoolAcquisitionTime: { duration in
+                let nanoseconds = duration.components.seconds * 1_000_000_000 +
+                                duration.components.attoseconds / 1_000_000_000
+                poolAcquisitionTime.recordNanoseconds(nanoseconds)
+            },
+            recordWebViewRenderTime: { duration in
+                let nanoseconds = duration.components.seconds * 1_000_000_000 +
+                                duration.components.attoseconds / 1_000_000_000
+                webViewRenderTime.recordNanoseconds(nanoseconds)
+            },
+            recordCSSInjectionTime: { duration in
+                let nanoseconds = duration.components.seconds * 1_000_000_000 +
+                                duration.components.attoseconds / 1_000_000_000
+                cssInjectionTime.recordNanoseconds(nanoseconds)
+            },
+            recordDataConversionTime: { duration in
+                let nanoseconds = duration.components.seconds * 1_000_000_000 +
+                                duration.components.attoseconds / 1_000_000_000
+                dataConversionTime.recordNanoseconds(nanoseconds)
+            }
         )
     }
 }
