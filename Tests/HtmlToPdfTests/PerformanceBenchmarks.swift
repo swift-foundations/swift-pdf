@@ -597,12 +597,20 @@ struct PerformanceBenchmarks {
         }
 
         let testCount = 5000  // Sample size for each concurrency level
-        // Respect platform maximum (macOS: 16, iOS: 8)
-        let concurrencyLevels = [4, 8, 12, 16]
+
+        // Filter concurrency levels based on platform capabilities
+        // macOS: [4, 8, 12, 16], iOS: [4, 8]
+        #if os(macOS)
+        let platformMax = PDF.Capabilities.macOS.maxConcurrentOperations
+        #else
+        let platformMax = PDF.Capabilities.iOS.maxConcurrentOperations
+        #endif
+        let concurrencyLevels = [4, 8, 12, 16].filter { $0 <= platformMax }
 
         print("\n╔════════════════════════════════════════════════════════════╗")
         print("║     ADAPTIVE THROUGHPUT OPTIMIZATION TEST                 ║")
         print("╚════════════════════════════════════════════════════════════╝")
+        print("Platform: \(platformMax) max concurrent operations")
         print("Sample size per test: \(testCount) PDFs")
         print("Testing concurrency levels: \(concurrencyLevels)")
         print("Starting optimization...\n")

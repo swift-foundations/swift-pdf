@@ -24,117 +24,116 @@ extension Tag {
     .disabled()
 )
 struct StressTests {
-
+    
     @Dependency(\.pdf) var pdf
-
+    
     // MARK: - Extreme Load Tests
-
+    
     @Test(
         "Generate 1,000,000 PDFs",
         .timeLimit(.minutes(120)),
-//        .disabled { false }
+        .dependencies {
+            $0.pdf.render.configuration.concurrency = 8
+            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
+        }
+        //        .disabled { false }
     )
     func test1MPDFs() async throws {
         let metricsBackend = TestMetricsBackend.forTest()
-
-        try await withDependencies {
-            $0.pdf.render.configuration.concurrency = 8
-            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
-        } operation: {
-            try await withTemporaryDirectory { output in
-                // Suppress WebKit console warnings
-                setenv("OS_ACTIVITY_MODE", "disable", 1)
-
-                let count = 1_000_000
-                let filesPerDirectory = 1_000 // Keep directories manageable
-
-                let startTime = Date()
-
-                // Setup live metrics display
-                let metricsTracker = MetricsProgressTracker(
-                    totalCount: count,
-                    metricsBackend: metricsBackend,
-                    reportInterval: .seconds(10)
-                )
-                await metricsTracker.start()
-
-                // Create subdirectories to avoid file system degradation
-                // 1M files split into 1000 directories of 1000 files each
-                let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
-                for dirIndex in 0..<numDirectories {
-                    let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
-                    try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
-                }
-
-                // Create minimal HTML documents with subdirectory paths
-                let documents = (1...count).map { i in
-                    let dirIndex = (i - 1) / filesPerDirectory
-                    let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
-                    return PDF.Document(
-                        htmlString: "<html><body><p>\(i)</p></body></html>",
-                        title: "doc-\(i)",
-                        in: subdirUrl
-                    )
-                }
-
-                @Dependency(\.pdf) var pdf
-                let poolSize = pdf.render.configuration.concurrency.resolved
-
-                print("\n╔═══════════════════════════════════════════════════════════╗")
-                print("║           1 MILLION PDF GENERATION TEST                  ║")
-                print("╚═══════════════════════════════════════════════════════════╝")
-                print("Total documents: \(count.formatted())")
-                print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
-                print("Pool size: \(poolSize) WebViews")
-                print("Starting generation...\n")
-
-                let stream = try await pdf.render.client.documents(documents)
-
-                for try await _ in stream {
-                    // Metrics automatically recorded, live display updates
-                }
-
-                await metricsTracker.stop()
-
-                let duration = Date().timeIntervalSince(startTime)
-
-                // Verify all files were created by counting across all subdirectories
-                var totalFiles = 0
-                let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-                for subdir in subdirs where subdir.hasDirectoryPath {
-                    let files = try FileManager.default.contentsOfDirectory(at: subdir, includingPropertiesForKeys: nil)
-                    totalFiles += files.count
-                }
-                #expect(totalFiles == count, "Should create all \(count) PDFs")
-
-                // Get stats from metrics instead of manual calculation
-                let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? (Double(count) / duration)
-                let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
-                let avgMs = (timer?.average ?? 0) * 1000
-                let minutes = Int(duration / 60)
-                let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
-
-                // Print final statistics with metrics summary
-                await metricsTracker.printSummary()
-
-                print("\n╔═══════════════════════════════════════════════════════════╗")
-                print("║         1 MILLION PDF TEST - RESULTS                     ║")
-                print("╚═══════════════════════════════════════════════════════════╝")
-                print("Total PDFs:      \(count.formatted())")
-                print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
-                print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
-                print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
-                print("p95 per PDF:     \(String(format: "%.3f", (timer?.p95 ?? 0) * 1000))ms")
-                print("Files created:   \(totalFiles.formatted())")
-                print("Subdirectories:  \(subdirs.count)")
-                print("╚═══════════════════════════════════════════════════════════╝\n")
-
-                // Verify reasonable throughput (at least 100 PDFs/sec)
-                #expect(throughput > 100, "Should maintain reasonable throughput")
+        try await withTemporaryDirectory { output in
+            // Suppress WebKit console warnings
+            setenv("OS_ACTIVITY_MODE", "disable", 1)
+            
+            let count = 1_000_000
+            let filesPerDirectory = 1_000 // Keep directories manageable
+            
+            let startTime = Date()
+            
+            // Setup live metrics display
+            let metricsTracker = MetricsProgressTracker(
+                totalCount: count,
+                metricsBackend: metricsBackend,
+                reportInterval: .seconds(10)
+            )
+            await metricsTracker.start()
+            
+            // Create subdirectories to avoid file system degradation
+            // 1M files split into 1000 directories of 1000 files each
+            let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
+            for dirIndex in 0..<numDirectories {
+                let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+                try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
             }
+            
+            // Create minimal HTML documents with subdirectory paths
+            let documents = (1...count).map { i in
+                let dirIndex = (i - 1) / filesPerDirectory
+                let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+                return PDF.Document(
+                    htmlString: "<html><body><p>\(i)</p></body></html>",
+                    title: "doc-\(i)",
+                    in: subdirUrl
+                )
+            }
+            
+            @Dependency(\.pdf) var pdf
+            let poolSize = pdf.render.configuration.concurrency.resolved
+            
+            print("\n╔═══════════════════════════════════════════════════════════╗")
+            print("║           1 MILLION PDF GENERATION TEST                  ║")
+            print("╚═══════════════════════════════════════════════════════════╝")
+            print("Total documents: \(count.formatted())")
+            print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
+            print("Pool size: \(poolSize) WebViews")
+            print("Starting generation...\n")
+            
+            let stream = try await pdf.render.client.documents(documents)
+            
+            for try await _ in stream {
+                // Metrics automatically recorded, live display updates
+            }
+            
+            await metricsTracker.stop()
+            
+            let duration = Date().timeIntervalSince(startTime)
+            
+            // Verify all files were created by counting across all subdirectories
+            var totalFiles = 0
+            let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+            for subdir in subdirs where subdir.hasDirectoryPath {
+                let files = try FileManager.default.contentsOfDirectory(at: subdir, includingPropertiesForKeys: nil)
+                totalFiles += files.count
+            }
+            #expect(totalFiles == count, "Should create all \(count) PDFs")
+            
+            // Get stats from metrics instead of manual calculation
+            let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? (Double(count) / duration)
+            let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
+            let avgMs = (timer?.average ?? 0) * 1000
+            let minutes = Int(duration / 60)
+            let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
+            
+            // Print final statistics with metrics summary
+            await metricsTracker.printSummary()
+            
+            print("\n╔═══════════════════════════════════════════════════════════╗")
+            print("║         1 MILLION PDF TEST - RESULTS                     ║")
+            print("╚═══════════════════════════════════════════════════════════╝")
+            print("Total PDFs:      \(count.formatted())")
+            print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
+            print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
+            print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
+            print("p95 per PDF:     \(String(format: "%.3f", (timer?.p95 ?? 0) * 1000))ms")
+            print("Files created:   \(totalFiles.formatted())")
+            print("Subdirectories:  \(subdirs.count)")
+            print("╚═══════════════════════════════════════════════════════════╝\n")
+            
+            // Verify reasonable throughput (at least 100 PDFs/sec)
+            #expect(throughput > 100, "Should maintain reasonable throughput")
         }
+        
     }
-
+    
     @Test("Generate 200,000 PDFs", .timeLimit(.minutes(30)))
     func test100kPDFs() async throws {
         try await withDependencies {
@@ -147,20 +146,20 @@ struct StressTests {
             try await withTemporaryDirectory { output in
                 // Suppress WebKit console warnings
                 setenv("OS_ACTIVITY_MODE", "disable", 1)
-
+                
                 let count = 200_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
-
+                
                 let tracker = ProgressTracker(totalCount: count, reportInterval: 5.0)
                 let startTime = Date()
-
+                
                 // Create subdirectories to avoid file system degradation
                 let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
                 for dirIndex in 0..<numDirectories {
                     let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
                     try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
                 }
-
+                
                 // Create minimal HTML documents with subdirectory paths
                 let documents = (1...count).map { i in
                     let dirIndex = (i - 1) / filesPerDirectory
@@ -171,10 +170,10 @@ struct StressTests {
                         in: subdirUrl
                     )
                 }
-
+                
                 @Dependency(\.pdf) var pdf
                 let poolSize = pdf.render.configuration.concurrency.resolved
-
+                
                 print("\n╔═══════════════════════════════════════════════════════════╗")
                 print("║           100K PDF GENERATION TEST                       ║")
                 print("╚═══════════════════════════════════════════════════════════╝")
@@ -183,16 +182,16 @@ struct StressTests {
                 print("Pool size: \(poolSize) WebViews")
                 print("Adaptive optimization: ENABLED")
                 print("Starting generation...\n")
-
+                
                 let stream = try await pdf.render.client.documents(documents)
-
+                
                 for try await _ in stream {
                     _ = await tracker.recordCompletion()
                 }
-
+                
                 let duration = Date().timeIntervalSince(startTime)
                 _ = await tracker.completed
-
+                
                 // Verify all files were created by counting across all subdirectories
                 var totalFiles = 0
                 let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
@@ -201,13 +200,13 @@ struct StressTests {
                     totalFiles += files.count
                 }
                 #expect(totalFiles == count, "Should create all \(count) PDFs")
-
+                
                 // Calculate stats
                 let throughput = Double(count) / duration
                 let avgMs = duration * 1000 / Double(count)
                 let minutes = Int(duration / 60)
                 let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
-
+                
                 // Print final statistics
                 print("\n╔═══════════════════════════════════════════════════════════╗")
                 print("║         100K PDF TEST - RESULTS                          ║")
@@ -219,13 +218,13 @@ struct StressTests {
                 print("Files created:   \(totalFiles.formatted())")
                 print("Subdirectories:  \(subdirs.count)")
                 print("╚═══════════════════════════════════════════════════════════╝\n")
-
+                
                 // Verify reasonable throughput (at least 100 PDFs/sec)
                 #expect(throughput > 100, "Should maintain reasonable throughput")
             }
         }
     }
-
+    
     @Test("Generate 1,000 PDFs with complex HTML", .timeLimit(.minutes(5)))
     func test1kComplexPDFs() async throws {
         try await withDependencies {
@@ -234,9 +233,9 @@ struct StressTests {
         } operation: {
             try await withTemporaryDirectory { output in
                 let count = 1_000
-
+                
                 let startTime = Date()
-
+                
                 // More complex HTML to stress rendering
                 let complexHTML = """
                 <html>
@@ -266,27 +265,27 @@ struct StressTests {
                 </body>
                 </html>
                 """
-
+                
                 let htmls = (1...count).map { i in
                     complexHTML.replacingOccurrences(of: "{{ID}}", with: "\(i)")
                 }
-
+                
                 print("Starting 1k complex PDF generation test...")
-
+                
                 var urls: [URL] = []
                 for try await result in try await pdf.render.client.html(htmls, to: output) {
                     urls.append(result.url)
                 }
-
+                
                 let duration = Date().timeIntervalSince(startTime)
-
+                
                 let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
                 #expect(files.count == count, "Should create all \(count) PDFs")
-
+                
                 print("\n✅ 1k Complex PDF Stress Test Complete!")
                 print("Duration: \(String(format: "%.2f", duration))s")
                 print("Throughput: \(String(format: "%.0f", Double(count) / duration)) PDFs/sec")
-
+                
                 // Verify some PDFs have reasonable size (not empty)
                 let sampleFile = files[0]
                 let fileSize = try FileManager.default.attributesOfItem(atPath: sampleFile.path)[.size] as? Int ?? 0
@@ -294,12 +293,12 @@ struct StressTests {
             }
         }
     }
-
+    
     @Test("Sustained load test - 5 minutes continuous generation")
     func testSustainedLoad() async throws {
         try await withTemporaryDirectory { output in
             let duration: TimeInterval = 300 // 5 minutes
-
+            
             actor Counter {
                 var count = 0
                 func increment() -> Int {
@@ -308,12 +307,12 @@ struct StressTests {
                 }
                 func get() -> Int { count }
             }
-
+            
             let counter = Counter()
             let startTime = Date()
-
+            
             print("Starting sustained load test (5 minutes)...")
-
+            
             // Generate PDFs continuously for 5 minutes
             await withTaskGroup(of: Void.self) { group in
                 // Launch multiple concurrent generators
@@ -327,9 +326,9 @@ struct StressTests {
                                 let count = await counter.increment()
                                 let html = "<html><body><p>PDF \(count)</p></body></html>"
                                 let destination = outputDir.appendingPathComponent("sustained-\(count).pdf")
-
+                                
                                 _ = try await pdf.render.client.html(html, to: destination)
-
+                                
                                 // Brief pause to simulate realistic workload
                                 try? await Task.sleep(for: .milliseconds(100))
                             } catch {
@@ -338,21 +337,21 @@ struct StressTests {
                         }
                     }
                 }
-
+                
                 await group.waitForAll()
             }
-
+            
             let totalDuration = Date().timeIntervalSince(startTime)
             let totalGenerated = await counter.get()
-
+            
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-
+            
             print("\n✅ Sustained Load Test Complete!")
             print("Duration: \(String(format: "%.2f", totalDuration))s")
             print("PDFs generated: \(totalGenerated)")
             print("Average rate: \(String(format: "%.1f", Double(totalGenerated) / totalDuration)) PDFs/sec")
             print("Files created: \(files.count)")
-
+            
             #expect(totalGenerated > 100, "Should generate substantial number of PDFs")
             #expect(files.count == totalGenerated, "All PDFs should be created")
         }

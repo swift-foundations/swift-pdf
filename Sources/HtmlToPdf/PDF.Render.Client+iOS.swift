@@ -10,6 +10,7 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 import LoggingExtras
+import PDFKit
 import UIKit
 import WebKit
 
@@ -106,8 +107,9 @@ extension PDF.Document {
             createIfNeeded: config.createDirectories
         )
 
-        // Check if HTML contains images - use WebView if so
-        if self.html.containsImages() {
+        // Check if HTML contains images by searching for <img tag in bytes
+        // Use WebView for images (proper rendering), PrintFormatter for text-only (faster)
+        if self.html.containsImageTag() {
             return try await renderWithWebView(config: config)
         } else {
             return try await renderWithPrintFormatter(config: config)
@@ -116,7 +118,9 @@ extension PDF.Document {
 
     @MainActor
     private func renderWithPrintFormatter(config: PDF.Configuration) async throws -> URL {
-        let printFormatter = UIMarkupTextPrintFormatter(markupText: self.html)
+        // Convert bytes to String for UIMarkupTextPrintFormatter (only accepts String)
+        let htmlString = String(decoding: self.html, as: UTF8.self)
+        let printFormatter = UIMarkupTextPrintFormatter(markupText: htmlString)
         let data = try await renderToDataWithFormatter(printFormatter, config: config)
         try data.write(to: self.destination)
         return self.destination
@@ -134,7 +138,7 @@ extension PDF.Document {
 
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
-        ) { resource in
+        ) { @Sendable @MainActor resource in
             let webView = resource.webView
             let renderer = DocumentWKRenderer(
                 document: self,
@@ -156,12 +160,11 @@ private func renderDocumentsInternal(
 
     return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task { @MainActor in
+            var completedCount = 0
             do {
                 @Dependency(\.pdf.render.metrics) var metrics
 
                 let maxConcurrent = config.concurrency.resolved
-
-                var completedCount = 0
 
                 try await withThrowingTaskGroup(of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self) { taskGroup in
                     for (index, document) in documentsArray.prefix(maxConcurrent).enumerated() {
@@ -169,9 +172,9 @@ private func renderDocumentsInternal(
                             let start = ContinuousClock.now
                             let url = try await document.renderInternal(config: config)
                             let duration = ContinuousClock.now - start
-                            // iOS doesn't easily extract page info, default to 1 page with paper size
-                            let pageCount = 1
-                            let dimensions = [config.paperSize]
+
+                            // Extract actual page count and dimensions from generated PDF
+                            let (pageCount, dimensions) = extractPageInfo(from: url, fallbackSize: config.paperSize)
                             let mode = config.paginationMode
                             return (index, url, pageCount, dimensions, mode, duration)
                         }
@@ -205,8 +208,9 @@ private func renderDocumentsInternal(
                                 let start = ContinuousClock.now
                                 let url = try await document.renderInternal(config: config)
                                 let duration = ContinuousClock.now - start
-                                let pageCount = 1
-                                let dimensions = [config.paperSize]
+
+                                // Extract actual page count and dimensions from generated PDF
+                                let (pageCount, dimensions) = extractPageInfo(from: url, fallbackSize: config.paperSize)
                                 let mode = config.paginationMode
                                 return (capturedIndex, url, pageCount, dimensions, mode, duration)
                             }
@@ -214,6 +218,9 @@ private func renderDocumentsInternal(
                     }
                 }
                 continuation.finish()
+
+                // Clear directory cache after batch completes
+                directoryCache.clear()
             } catch {
                 @Dependency(\.logger) var logger
                 @Dependency(\.pdf.render.metrics) var metrics
@@ -229,9 +236,31 @@ private func renderDocumentsInternal(
                     "error_type": "\(type(of: error))"
                 ])
                 continuation.finish(throwing: error)
+
+                // Clear directory cache on error as well
+                directoryCache.clear()
             }
         }
     }
+}
+
+/// Extract page count and dimensions from PDF file (thread-safe, can run off main actor)
+private func extractPageInfo(from url: URL, fallbackSize: CGSize) -> (pageCount: Int, dimensions: [CGSize]) {
+    guard let pdfDoc = PDFDocument(url: url) else {
+        return (1, [fallbackSize])
+    }
+
+    let pageCount = pdfDoc.pageCount
+    let dimensions = (0..<pageCount).compactMap { index -> CGSize? in
+        pdfDoc.page(at: index)?.bounds(for: .mediaBox).size
+    }
+
+    // Fallback if no pages found
+    if dimensions.isEmpty {
+        return (1, [fallbackSize])
+    }
+
+    return (pageCount, dimensions)
 }
 
 // MARK: - WebView Renderer for Images
@@ -266,7 +295,20 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
         try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
             self.webView = webView
-            webView.loadHTMLString(self.document.html, baseURL: self.configuration.baseURL)
+
+            // Perform CSS injection asynchronously (may use cache, matching macOS)
+            Task {
+                let marginCSS = generateMarginCSS(self.configuration)
+                let htmlToLoad = await self.document.html.injectingCSS(marginCSS)
+                let htmlData = htmlToLoad.toData()
+
+                webView.load(
+                    htmlData,
+                    mimeType: "text/html",
+                    characterEncodingName: "UTF-8",
+                    baseURL: self.configuration.baseURL ?? URL(string: "about:blank")!
+                )
+            }
 
             if let timeout = documentTimeout {
                 timeoutTask = Task { [weak self] in
@@ -325,6 +367,24 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
             continuation.resume(throwing: PrintingError.webViewNavigationFailed(underlyingError: error))
             webView.navigationDelegate = nil
         }
+    }
+}
+
+// MARK: - CSS Generation
+
+private func generateMarginCSS(_ config: PDF.Configuration) -> ContiguousArray<UInt8> {
+    // Use pre-computed CSS from configuration to avoid repeated string interpolation
+    return config.marginCSSBytes
+}
+
+// MARK: - Byte-level Content Detection
+
+extension ContiguousArray where Element == UInt8 {
+    /// Check if HTML bytes contain an <img tag (case-insensitive)
+    func containsImageTag() -> Bool {
+        // Search for "<img" in bytes (case-insensitive)
+        let pattern = ContiguousArray("<img".utf8)
+        return self.firstRange(of: pattern, options: .caseInsensitive) != nil
     }
 }
 

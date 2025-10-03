@@ -85,7 +85,8 @@ let package = Package(
                 .pdfTestSupport,
                 .dependenciesTestSupport
             ],
-            exclude: ["HtmlToPdf.xctestplan"]
+            exclude: ["HtmlToPdf.xctestplan"],
+            resources: [.process("Resources")]
         )
     ],
     swiftLanguageVersions: [.v5]
