@@ -58,11 +58,5 @@ extension PDF.Render {
         public var documents: @Sendable (
             _ documents: any Sequence<PDF.Document>
         ) async throws -> AsyncThrowingStream<PDF.Result, Error>
-
-        // MARK: - Platform Capabilities
-
-        /// Get capabilities of current implementation
-        @DependencyEndpoint
-        public var capabilities: @Sendable () -> PDF.Capabilities = { .mock }
     }
 }

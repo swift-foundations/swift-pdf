@@ -97,15 +97,4 @@ extension PDF.Render {
     ) async throws -> AsyncThrowingStream<Data, Error> {
         try await client.data(htmlStrings)
     }
-
-    // MARK: - Platform Capabilities
-
-    /// Get capabilities of current implementation
-    ///
-    /// Convenience method that forwards to `client.capabilities()`.
-    ///
-    /// - Returns: Platform capabilities
-    public func capabilities() -> PDF.Capabilities {
-        client.capabilities()
-    }
 }

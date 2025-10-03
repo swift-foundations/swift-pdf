@@ -6,39 +6,18 @@
 //  PDF+Convenience.swift
 //  swift-html-to-pdf
 //
-//  Top-level convenience methods for common operations
+//  Top-level convenience methods for HTML protocol integration
 //
 
 import Dependencies
 import Foundation
-import PointFreeHTML
+
+#if HTML
+import HTML
 
 extension PDF {
 
-    // MARK: - Render Operations
-
-    /// Render HTML string to PDF file
-    ///
-    /// ## Usage
-    ///
-    /// ```swift
-    /// @Dependency(\.pdf) var pdf
-    ///
-    /// let html = "<html><body><h1>Hello</h1></body></html>"
-    /// try await pdf.render(html: html, to: fileURL)
-    /// ```
-    ///
-    /// - Parameters:
-    ///   - html: HTML content to render
-    ///   - destination: File URL for the PDF
-    /// - Returns: URL of the generated PDF
-    /// - Throws: Rendering errors
-    public func render(
-        html: String,
-        to destination: URL
-    ) async throws -> URL {
-        try await render.html(html, to: destination)
-    }
+    // MARK: - HTML Protocol Integration
 
     /// Render type-safe HTML to PDF file
     ///
@@ -65,12 +44,219 @@ extension PDF {
     ///   - destination: File URL for the PDF
     /// - Returns: URL of the generated PDF
     /// - Throws: Rendering errors
-    public func render<H: HTML>(
-        html: H,
+    public func render(
+        html: some HTML,
         to destination: URL
     ) async throws -> URL {
         let document = PDF.Document(html: html, destination: destination)
         return try await render.document(document)
+    }
+
+    /// Render type-safe HTML to PDF data (in-memory)
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// import HTML
+    ///
+    /// @Dependency(\.pdf) var pdf
+    /// let pdfData = try await pdf.render(html: MyPage())
+    /// ```
+    ///
+    /// - Parameter html: Type-safe HTML content
+    /// - Returns: PDF data
+    /// - Throws: Rendering errors
+    public func render(
+        html: some HTML
+    ) async throws -> Data {
+        let htmlString = String(decoding: html.render(), as: UTF8.self)
+        return try await render.data(htmlString)
+    }
+
+}
+#endif
+
+
+// ========================================
+// File: Sources/HtmlToPdf/PDF.Document+HTML.swift
+// ========================================
+
+//
+//  PDF.Document+HTML.swift
+//  swift-html-to-pdf
+//
+//  swift-html integration
+//
+
+import HtmlToPdfLive
+
+#if HTML
+import HTML
+
+extension PDF.Document {
+    /// Create a document from any HTML-conforming type (swift-html integration)
+    ///
+    /// This initializer provides seamless integration with swift-html and PointFreeHTML.
+    /// Any type conforming to the `HTML` protocol can be passed directly.
+    ///
+    /// Example:
+    /// ```swift
+    /// import HtmlToPdf
+    /// import HTML
+    ///
+    /// let page = html {
+    ///     body {
+    ///         h1 { "Type-safe PDF" }
+    ///         p { "Generated from swift-html" }
+    ///     }
+    /// }
+    ///
+    /// let doc = PDF.Document(html: page, destination: outputURL)
+    /// try await PDF.render.client.render(doc)
+    /// ```
+    public init(html: some HTML, destination: URL) {
+        self.init(htmlBytes: html.render(), destination: destination)
+    }
+
+    /// Create a document from HTML with a title-based filename
+    ///
+    /// The PDF will be saved in the specified directory with the title as filename.
+    /// Special characters in the title are automatically sanitized.
+    ///
+    /// Example:
+    /// ```swift
+    /// let page = html { body { h1 { "My Report" } } }
+    /// let doc = PDF.Document(html: page, title: "Q4 Report", in: outputDir)
+    /// // Saves to: outputDir/Q4 Report.pdf
+    /// ```
+    public init(html: some HTML, title: String, in directory: URL) {
+        self.init(htmlBytes: html.render(), title: title, in: directory)
+    }
+}
+#endif
+
+
+// ========================================
+// File: Sources/HtmlToPdf/exports.swift
+// ========================================
+
+@_exported import HtmlToPdfLive
+
+#if HTML
+@_exported import HTML
+#endif
+
+
+// ========================================
+// File: Sources/HtmlToPdfLive/DirectoryCache.swift
+// ========================================
+
+//
+//  DirectoryCache.swift
+//  swift-html-to-pdf
+//
+//  Thread-safe directory validation cache
+//
+
+import Dependencies
+import Foundation
+import IssueReporting
+
+/// Thread-safe cache for directory validation
+///
+/// Reduces redundant file system checks by caching validated directory paths.
+/// Uses lock-based synchronization to protect the validated set.
+///
+/// Thread Safety: Uses `LockIsolated` to protect the validated set with an NSRecursiveLock.
+/// All mutations to the set are performed within `withLock` closures, ensuring exclusive access.
+final class DirectoryCache: Sendable {
+    private let validated = LockIsolated(Set<String>())
+
+    func ensureDirectory(
+        at url: URL,
+        createIfNeeded: Bool
+    ) throws {
+        let path = url.path
+
+        // Fast path: check cache with lock
+        let isValidated = validated.withValue { $0.contains(path) }
+
+        if isValidated {
+            return
+        }
+
+        // Slow path: check and possibly create (file I/O)
+        if createIfNeeded {
+            try FileManager.default.createDirectory(
+                at: url,
+                withIntermediateDirectories: true
+            )
+            _ = validated.withValue { $0.insert(path) }
+        } else {
+            // Validate directory exists when createDirectories is false
+            var isDirectory: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) || !isDirectory.boolValue {
+                throw PrintingError.invalidFilePath(
+                    url,
+                    underlyingError: NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: NSFileNoSuchFileError,
+                        userInfo: [NSLocalizedDescriptionKey: "Directory does not exist: \(path)"]
+                    )
+                )
+            }
+            _ = validated.withValue { $0.insert(path) }
+        }
+    }
+
+    func clear() {
+        validated.withValue { $0.removeAll() }
+    }
+}
+
+/// Shared directory cache for the rendering session
+let directoryCache = DirectoryCache()
+
+
+// ========================================
+// File: Sources/HtmlToPdfLive/PDF+Convenience.swift
+// ========================================
+
+//
+//  PDF+Convenience.swift
+//  swift-html-to-pdf
+//
+//  Top-level convenience methods for common operations (string-based)
+//
+
+import Dependencies
+import Foundation
+
+extension PDF {
+
+    // MARK: - Render Operations (String-based)
+
+    /// Render HTML string to PDF file
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// @Dependency(\.pdf) var pdf
+    ///
+    /// let html = "<html><body><h1>Hello</h1></body></html>"
+    /// try await pdf.render(html: html, to: fileURL)
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - html: HTML content to render
+    ///   - destination: File URL for the PDF
+    /// - Returns: URL of the generated PDF
+    /// - Throws: Rendering errors
+    public func render(
+        html: String,
+        to destination: URL
+    ) async throws -> URL {
+        try await render.html(html, to: destination)
     }
 
     /// Render a document to PDF
@@ -111,27 +297,6 @@ extension PDF {
         html: String
     ) async throws -> Data {
         try await render.data(html)
-    }
-
-    /// Render type-safe HTML to PDF data (in-memory)
-    ///
-    /// ## Usage
-    ///
-    /// ```swift
-    /// import HTML
-    ///
-    /// @Dependency(\.pdf) var pdf
-    /// let pdfData = try await pdf.render(html: MyPage())
-    /// ```
-    ///
-    /// - Parameter html: Type-safe HTML content
-    /// - Returns: PDF data
-    /// - Throws: Rendering errors
-    public func render<H: HTML>(
-        html: H
-    ) async throws -> Data {
-        let htmlString = String(decoding: html.render(), as: UTF8.self)
-        return try await render.data(htmlString)
     }
 
     // MARK: - Batch Operations
@@ -226,1111 +391,41 @@ extension PDF {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Capabilities.swift
+// File: Sources/HtmlToPdfLive/PDF+DependencyKey.swift
 // ========================================
 
 //
-//  PDF.Capabilities.swift
+//  PDF+DependencyKey.swift
 //  swift-html-to-pdf
 //
-//  Platform capabilities for PDF rendering
-//
-
-import Foundation
-
-extension PDF {
-    /// Platform-specific capabilities
-    public struct Capabilities: Sendable {
-        /// Whether this platform supports WebView pooling for performance
-        public let supportsWebViewPooling: Bool
-
-        /// Whether this platform supports background rendering
-        public let supportsBackgroundRendering: Bool
-
-        /// Whether this platform supports custom fonts
-        public let supportsCustomFonts: Bool
-
-        /// Maximum recommended concurrent operations for this platform
-        public let maxConcurrentOperations: Int
-
-        public init(
-            supportsWebViewPooling: Bool,
-            supportsBackgroundRendering: Bool,
-            supportsCustomFonts: Bool,
-            maxConcurrentOperations: Int
-        ) {
-            self.supportsWebViewPooling = supportsWebViewPooling
-            self.supportsBackgroundRendering = supportsBackgroundRendering
-            self.supportsCustomFonts = supportsCustomFonts
-            self.maxConcurrentOperations = maxConcurrentOperations
-        }
-    }
-}
-
-// MARK: - Platform Presets
-
-extension PDF.Capabilities {
-    /// macOS capabilities
-    public static let macOS = PDF.Capabilities(
-        supportsWebViewPooling: true,
-        supportsBackgroundRendering: true,
-        supportsCustomFonts: true,
-        maxConcurrentOperations: 16
-    )
-
-    /// iOS capabilities
-    public static let iOS = PDF.Capabilities(
-        supportsWebViewPooling: true,
-        supportsBackgroundRendering: false,
-        supportsCustomFonts: true,
-        maxConcurrentOperations: 8
-    )
-
-    /// Linux capabilities (future)
-    public static let linux = PDF.Capabilities(
-        supportsWebViewPooling: false,
-        supportsBackgroundRendering: true,
-        supportsCustomFonts: true,
-        maxConcurrentOperations: 32
-    )
-
-    /// Mock/test capabilities
-    public static let mock = PDF.Capabilities(
-        supportsWebViewPooling: false,
-        supportsBackgroundRendering: false,
-        supportsCustomFonts: false,
-        maxConcurrentOperations: 1
-    )
-}
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.ConcurrencyStrategy.swift
-// ========================================
-
-//
-//  PDF.ConcurrencyStrategy.swift
-//  swift-html-to-pdf
-//
-//  Strategy for determining concurrency during PDF rendering
-//
-
-import Foundation
-
-// MARK: - Concurrency Strategy
-
-extension PDF {
-    /// Strategy for determining concurrency during PDF rendering
-    ///
-    /// Supports both explicit integer values and automatic calculation:
-    /// ```swift
-    /// // Integer literal
-    /// configuration.concurrency = 4
-    ///
-    /// // Explicit fixed
-    /// configuration.concurrency = .fixed(8)
-    ///
-    /// // Automatic (intelligent defaults based on hardware)
-    /// configuration.concurrency = .automatic
-    /// ```
-    public struct ConcurrencyStrategy: Sendable, Equatable, ExpressibleByIntegerLiteral {
-        internal let mode: Mode
-
-        internal enum Mode: Sendable, Equatable {
-            case fixed(Int)
-            case automatic
-        }
-
-        // MARK: - Initialization
-
-        private init(mode: Mode) {
-            self.mode = mode
-        }
-
-        // MARK: - ExpressibleByIntegerLiteral
-
-        public init(integerLiteral value: Int) {
-            self.mode = .fixed(value)
-        }
-
-        // MARK: - Static Constructors
-
-        /// Fixed concurrency - use exact number of concurrent operations
-        public static func fixed(_ value: Int) -> Self {
-            Self(mode: .fixed(value))
-        }
-
-        /// Automatic concurrency - calculate optimal value based on CPU count and available memory
-        public static let automatic = Self(mode: .automatic)
-
-        // MARK: - Internal
-
-        /// Calculate optimal concurrency based on system hardware
-        ///
-        /// Empirical testing shows WebView memory usage does NOT scale linearly:
-        /// - 1 WebView: ~100 MB total (includes pool overhead)
-        /// - 4 WebViews: ~37 MB total (GC cleanup)
-        /// - 8 WebViews: ~38 MB total
-        /// - 16 WebViews: ~32 MB total
-        ///
-        /// Memory actually DECREASES with higher concurrency due to efficient resource management.
-        ///
-        /// Adaptive throughput optimization testing (5000 PDFs sample) on 8-core M-series Mac:
-        /// - 4 WebViews: 860 PDFs/sec
-        /// - 8 WebViews: 928 PDFs/sec (1x CPU count)
-        /// - 12 WebViews: 686 PDFs/sec
-        /// - 16 WebViews: 771 PDFs/sec (2x CPU count)
-        /// - 20 WebViews: 946 PDFs/sec
-        /// - 24 WebViews: 1113 PDFs/sec (3x CPU count) ← OPTIMAL
-        /// - 28 WebViews: 1086 PDFs/sec
-        /// - 32 WebViews: 1057 PDFs/sec (4x CPU count)
-        ///
-        /// Peak throughput occurs at 3x CPU count due to WebView I/O waiting.
-        internal static func calculateDefaultConcurrency() -> Int {
-            let cpuCount = ProcessInfo.processInfo.activeProcessorCount
-
-            #if canImport(UIKit)
-            // iOS: Still cap at 4 due to mobile constraints (battery, thermal, app suspension)
-            let calculated = max(2, min(cpuCount, 4))
-            // Cap at platform maximum
-            return min(calculated, PDF.Capabilities.iOS.maxConcurrentOperations)
-            #else
-            // macOS/Linux: Use 3x CPU count for optimal throughput
-            // WebViews spend significant time in I/O, so oversubscription helps
-            let calculated = max(2, cpuCount * 3)
-            // Cap at platform maximum
-            #if os(macOS)
-            return min(calculated, PDF.Capabilities.macOS.maxConcurrentOperations)
-            #else
-            return calculated
-            #endif
-            #endif
-        }
-
-        /// Resolve to concrete concurrency value
-        internal var resolved: Int {
-            switch mode {
-            case .fixed(let value):
-                return max(1, value)
-            case .automatic:
-                return Self.calculateDefaultConcurrency()
-            }
-        }
-    }
-}
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.Configuration.swift
-// ========================================
-
-//
-//  PDF.Configuration.swift
-//  swift-html-to-pdf
-//
-//  Configuration for PDF rendering
+//  DependencyKey conformances for live implementations
 //
 
 import Dependencies
-import DependenciesMacros
-import Foundation
+import HtmlToPdfTypes
 
-// MARK: - Configuration
-
-extension PDF {
-    /// Configuration for PDF rendering
-    ///
-    /// Set configuration once via `withDependencies`:
-    /// ```swift
-    /// try await withDependencies {
-    ///     $0.pdfConfiguration.paperSize = .letter
-    ///     $0.pdfConfiguration.margins = .wide
-    ///     $0.pdfConfiguration.concurrency = 16
-    /// } operation: {
-    ///     @Dependency(\.pdf) var pdf
-    ///     try await pdf.render(html, to: url)
-    /// }
-    /// ```
-    public struct Configuration: Sendable {
-
-        // MARK: - Document Configuration
-
-        /// Paper size for PDF documents
-        public var paperSize: CGSize
-
-        /// Margins applied to each page
-        public var margins: EdgeInsets
-
-        /// Base URL for resolving relative URLs in HTML
-        public var baseURL: URL?
-
-        /// How content should be paginated in the PDF
-        public var paginationMode: PaginationMode
-
-        // MARK: - Batch Configuration
-
-        /// Concurrency strategy for PDF rendering
-        ///
-        /// Supports multiple forms:
-        /// - Integer literal: `concurrency = 4`
-        /// - Explicit: `concurrency = .fixed(8)`
-        /// - Automatic: `concurrency = .automatic`
-        ///
-        /// Default is `.automatic`, which calculates optimal concurrency based on CPU count and available memory.
-        public var concurrency: ConcurrencyStrategy = .automatic
-
-        /// Enable adaptive throughput optimization
-        ///
-        /// When enabled, the system monitors throughput in real-time and automatically:
-        /// - Detects performance degradation (>15% drop from peak)
-        /// - Triggers early pool replacement to restore performance
-        /// - Adapts to workload characteristics dynamically
-        ///
-        /// This is particularly beneficial for long-running batch operations (>10K PDFs).
-        /// Default is `false` for backward compatibility.
-        public var adaptiveThroughputOptimization: Bool = false
-
-        /// Timeout per document (nil = no timeout)
-        public var documentTimeout: Duration?
-
-        /// Timeout for entire batch (nil = no timeout)
-        public var batchTimeout: Duration?
-
-        /// Timeout for acquiring WebView from pool
-        public var webViewAcquisitionTimeout: Duration
-
-        // MARK: - File System
-
-        /// Automatically create directories if they don't exist
-        public var createDirectories: Bool
-
-        // MARK: - Naming Strategy
-
-        /// How to name files in batch operations
-        public var namingStrategy: NamingStrategy
-
-        // MARK: - Computed Properties
-
-        /// Pre-computed margin CSS bytes for performance
-        /// Generated on-demand and cached based on margins
-        public var marginCSSBytes: ContiguousArray<UInt8> {
-            let css = """
-            <style>
-            @media print, screen {
-                html {
-                    margin: 0;
-                    padding: 0;
-                }
-                body {
-                    margin: 0;
-                    padding: \(margins.top)pt \(margins.right)pt \(margins.bottom)pt \(margins.left)pt;
-                    box-sizing: border-box;
-                }
-            }
-            </style>
-            """
-            return ContiguousArray(css.utf8)
-        }
-
-        public init(
-            paperSize: CGSize = .a4,
-            margins: EdgeInsets = .standard,
-            baseURL: URL? = nil,
-            paginationMode: PaginationMode = .continuous,
-            concurrency: ConcurrencyStrategy = .automatic,
-            adaptiveThroughputOptimization: Bool = false,
-            documentTimeout: Duration? = nil,
-            batchTimeout: Duration? = nil,
-            webViewAcquisitionTimeout: Duration = .seconds(300),
-            createDirectories: Bool = true,
-            namingStrategy: NamingStrategy = .sequential
-        ) {
-            self.paperSize = paperSize
-            self.margins = margins
-            self.baseURL = baseURL
-            self.paginationMode = paginationMode
-            self.concurrency = concurrency
-            self.adaptiveThroughputOptimization = adaptiveThroughputOptimization
-            self.documentTimeout = documentTimeout
-            self.batchTimeout = batchTimeout
-            self.webViewAcquisitionTimeout = webViewAcquisitionTimeout
-            self.createDirectories = createDirectories
-            self.namingStrategy = namingStrategy
-        }
-    }
-}
-
-// MARK: - Configuration Presets
-
-extension PDF.Configuration {
-    /// Default configuration (A4, standard margins, continuous mode for fast rendering)
-    public static let `default` = PDF.Configuration()
-
-    /// US Letter size with standard margins
-    public static let letter = PDF.Configuration(paperSize: .letter)
-
-    /// A4 landscape with minimal margins
-    public static let landscapeMinimal = PDF.Configuration(
-        paperSize: .a4.landscape,
-        margins: .minimal
+extension PDF: DependencyKey {
+    public static let liveValue = PDF(
+        render: .liveValue
     )
+}
 
-    /// Multi-page documents with correct A4 dimensions (alias for .default)
-    public static let multiPage = PDF.Configuration(
-        paginationMode: .paginated
+extension PDF: TestDependencyKey {
+    public static let testValue = PDF(
+        render: .testValue
     )
-
-    /// Fast continuous mode for screen viewing (single tall page)
-    public static let continuous = PDF.Configuration(
-        paginationMode: .continuous
-    )
-
-    /// Smart auto-detection based on content
-    public static let smart = PDF.Configuration(
-        paginationMode: .automatic()
-    )
-
-    /// Optimized for large batch processing (auto-detect with speed preference)
-    public static let largeBatch = PDF.Configuration(
-        paginationMode: .automatic(heuristic: .preferSpeed),
-        concurrency: .automatic,
-        batchTimeout: .seconds(86400), // 24 hours
-        webViewAcquisitionTimeout: .seconds(600)
-    )
-
-    /// Optimized for current platform
-    public static var platformOptimized: Self {
-        .init(
-            paperSize: .a4,
-            margins: .standard,
-            concurrency: .automatic,
-            webViewAcquisitionTimeout: .seconds(300)
-        )
-    }
 }
 
-// MARK: - Dependency Registration
-
-extension PDF.Configuration: TestDependencyKey {
-    public static let testValue = PDF.Configuration.default
-}
-
-// Note: PDF.Configuration is now accessed via \.pdf.configuration
-// The PDF struct (in PDF.swift) handles the main dependency registration
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.Document.swift
-// ========================================
-
-//
-//  PDF.Document.swift
-//  swift-html-to-pdf
-//
-//  Document model for PDF rendering
-//
-
-import Foundation
-import PointFreeHTML
-
-// MARK: - CSS Injection Cache
-
-/// Thread-safe cache for CSS-injected HTML to avoid redundant processing
-private actor CSSInjectionCache {
-    private var cache: [Int: ContiguousArray<UInt8>] = [:]
-    private var accessOrder: [Int] = []
-    private let maxEntries = 100
-
-    func get(key: Int) -> ContiguousArray<UInt8>? {
-        cache[key]
-    }
-
-    func set(key: Int, value: ContiguousArray<UInt8>) {
-        // Evict oldest entry if at capacity
-        if cache.count >= maxEntries, !cache.keys.contains(key) {
-            if let oldestKey = accessOrder.first {
-                cache.removeValue(forKey: oldestKey)
-                accessOrder.removeFirst()
-            }
-        }
-
-        cache[key] = value
-        accessOrder.append(key)
-    }
-
-    func clear() {
-        cache.removeAll()
-        accessOrder.removeAll()
-    }
-}
-
-private let cssInjectionCache = CSSInjectionCache()
-
-extension PDF {
-    /// A document to be rendered as a PDF
-    ///
-    /// Examples:
-    /// ```swift
-    /// // Using PointFree HTML DSL (type-safe)
-    /// struct MyPage: HTMLDocumentProtocol {
-    ///     var head: some HTML { title { "My PDF" } }
-    ///     var body: some HTML { h1 { "Hello, World!" } }
-    /// }
-    /// let doc = PDF.Document(html: MyPage(), destination: fileURL)
-    ///
-    /// // Using String (simple)
-    /// let doc = PDF.Document(htmlString: "<html><body>Hello</body></html>", destination: fileURL)
-    ///
-    /// // Using raw bytes (advanced)
-    /// let doc = PDF.Document(htmlBytes: bytes, destination: fileURL)
-    /// ```
-    public struct Document: Sendable {
-        let htmlBytes: ContiguousArray<UInt8>
-        public let destination: URL
-
-        // MARK: - Primary Initializers (HTML protocol)
-
-        /// Create a document from any HTML-conforming type
-        public init<H: HTML>(html: H, destination: URL) {
-            self.htmlBytes = html.render()
-            self.destination = destination
-        }
-
-        public init<H: HTML>(html: H, title: String, in directory: URL) {
-            self.htmlBytes = html.render()
-            self.destination = directory
-                .appendingPathComponent(title.replacingSlashesWithDivisionSlash())
-                .appendingPathExtension("pdf")
-        }
-
-        // MARK: - Convenience Initializers
-
-        /// Create a document from raw HTML bytes (advanced usage)
-        public init(htmlBytes: ContiguousArray<UInt8>, destination: URL) {
-            self.htmlBytes = htmlBytes
-            self.destination = destination
-        }
-
-        public init(htmlBytes: ContiguousArray<UInt8>, title: String, in directory: URL) {
-            self.htmlBytes = htmlBytes
-            self.destination = directory
-                .appendingPathComponent(title.replacingSlashesWithDivisionSlash())
-                .appendingPathExtension("pdf")
-        }
-
-        /// Create a document from an HTML string (convenience)
-        public init(htmlString: String, destination: URL) {
-            self.htmlBytes = ContiguousArray(htmlString.utf8)
-            self.destination = destination
-        }
-
-        public init(htmlString: String, title: String, in directory: URL) {
-            self.htmlBytes = ContiguousArray(htmlString.utf8)
-            self.destination = directory
-                .appendingPathComponent(title.replacingSlashesWithDivisionSlash())
-                .appendingPathExtension("pdf")
-        }
-
-        // MARK: - Internal Access
-
-        /// Access the HTML bytes for rendering
-        var html: ContiguousArray<UInt8> { htmlBytes }
-    }
-}
-
-// MARK: - String Utilities
-
-extension String {
-    func replacingSlashesWithDivisionSlash() -> String {
-        let divisionSlash = "\u{2215}" // Unicode for Division Slash (∕)
-        return self
-            .replacingOccurrences(of: "/", with: divisionSlash)
-            .replacingOccurrences(of: ":", with: "-")      // Colon not allowed in filenames
-            .replacingOccurrences(of: "?", with: "")       // Question mark not allowed
-            .replacingOccurrences(of: "*", with: "-")      // Asterisk not allowed
-            .replacingOccurrences(of: "<", with: "")       // Less-than not allowed
-            .replacingOccurrences(of: ">", with: "")       // Greater-than not allowed
-            .replacingOccurrences(of: "|", with: "-")      // Pipe not allowed
-            .replacingOccurrences(of: "\"", with: "")      // Quote not allowed
-            .replacingOccurrences(of: "\\", with: divisionSlash)  // Backslash treated like forward slash
-    }
-}
-
-// MARK: - ContiguousArray Utilities
-
-extension ContiguousArray where Element == UInt8 {
-    /// Injects CSS bytes into HTML with caching for repeated injections
-    ///
-    /// This method caches the result to avoid redundant work when the same HTML+CSS
-    /// combination is processed multiple times (common in batch operations).
-    func injectingCSS(_ cssBytes: ContiguousArray<UInt8>) async -> ContiguousArray<UInt8> {
-        // Generate cache key from HTML + CSS content
-        let cacheKey = generateCacheKey(html: self, css: cssBytes)
-
-        // Check cache first
-        if let cached = await cssInjectionCache.get(key: cacheKey) {
-            return cached
-        }
-
-        // Cache miss - perform injection
-        let result = performCSSInjection(cssBytes)
-
-        // Store in cache for future reuse
-        await cssInjectionCache.set(key: cacheKey, value: result)
-
-        return result
-    }
-
-    /// Generate a cache key for HTML + CSS combination
-    private func generateCacheKey(html: ContiguousArray<UInt8>, css: ContiguousArray<UInt8>) -> Int {
-        // Use Swift's Hasher (xxHash-based) - 10-100x faster than SHA256
-        // Collision resistance is sufficient for cache keys
-        var hasher = Hasher()
-        html.withUnsafeBufferPointer { htmlBuffer in
-            hasher.combine(bytes: UnsafeRawBufferPointer(htmlBuffer))
-        }
-        css.withUnsafeBufferPointer { cssBuffer in
-            hasher.combine(bytes: UnsafeRawBufferPointer(cssBuffer))
-        }
-        return hasher.finalize()
-    }
-
-    /// Perform the actual CSS injection (uncached)
-    private func performCSSInjection(_ cssBytes: ContiguousArray<UInt8>) -> ContiguousArray<UInt8> {
-        let headEndBytes = ContiguousArray("</head>".utf8)
-        let headStartBytes = ContiguousArray("<head>".utf8)
-        let bodyBytes = ContiguousArray("<body".utf8)
-
-        // Try to inject before </head>
-        if let range = self.firstRange(of: headEndBytes, options: .caseInsensitive) {
-            var result = ContiguousArray<UInt8>()
-            result.reserveCapacity(self.count + cssBytes.count)
-            result.append(contentsOf: self[..<range.lowerBound])
-            result.append(contentsOf: cssBytes)
-            result.append(contentsOf: self[range.lowerBound...])
-            return result
-        }
-        // Try to inject after <head>
-        else if let headRange = self.firstRange(of: headStartBytes, options: .caseInsensitive) {
-            // Find closing >
-            if let closingBracket = self[headRange.upperBound...].firstIndex(of: UInt8(ascii: ">")) {
-                let insertPoint = self.index(after: closingBracket)
-                var result = ContiguousArray<UInt8>()
-                result.reserveCapacity(self.count + cssBytes.count)
-                result.append(contentsOf: self[..<insertPoint])
-                result.append(contentsOf: cssBytes)
-                result.append(contentsOf: self[insertPoint...])
-                return result
-            }
-        }
-        // Try to inject before <body>
-        else if let bodyRange = self.firstRange(of: bodyBytes, options: .caseInsensitive) {
-            var result = ContiguousArray<UInt8>()
-            result.reserveCapacity(self.count + cssBytes.count)
-            result.append(contentsOf: self[..<bodyRange.lowerBound])
-            result.append(contentsOf: cssBytes)
-            result.append(contentsOf: self[bodyRange.lowerBound...])
-            return result
-        }
-
-        // Otherwise inject at the beginning
-        var result = cssBytes
-        result.append(contentsOf: self)
-        return result
-    }
-
-    /// Convert to Data for WKWebView loading
-    func toData() -> Data {
-        Data(self)
-    }
-}
-
-// MARK: - Byte Search Utilities
-
-extension ContiguousArray where Element == UInt8 {
-    enum SearchOptions {
-        case caseInsensitive
-    }
-
-    /// Find first occurrence of pattern in array
-    func firstRange(of pattern: ContiguousArray<UInt8>, options: SearchOptions? = nil) -> Range<Int>? {
-        guard !pattern.isEmpty, pattern.count <= self.count else { return nil }
-
-        let caseInsensitive = options == .caseInsensitive
-
-        for i in 0...(count - pattern.count) {
-            var matches = true
-            for j in 0..<pattern.count {
-                let selfByte = caseInsensitive ? self[i + j].lowercased : self[i + j]
-                let patternByte = caseInsensitive ? pattern[j].lowercased : pattern[j]
-                if selfByte != patternByte {
-                    matches = false
-                    break
-                }
-            }
-            if matches {
-                return i..<(i + pattern.count)
-            }
-        }
-        return nil
-    }
-}
-
-extension UInt8 {
-    /// Simple ASCII lowercase conversion
-    var lowercased: UInt8 {
-        if self >= 65 && self <= 90 { // A-Z
-            return self + 32
-        }
-        return self
+extension DependencyValues {
+    public var pdf: PDF {
+        get { self[PDF.self] }
+        set { self[PDF.self] = newValue }
     }
 }
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.EdgeInsets.swift
-// ========================================
-
-//
-//  PDF.EdgeInsets.swift
-//  swift-html-to-pdf
-//
-//  Edge insets for PDF margins
-//
-
-import Foundation
-
-/// Edge insets for defining margins
-///
-/// All margin values must be non-negative. Negative values are automatically clamped to zero.
-///
-/// ## Example
-///
-/// ```swift
-/// // Using presets (recommended)
-/// let margins = EdgeInsets.standard  // 0.5 inch (36pt) on all sides
-///
-/// // Custom margins
-/// let margins = EdgeInsets(top: 50, left: 40, bottom: 50, right: 40)
-///
-/// // Negative values are clamped to zero
-/// let margins = EdgeInsets(all: -10)  // Results in 0 on all sides
-/// ```
-public struct EdgeInsets: Sendable {
-    public let top: CGFloat
-    public let left: CGFloat
-    public let bottom: CGFloat
-    public let right: CGFloat
-
-    /// Creates edge insets with the specified margins
-    ///
-    /// Negative values are automatically clamped to zero to prevent invalid margin configurations.
-    ///
-    /// - Parameters:
-    ///   - top: Top margin in points (clamped to >= 0)
-    ///   - left: Left margin in points (clamped to >= 0)
-    ///   - bottom: Bottom margin in points (clamped to >= 0)
-    ///   - right: Right margin in points (clamped to >= 0)
-    public init(top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat) {
-        self.top = max(0, top)
-        self.left = max(0, left)
-        self.bottom = max(0, bottom)
-        self.right = max(0, right)
-    }
-
-    // Convenience initializers
-
-    /// Creates edge insets with the same margin on all sides
-    ///
-    /// Negative values are automatically clamped to zero.
-    ///
-    /// - Parameter all: Margin for all sides in points (clamped to >= 0)
-    public init(all: CGFloat) {
-        self.init(top: all, left: all, bottom: all, right: all)
-    }
-
-    /// Creates edge insets with horizontal and vertical margins
-    ///
-    /// Negative values are automatically clamped to zero.
-    ///
-    /// - Parameters:
-    ///   - horizontal: Left and right margin in points (clamped to >= 0)
-    ///   - vertical: Top and bottom margin in points (clamped to >= 0)
-    public init(horizontal: CGFloat, vertical: CGFloat) {
-        self.init(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
-    }
-}
-
-// MARK: - Presets
-
-extension EdgeInsets {
-    /// No margins
-    public static let none = EdgeInsets(all: 0)
-
-    /// Minimal margins (0.25 inch)
-    public static let minimal = EdgeInsets(all: 18)
-
-    /// Standard margins (0.5 inch)
-    public static let standard = EdgeInsets(all: 36)
-
-    /// Comfortable margins (0.75 inch)
-    public static let comfortable = EdgeInsets(all: 54)
-
-    /// Wide margins (1 inch)
-    public static let wide = EdgeInsets(all: 72)
-}
-
-// MARK: - Platform Conversions
-
-#if os(macOS)
-import AppKit
-
-extension NSEdgeInsets {
-    init(edgeInsets: EdgeInsets) {
-        self = .init(
-            top: edgeInsets.top,
-            left: edgeInsets.left,
-            bottom: edgeInsets.bottom,
-            right: edgeInsets.right
-        )
-    }
-}
-#endif
-
-#if canImport(UIKit)
-import UIKit
-
-extension UIEdgeInsets {
-    init(edgeInsets: EdgeInsets) {
-        self = .init(
-            top: .init(edgeInsets.top),
-            left: .init(edgeInsets.left),
-            bottom: .init(edgeInsets.bottom),
-            right: .init(edgeInsets.right)
-        )
-    }
-}
-#endif
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.FailedDocument.swift
-// ========================================
-
-//
-//  PDF.FailedDocument.swift
-//  swift-html-to-pdf
-//
-//  Error information for failed document rendering
-//
-
-import Foundation
-
-extension PDF {
-    /// Information about a document that failed to render
-    ///
-    /// Used in resilient batch operations to report failures without stopping the entire batch.
-    public struct FailedDocument: Sendable, Error {
-        /// The document that failed to render
-        public let document: PDF.Document
-
-        /// The index of this document in the batch
-        public let index: Int
-
-        /// The underlying error that caused the failure
-        public let error: Error
-
-        /// How long was spent attempting to render before failure
-        public let duration: Duration
-
-        public init(
-            document: PDF.Document,
-            index: Int,
-            error: Error,
-            duration: Duration
-        ) {
-            self.document = document
-            self.index = index
-            self.error = error
-            self.duration = duration
-        }
-    }
-}
-
-extension PDF.FailedDocument: LocalizedError {
-    public var errorDescription: String? {
-        "Failed to render document \(index + 1) ('\(document.destination.lastPathComponent)'): \(error.localizedDescription)"
-    }
-
-    public var failureReason: String? {
-        (error as? LocalizedError)?.failureReason
-    }
-
-    public var recoverySuggestion: String? {
-        (error as? LocalizedError)?.recoverySuggestion
-    }
-}
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.NamingStrategy.swift
-// ========================================
-
-//
-//  PDF.NamingStrategy.swift
-//  swift-html-to-pdf
-//
-//  Naming strategies for batch PDF operations
-//
-
-import Foundation
-
-extension PDF {
-    /// Strategy for naming files in batch operations
-    public struct NamingStrategy: Sendable {
-        private let _filename: @Sendable (Int) -> String
-
-        /// Create a custom naming strategy
-        public init(filename: @escaping @Sendable (Int) -> String) {
-            self._filename = filename
-        }
-
-        /// Generate filename for given index
-        public func filename(for index: Int) -> String {
-            _filename(index)
-        }
-    }
-}
-
-// MARK: - Presets
-
-extension PDF.NamingStrategy {
-    /// Sequential numbering: "1.pdf", "2.pdf", ...
-    public static let sequential = PDF.NamingStrategy { index in
-        "\(index + 1)"
-    }
-
-    /// UUID-based names
-    public static let uuid = PDF.NamingStrategy { _ in
-        UUID().uuidString
-    }
-}
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.PaginationMode.swift
-// ========================================
-
-//
-//  PDF.PaginationMode.swift
-//  swift-html-to-pdf
-//
-//  Pagination mode for PDF rendering
-//
-
-import Foundation
-
-extension PDF {
-    /// How content should be paginated in the PDF
-    ///
-    /// This determines how HTML content flows into the PDF:
-    ///
-    /// - `.paginated`: Content is split into multiple pages (e.g., 3 pages of A4)
-    ///   - Best for: Invoices, reports, documents for printing
-    ///   - Performance: Slower (538 PDFs/sec on M1)
-    ///   - Implementation: Uses NSPrintOperation (macOS) or UIPrintPageRenderer (iOS)
-    ///
-    /// - `.continuous`: Single tall page containing all content
-    ///   - Best for: Articles, web captures, infographics for screen viewing
-    ///   - Performance: Fast (1796 PDFs/sec on M1)
-    ///   - Implementation: Uses WKWebView.createPDF
-    ///
-    /// - `.automatic`: Chooses based on content analysis
-    ///   - Best for: Unknown content, balanced performance
-    ///   - Performance: Varies based on detection
-    public enum PaginationMode: Sendable, Equatable {
-        /// Split content into multiple pages of exact paperSize
-        ///
-        /// Each page will match the configured `paperSize` exactly.
-        /// CSS page breaks are respected.
-        /// Margins are applied via print settings.
-        case paginated
-
-        /// Single continuous page
-        ///
-        /// Width matches `paperSize.width`, height matches content height.
-        /// CSS page breaks are ignored.
-        /// Margins are applied via CSS padding.
-        case continuous
-
-        /// Automatically choose based on content analysis
-        ///
-        /// Uses the provided heuristic to determine whether to use
-        /// paginated or continuous mode.
-        case automatic(heuristic: AutomaticHeuristic = .contentLength())
-    }
-
-    /// Strategy for automatic pagination detection
-    public enum AutomaticHeuristic: Sendable, Equatable {
-        /// Choose based on estimated page count
-        ///
-        /// Measures content height and compares to page height.
-        /// If content would span more than the threshold (in pages), uses paginated mode.
-        ///
-        /// - Parameter threshold: Number of pages that triggers pagination (default: 1.5)
-        ///
-        /// Example: threshold of 1.5 means content over 1.5 pages uses paginated mode
-        case contentLength(threshold: CGFloat = 1.5)
-
-        /// Choose based on HTML structure
-        ///
-        /// Detects presence of print-specific CSS or page break directives.
-        /// If found, uses paginated mode for proper print output.
-        case htmlStructure
-
-        /// Always prefer speed (continuous mode)
-        ///
-        /// Uses WKWebView.createPDF for maximum throughput.
-        /// Results in continuous tall pages.
-        case preferSpeed
-
-        /// Always prefer print-ready output (paginated mode)
-        ///
-        /// Uses NSPrintOperation/UIPrintPageRenderer for proper pagination.
-        /// Results in properly paginated documents.
-        case preferPrintReady
-    }
-}
-
-// MARK: - Metrics Support
-
-extension PDF.PaginationMode {
-    /// Label for metrics dimension tracking
-    ///
-    /// Provides a stable string representation for use in metrics dimensions.
-    /// This allows segmentation of render duration metrics by pagination mode.
-    var metricsLabel: String {
-        switch self {
-        case .continuous:
-            return "continuous"
-        case .paginated:
-            return "paginated"
-        case .automatic(let heuristic):
-            switch heuristic {
-            case .contentLength:
-                return "automatic_content_length"
-            case .htmlStructure:
-                return "automatic_html_structure"
-            case .preferSpeed:
-                return "automatic_prefer_speed"
-            case .preferPrintReady:
-                return "automatic_prefer_print_ready"
-            }
-        }
-    }
-}
-
-// MARK: - Internal Rendering Method
-
-extension PDF {
-    /// Internal rendering method (not exposed in public API)
-    ///
-    /// This is the actual implementation strategy chosen after
-    /// analyzing the pagination mode and content.
-    enum InternalRenderingMethod {
-        case webView
-        case printOperation
-    }
-}
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.PaperSize.swift
-// ========================================
-
-//
-//  PDF.PaperSize.swift
-//  swift-html-to-pdf
-//
-//  Paper size extensions for CGSize
-//
-
-import Foundation
-
-/// Paper size extensions for CGSize
-///
-/// Provides standard paper sizes in points (1 point = 1/72 inch).
-///
-/// ## Important
-///
-/// When creating custom paper sizes, ensure both width and height are positive values.
-/// Using the provided static properties (`.a4`, `.letter`, etc.) is recommended for
-/// standard sizes.
-///
-/// ## Example
-///
-/// ```swift
-/// // Using standard sizes (recommended)
-/// configuration.paperSize = .a4
-/// configuration.paperSize = .letter
-///
-/// // Custom size
-/// configuration.paperSize = CGSize(width: 600, height: 800)
-///
-/// // Landscape orientation
-/// configuration.paperSize = .a4.landscape
-/// ```
-extension CGSize {
-    // MARK: - ISO 216 Sizes (in points)
-
-    /// A3 paper size (297 × 420 mm)
-    public static let a3 = CGSize(width: 841.89, height: 1190.55)
-
-    /// A4 paper size (210 × 297 mm)
-    public static let a4 = CGSize(width: 595.28, height: 841.89)
-
-    /// A5 paper size (148 × 210 mm)
-    public static let a5 = CGSize(width: 420.94, height: 595.28)
-
-    // MARK: - US Paper Sizes (in points)
-
-    /// US Letter size (8.5 × 11 inches)
-    public static let letter = CGSize(width: 612, height: 792)
-
-    /// US Legal size (8.5 × 14 inches)
-    public static let legal = CGSize(width: 612, height: 1008)
-
-    /// US Tabloid size (11 × 17 inches)
-    public static let tabloid = CGSize(width: 792, height: 1224)
-
-    // MARK: - Orientation
-
-    /// Returns landscape version of this size (wider than tall)
-    public var landscape: CGSize {
-        CGSize(
-            width: max(width, height),
-            height: min(width, height)
-        )
-    }
-
-    /// Returns portrait version of this size (taller than wide)
-    public var portrait: CGSize {
-        CGSize(
-            width: min(width, height),
-            height: max(width, height)
-        )
-    }
-
-    /// Whether this size is landscape orientation
-    public var isLandscape: Bool { width > height }
-
-    /// Whether this size is portrait orientation
-    public var isPortrait: Bool { height >= width }
-}
-
-
-// ========================================
-// File: Sources/HtmlToPdf/PDF.Render+Convenience.swift
+// File: Sources/HtmlToPdfLive/PDF.Render+Convenience.swift
 // ========================================
 
 //
@@ -1432,22 +527,11 @@ extension PDF.Render {
     ) async throws -> AsyncThrowingStream<Data, Error> {
         try await client.data(htmlStrings)
     }
-
-    // MARK: - Platform Capabilities
-
-    /// Get capabilities of current implementation
-    ///
-    /// Convenience method that forwards to `client.capabilities()`.
-    ///
-    /// - Returns: Platform capabilities
-    public func capabilities() -> PDF.Capabilities {
-        client.capabilities()
-    }
 }
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render+TestDependencyKey.swift
+// File: Sources/HtmlToPdfLive/PDF.Render+TestDependencyKey.swift
 // ========================================
 
 //
@@ -1493,7 +577,7 @@ extension PDF.Render.Client: TestDependencyKey {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.Client+Convenience.swift
+// File: Sources/HtmlToPdfLive/PDF.Render.Client+Convenience.swift
 // ========================================
 
 //
@@ -1642,7 +726,7 @@ extension PDF.Render.Client {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.Client+iOS.swift
+// File: Sources/HtmlToPdfLive/PDF.Render.Client+iOS.swift
 // ========================================
 
 //
@@ -1657,8 +741,17 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 import LoggingExtras
+import PDFKit
 import UIKit
 import WebKit
+
+extension PDF.Render: DependencyKey {
+    public static let liveValue = PDF.Render(
+        client: .iOS,
+        configuration: .default,
+        metrics: .liveValue
+    )
+}
 
 extension PDF.Render.Client: DependencyKey {
     public static let liveValue: Self = .iOS
@@ -1670,29 +763,26 @@ extension PDF.Render.Client {
         documents: { documents in
             @Dependency(\.pdf.render.configuration) var config
 
-            // Validate configuration against platform capabilities
-            try validateConfiguration(config, against: .iOS)
+            // Validate configuration against platform limits
+            try validateConfiguration(config)
 
             return try await renderDocumentsInternal(documents, config: config)
-        },
-        capabilities: {
-            .iOS
         }
     )
 }
 
 // MARK: - Configuration Validation
 
-/// Validate configuration against platform capabilities
-private func validateConfiguration(_ config: PDF.Configuration, against capabilities: PDF.Capabilities) throws {
+/// Validate configuration against platform limits
+private func validateConfiguration(_ config: PDF.Configuration) throws {
     let requestedConcurrency = config.concurrency.resolved
 
     // Check if requested concurrency exceeds platform maximum
-    if requestedConcurrency > capabilities.maxConcurrentOperations {
+    if requestedConcurrency > PDF.PlatformConcurrencyLimit.iOS {
         throw PrintingError.capabilityUnavailable(
             capability: "concurrency=\(requestedConcurrency)",
             platform: "iOS",
-            reason: "Platform maximum is \(capabilities.maxConcurrentOperations). Requested \(requestedConcurrency) concurrent operations."
+            reason: "Platform maximum is \(PDF.PlatformConcurrencyLimit.iOS). Requested \(requestedConcurrency) concurrent operations."
         )
     }
 }
@@ -1737,15 +827,17 @@ private func renderToDataWithFormatter(
 @MainActor
 extension PDF.Document {
     func renderInternal(config: PDF.Configuration) async throws -> URL {
-        if config.createDirectories {
-            try FileManager.default.createDirectory(
-                at: self.destination.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-        }
+        let parentDirectory = self.destination.deletingLastPathComponent()
 
-        // Check if HTML contains images - use WebView if so
-        if self.html.containsImages() {
+        // Directory validation with thread-safe cache (shared across platforms)
+        try directoryCache.ensureDirectory(
+            at: parentDirectory,
+            createIfNeeded: config.createDirectories
+        )
+
+        // Check if HTML contains images by searching for <img tag in bytes
+        // Use WebView for images (proper rendering), PrintFormatter for text-only (faster)
+        if self.html.containsImageTag() {
             return try await renderWithWebView(config: config)
         } else {
             return try await renderWithPrintFormatter(config: config)
@@ -1754,7 +846,9 @@ extension PDF.Document {
 
     @MainActor
     private func renderWithPrintFormatter(config: PDF.Configuration) async throws -> URL {
-        let printFormatter = UIMarkupTextPrintFormatter(markupText: self.html)
+        // Convert bytes to String for UIMarkupTextPrintFormatter (only accepts String)
+        let htmlString = String(decoding: self.html, as: UTF8.self)
+        let printFormatter = UIMarkupTextPrintFormatter(markupText: htmlString)
         let data = try await renderToDataWithFormatter(printFormatter, config: config)
         try data.write(to: self.destination)
         return self.destination
@@ -1772,7 +866,7 @@ extension PDF.Document {
 
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
-        ) { resource in
+        ) { @Sendable @MainActor resource in
             let webView = resource.webView
             let renderer = DocumentWKRenderer(
                 document: self,
@@ -1794,13 +888,11 @@ private func renderDocumentsInternal(
 
     return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task { @MainActor in
+            var completedCount = 0
             do {
                 @Dependency(\.pdf.render.metrics) var metrics
 
-                let maxConcurrent = config.concurrency ??
-                    Swift.min(ProcessInfo.processInfo.activeProcessorCount, 4)
-
-                var completedCount = 0
+                let maxConcurrent = config.concurrency.resolved
 
                 try await withThrowingTaskGroup(of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self) { taskGroup in
                     for (index, document) in documentsArray.prefix(maxConcurrent).enumerated() {
@@ -1808,9 +900,9 @@ private func renderDocumentsInternal(
                             let start = ContinuousClock.now
                             let url = try await document.renderInternal(config: config)
                             let duration = ContinuousClock.now - start
-                            // iOS doesn't easily extract page info, default to 1 page with paper size
-                            let pageCount = 1
-                            let dimensions = [config.paperSize]
+
+                            // Extract actual page count and dimensions from generated PDF
+                            let (pageCount, dimensions) = extractPageInfo(from: url, fallbackSize: config.paperSize)
                             let mode = config.paginationMode
                             return (index, url, pageCount, dimensions, mode, duration)
                         }
@@ -1844,8 +936,9 @@ private func renderDocumentsInternal(
                                 let start = ContinuousClock.now
                                 let url = try await document.renderInternal(config: config)
                                 let duration = ContinuousClock.now - start
-                                let pageCount = 1
-                                let dimensions = [config.paperSize]
+
+                                // Extract actual page count and dimensions from generated PDF
+                                let (pageCount, dimensions) = extractPageInfo(from: url, fallbackSize: config.paperSize)
                                 let mode = config.paginationMode
                                 return (capturedIndex, url, pageCount, dimensions, mode, duration)
                             }
@@ -1853,6 +946,9 @@ private func renderDocumentsInternal(
                     }
                 }
                 continuation.finish()
+
+                // Clear directory cache after batch completes
+                directoryCache.clear()
             } catch {
                 @Dependency(\.logger) var logger
                 @Dependency(\.pdf.render.metrics) var metrics
@@ -1868,9 +964,31 @@ private func renderDocumentsInternal(
                     "error_type": "\(type(of: error))"
                 ])
                 continuation.finish(throwing: error)
+
+                // Clear directory cache on error as well
+                directoryCache.clear()
             }
         }
     }
+}
+
+/// Extract page count and dimensions from PDF file (thread-safe, can run off main actor)
+private func extractPageInfo(from url: URL, fallbackSize: CGSize) -> (pageCount: Int, dimensions: [CGSize]) {
+    guard let pdfDoc = PDFDocument(url: url) else {
+        return (1, [fallbackSize])
+    }
+
+    let pageCount = pdfDoc.pageCount
+    let dimensions = (0..<pageCount).compactMap { index -> CGSize? in
+        pdfDoc.page(at: index)?.bounds(for: .mediaBox).size
+    }
+
+    // Fallback if no pages found
+    if dimensions.isEmpty {
+        return (1, [fallbackSize])
+    }
+
+    return (pageCount, dimensions)
 }
 
 // MARK: - WebView Renderer for Images
@@ -1905,7 +1023,20 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
         try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
             self.webView = webView
-            webView.loadHTMLString(self.document.html, baseURL: self.configuration.baseURL)
+
+            // Perform CSS injection asynchronously (may use cache, matching macOS)
+            Task {
+                let marginCSS = generateMarginCSS(self.configuration)
+                let htmlToLoad = await self.document.html.injectingCSS(marginCSS)
+                let htmlData = htmlToLoad.toData()
+
+                webView.load(
+                    htmlData,
+                    mimeType: "text/html",
+                    characterEncodingName: "UTF-8",
+                    baseURL: self.configuration.baseURL ?? URL(string: "about:blank")!
+                )
+            }
 
             if let timeout = documentTimeout {
                 timeoutTask = Task { [weak self] in
@@ -1967,11 +1098,29 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
     }
 }
 
+// MARK: - CSS Generation
+
+private func generateMarginCSS(_ config: PDF.Configuration) -> ContiguousArray<UInt8> {
+    // Use pre-computed CSS from configuration to avoid repeated string interpolation
+    return config.marginCSSBytes
+}
+
+// MARK: - Byte-level Content Detection
+
+extension ContiguousArray where Element == UInt8 {
+    /// Check if HTML bytes contain an <img tag (case-insensitive)
+    func containsImageTag() -> Bool {
+        // Search for "<img" in bytes (case-insensitive)
+        let pattern = ContiguousArray("<img".utf8)
+        return self.firstRange(of: pattern, options: .caseInsensitive) != nil
+    }
+}
+
 #endif
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.Client+macOS.swift
+// File: Sources/HtmlToPdfLive/PDF.Render.Client+macOS.swift
 // ========================================
 
 //
@@ -2000,58 +1149,7 @@ extension PDF.Render: DependencyKey {
 }
 
 // MARK: - Directory Cache
-
-/// Thread-safe cache for validated directories to avoid redundant file system checks
-///
-/// Thread Safety: Uses `LockIsolated` to protect the validated set with an NSRecursiveLock.
-/// All mutations to the set are performed within `withLock` closures, ensuring exclusive access.
-private final class DirectoryCache: Sendable {
-    private let validated = LockIsolated(Set<String>())
-
-    func ensureDirectory(
-        at url: URL,
-        createIfNeeded: Bool
-    ) throws {
-        let path = url.path
-
-        // Fast path: check cache with lock
-        let isValidated = validated.withValue { $0.contains(path) }
-
-        if isValidated {
-            return
-        }
-
-        // Slow path: check and possibly create (file I/O)
-        if createIfNeeded {
-            try FileManager.default.createDirectory(
-                at: url,
-                withIntermediateDirectories: true
-            )
-            _ = validated.withValue { $0.insert(path) }
-        } else {
-            // Validate directory exists when createDirectories is false
-            var isDirectory: ObjCBool = false
-            if !FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) || !isDirectory.boolValue {
-                throw PrintingError.invalidFilePath(
-                    url,
-                    underlyingError: NSError(
-                        domain: NSCocoaErrorDomain,
-                        code: NSFileNoSuchFileError,
-                        userInfo: [NSLocalizedDescriptionKey: "Directory does not exist: \(path)"]
-                    )
-                )
-            }
-            _ = validated.withValue { $0.insert(path) }
-        }
-    }
-
-    func clear() {
-        validated.withValue { $0.removeAll() }
-    }
-}
-
-/// Shared directory cache for the rendering session
-private let directoryCache = DirectoryCache()
+// DirectoryCache is now in DirectoryCache.swift (shared across platforms)
 
 // MARK: - NSPrintInfo Cache
 
@@ -2112,42 +1210,28 @@ extension PDF.Render.Client {
         documents: { documents in
             @Dependency(\.pdf.render.configuration) var config
 
-            // Validate configuration against platform capabilities
-            try validateConfiguration(config, against: .macOS)
+            // Validate configuration against platform limits
+            try validateConfiguration(config)
 
             return try await renderDocumentsInternal(documents, config: config)
-        },
-        capabilities: {
-            .macOS
         }
     )
 }
 
 // MARK: - Configuration Validation
 
-/// Validate configuration against platform capabilities
-private func validateConfiguration(_ config: PDF.Configuration, against capabilities: PDF.Capabilities) throws {
+/// Validate configuration against platform limits
+private func validateConfiguration(_ config: PDF.Configuration) throws {
     let requestedConcurrency = config.concurrency.resolved
 
     // Check if requested concurrency exceeds platform maximum
-    if requestedConcurrency > capabilities.maxConcurrentOperations {
+    if requestedConcurrency > PDF.PlatformConcurrencyLimit.macOS {
         throw PrintingError.capabilityUnavailable(
             capability: "concurrency=\(requestedConcurrency)",
-            platform: platformName(for: capabilities),
-            reason: "Platform maximum is \(capabilities.maxConcurrentOperations). Requested \(requestedConcurrency) concurrent operations."
+            platform: "macOS",
+            reason: "Platform maximum is \(PDF.PlatformConcurrencyLimit.macOS). Requested \(requestedConcurrency) concurrent operations."
         )
     }
-}
-
-/// Get platform name from capabilities
-private func platformName(for capabilities: PDF.Capabilities) -> String {
-    #if os(macOS)
-    return "macOS"
-    #elseif os(iOS)
-    return "iOS"
-    #else
-    return "Unknown"
-    #endif
 }
 
 // MARK: - Internal Implementation
@@ -2625,7 +1709,1556 @@ private class PrintDelegate: @unchecked Sendable {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.Client.swift
+// File: Sources/HtmlToPdfLive/WKWebViewResource.swift
+// ========================================
+
+//
+//  WKWebViewResource.swift
+//  swift-html-to-pdf
+//
+//  Adapter for WKWebView to work with ResourcePool
+//
+
+#if canImport(WebKit)
+import Foundation
+import WebKit
+import ResourcePool
+import Dependencies
+import LoggingExtras
+
+/// WKWebView wrapper that conforms to PoolableResource
+@MainActor
+public final class WKWebViewResource: PoolableResource {
+    public typealias Config = Void
+
+    /// The underlying WKWebView
+    public let webView: WKWebView
+
+    private init(webView: WKWebView) {
+        self.webView = webView
+    }
+
+    /// Create a new WKWebView resource
+    @MainActor
+    public static func create(config: Config) async throws -> WKWebViewResource {
+        let webViewConfig = WKWebViewConfiguration()
+
+        // Note: processPool defaults to a shared instance, no need to set it explicitly
+        // (avoiding deprecated WKProcessPool APIs)
+
+        // Disable GPU acceleration features we don't need for PDF
+        webViewConfig.suppressesIncrementalRendering = true
+        webViewConfig.preferences.setValue(false, forKey: "acceleratedDrawingEnabled")
+        webViewConfig.preferences.setValue(false, forKey: "displayListDrawingEnabled")
+
+        // Use non-persistent data store (correct for stateless PDF generation)
+        webViewConfig.websiteDataStore = .nonPersistent()
+
+        // Disable JavaScript for PDF rendering
+        if #available(macOS 11.0, iOS 14.0, *) {
+            webViewConfig.defaultWebpagePreferences.allowsContentJavaScript = false
+        } else {
+            webViewConfig.preferences.setValue(false, forKey: "javaScriptEnabled")
+        }
+        webViewConfig.preferences.javaScriptCanOpenWindowsAutomatically = false
+        webViewConfig.preferences.minimumFontSize = 0
+
+        // Disable fraud warning
+        if #available(macOS 11.0, iOS 14.0, *) {
+            webViewConfig.preferences.isFraudulentWebsiteWarningEnabled = false
+        }
+
+        // Suppress WebKit logging warnings
+        webViewConfig.preferences.setValue(true, forKey: "logsPageMessagesToSystemConsoleEnabled")
+        webViewConfig.preferences.setValue(false, forKey: "developerExtrasEnabled")
+
+        #if os(iOS)
+        webViewConfig.allowsInlineMediaPlayback = true
+        webViewConfig.suppressesIncrementalRendering = true
+        #endif
+
+        let webView = WKWebView(frame: .zero, configuration: webViewConfig)
+
+        // Disable background drawing on macOS
+        #if os(macOS)
+        webView.setValue(false, forKey: "drawsBackground")
+        #endif
+
+        return WKWebViewResource(webView: webView)
+    }
+
+    /// Validate that the resource is still usable
+    @MainActor
+    public func validate() async -> Bool {
+        // Check if WebView is still responsive
+        do {
+            // Try a simple JavaScript evaluation to check responsiveness
+            _ = try await webView.evaluateJavaScript("1 + 1")
+            return true
+        } catch {
+            // WebView is unresponsive or in error state
+            @Dependency(\.logger) var logger
+            logger.warning("WebView validation failed, will be replaced", metadata: [
+                "error": "\(error)",
+                "error_type": "\(type(of: error))"
+            ])
+            return false
+        }
+    }
+
+    /// Reset the resource for reuse
+    @MainActor
+    public func reset() async throws {
+        // Stop any ongoing loads
+        webView.stopLoading()
+
+        // Clear navigation delegate
+        webView.navigationDelegate = nil
+
+        // Note: Expensive operations like loading blank HTML, clearing data stores,
+        // or JavaScript validation caused 10x performance degradation.
+        // Instead, rely on resource cycling (maxUsesBeforeCycling in ResourcePool)
+        // and validate() to periodically replace unhealthy WebViews.
+        // The stopLoading() and delegate clearing above is sufficient for cleanup.
+    }
+}
+
+#endif
+
+// ========================================
+// File: Sources/HtmlToPdfLive/WebViewPoolClient-ResourcePool.swift
+// ========================================
+
+//
+//  WebViewPoolClient-ResourcePool.swift
+//  swift-html-to-pdf
+//
+//  WebViewPoolClient implementation using ResourcePool
+//
+
+#if canImport(WebKit)
+import Foundation
+import WebKit
+import Dependencies
+import LoggingExtras
+import ResourcePool
+import IssueReporting
+
+/// Adaptive throughput optimizer that monitors performance and triggers optimizations
+private actor AdaptiveThroughputOptimizer {
+    struct MetricsWindow: Sendable {
+        let timestamp: Date
+        let pdfsCompleted: Int
+        let throughput: Double // PDFs/sec
+    }
+
+    enum OptimizationAction {
+        case triggerPoolReplacement
+        case none
+    }
+
+    private var windows: [MetricsWindow] = []
+    private let windowDuration: TimeInterval = 5.0
+    private let maxWindows = 10 // Keep last 50 seconds of history
+    private var windowStartTime: Date = Date()
+    private var windowPDFCount: Int = 0
+    private var absolutePeakThroughput: Double = 0.0 // Track peak across entire run
+
+    /// Record a completed PDF and update metrics
+    func recordPDF() -> OptimizationAction? {
+        windowPDFCount += 1
+
+        let now = Date()
+        let elapsed = now.timeIntervalSince(windowStartTime)
+
+        // Complete window if duration exceeded
+        if elapsed >= windowDuration {
+            let throughput = Double(windowPDFCount) / elapsed
+            let window = MetricsWindow(
+                timestamp: now,
+                pdfsCompleted: windowPDFCount,
+                throughput: throughput
+            )
+
+            windows.append(window)
+
+            // Update absolute peak
+            if throughput > absolutePeakThroughput {
+                absolutePeakThroughput = throughput
+            }
+
+            // Update metrics gauge with current throughput
+            @Dependency(\.pdf.render.metrics) var metrics
+            metrics.updateThroughput(throughput)
+
+            // Keep only recent windows
+            if windows.count > maxWindows {
+                windows.removeFirst()
+            }
+
+            // Reset window
+            windowStartTime = now
+            windowPDFCount = 0
+
+            // Check if optimization needed
+            return shouldOptimize()
+        }
+
+        return nil
+    }
+
+    /// Detect if throughput is degrading and optimization is needed
+    private func shouldOptimize() -> OptimizationAction? {
+        // Need at least 5 windows to establish reliable baseline (25 seconds of data)
+        guard windows.count >= 5 else { return nil }
+
+        // Get recent average (last 3 windows = 15 seconds)
+        let recentWindows = Array(windows.suffix(3))
+        let recentAverage = recentWindows.map(\.throughput).reduce(0, +) / Double(recentWindows.count)
+
+        // Get peak from the last 5 windows (local peak within recent history)
+        let localPeak = windows.suffix(5).map(\.throughput).max()!
+
+        // Trigger if recent average drops >5% from local peak
+        // This balances early detection with avoiding false positives
+        // 5% degradation is significant enough to warrant pool replacement
+        if localPeak > 1500 && recentAverage < localPeak * 0.95 {
+            @Dependency(\.logger) var logger
+            let degradationPercent = (1.0 - recentAverage/localPeak) * 100
+            logger.warning("Adaptive pool replacement triggered due to performance degradation", metadata: [
+                "recent_average_pdfs_sec": "\(Int(recentAverage))",
+                "local_peak_pdfs_sec": "\(Int(localPeak))",
+                "degradation_percent": "\(String(format: "%.1f", degradationPercent))"
+            ])
+            return .triggerPoolReplacement
+        }
+
+        return nil
+    }
+
+    /// Reset peak after pool replacement to allow new baseline
+    func resetPeak() {
+        absolutePeakThroughput = 0.0
+        windows.removeAll()
+        windowStartTime = Date()
+        windowPDFCount = 0
+    }
+
+    /// Get current throughput statistics
+    func getStats() -> (current: Double?, peak: Double?, windows: Int) {
+        let currentThroughput = windows.last?.throughput
+        let peakThroughput = windows.map(\.throughput).max()
+        return (currentThroughput, peakThroughput, windows.count)
+    }
+}
+
+/// Global shared pool actor to ensure only one pool exists across all consumers
+/// Adds batch replacement capability to mitigate WebKit process-level memory leaks
+/// Now includes adaptive throughput optimization
+@globalActor
+private actor WebViewPoolActor {
+    static let shared = WebViewPoolActor()
+
+    private var sharedPool: ResourcePool<WKWebViewResource>?
+    private var totalPDFsGenerated: Int = 0
+    private var poolProvider: (@Sendable () async throws -> ResourcePool<WKWebViewResource>)?
+    private var isReplacing: Bool = false  // Prevent concurrent replacements
+    private var adaptiveOptimizer: AdaptiveThroughputOptimizer?
+    private var adaptiveOptimizationEnabled: Bool = false
+
+    func getOrCreatePool(
+        provider: @escaping @Sendable () async throws -> ResourcePool<WKWebViewResource>,
+        adaptiveOptimization: Bool = false
+    ) async throws -> ResourcePool<WKWebViewResource> {
+        // Store provider for pool replacement
+        if poolProvider == nil {
+            poolProvider = provider
+        }
+
+        // Enable adaptive optimization if requested
+        if adaptiveOptimization && adaptiveOptimizer == nil {
+            adaptiveOptimizer = AdaptiveThroughputOptimizer()
+            adaptiveOptimizationEnabled = true
+            @Dependency(\.logger) var logger
+            logger.debug("Adaptive throughput optimization enabled")
+        }
+
+        if let existing = sharedPool {
+            return existing
+        }
+
+        let newPool = try await provider()
+        sharedPool = newPool
+        @Dependency(\.logger) var logger
+        logger.info("WebView pool initialized")
+        return newPool
+    }
+
+    /// Record PDF generation and trigger batch replacement if threshold reached
+    func recordPDFGenerated() async throws {
+        totalPDFsGenerated += 1
+
+        // Adaptive optimization: monitor throughput and trigger early optimization
+        if adaptiveOptimizationEnabled, let optimizer = adaptiveOptimizer {
+            if let action = await optimizer.recordPDF() {
+                switch action {
+                case .triggerPoolReplacement:
+                    // Adaptive optimizer detected degradation - trigger early replacement
+                    if !isReplacing, let provider = poolProvider {
+                        try await triggerPoolReplacement(provider: provider, reason: "adaptive optimization")
+                    }
+                case .none:
+                    break
+                }
+            }
+        }
+
+        // Check if we've hit the batch replacement threshold (fallback/safety mechanism)
+        // Use isReplacing flag to prevent race condition where multiple PDFs trigger replacement
+        @Dependency(\.pdf.render.configuration) var configuration
+        if let threshold = configuration.poolReplacementThreshold,
+           totalPDFsGenerated >= threshold,
+           !isReplacing,
+           let provider = poolProvider {
+            try await triggerPoolReplacement(provider: provider, reason: "threshold reached")
+        }
+    }
+
+    /// Trigger pool replacement
+    private func triggerPoolReplacement(
+        provider: @Sendable () async throws -> ResourcePool<WKWebViewResource>,
+        reason: String
+    ) async throws {
+        isReplacing = true
+        let oldCount = totalPDFsGenerated
+        let startTime = Date()
+        @Dependency(\.logger) var logger
+        @Dependency(\.pdf.render.metrics) var metrics
+
+        logger.info("Pool replacement started", metadata: [
+            "pdf_count": "\(oldCount)",
+            "reason": "\(reason)"
+        ])
+
+        // Create new pool (warmup will happen in background)
+        let newPool = try await provider()
+
+        // Swap to new pool immediately
+        // The old pool will be released when all current operations complete
+        // Swift's ARC will handle cleanup automatically
+        sharedPool = newPool
+        totalPDFsGenerated = 0
+
+        // Record pool replacement metric
+        metrics.recordPoolReplacement()
+
+        // Reset adaptive optimizer to establish new baseline
+        if let optimizer = adaptiveOptimizer {
+            await optimizer.resetPeak()
+        }
+
+        isReplacing = false
+
+        let duration = Date().timeIntervalSince(startTime)
+        logger.info("Pool replacement complete", metadata: [
+            "duration_seconds": "\(String(format: "%.2f", duration))",
+            "previous_pdf_count": "\(oldCount)"
+        ])
+    }
+}
+
+// MARK: - Active Operations Tracker
+
+/// Tracks the number of currently active WebView operations for pool utilization metrics
+actor ActiveOperationsTracker {
+    private var activeCount: Int = 0
+    static let shared = ActiveOperationsTracker()
+
+    func increment() {
+        activeCount += 1
+        updateMetrics()
+    }
+
+    func decrement() {
+        activeCount -= 1
+        updateMetrics()
+    }
+
+    private func updateMetrics() {
+        @Dependency(\.pdf.render.metrics) var metrics
+        metrics.updatePoolUtilization(activeCount)
+    }
+}
+
+/// Client for managing WebView pool using ResourcePool
+public struct WebViewPoolClient: Sendable {
+    /// Lazy-initialized resource pool provider
+    private let poolProvider: @Sendable () async throws -> ResourcePool<WKWebViewResource>
+
+    init(
+        poolProvider: @escaping @Sendable () async throws -> ResourcePool<WKWebViewResource>
+    ) {
+        self.poolProvider = poolProvider
+    }
+
+    /// Get the pool, creating it if necessary (globally shared)
+    private func getPool() async throws -> ResourcePool<WKWebViewResource> {
+        // Read configuration dynamically at pool creation time (not client creation time)
+        // This ensures withDependencies overrides are properly captured
+        @Dependency(\.pdf.render.configuration) var configuration
+
+        return try await WebViewPoolActor.shared.getOrCreatePool(
+            provider: poolProvider,
+            adaptiveOptimization: configuration.adaptiveThroughputOptimization
+        )
+    }
+
+    /// The underlying resource pool (for direct access)
+    public var pool: ResourcePool<WKWebViewResource> {
+        get async throws {
+            try await getPool()
+        }
+    }
+
+    /// Record that a PDF was generated (triggers batch replacement if threshold reached)
+    public func recordPDFGenerated() async throws {
+        try await WebViewPoolActor.shared.recordPDFGenerated()
+    }
+}
+
+extension WebViewPoolClient: DependencyKey {
+    public static var liveValue: WebViewPoolClient {
+        return WebViewPoolClient(
+            poolProvider: { @MainActor in
+                // Pool size comes from configuration via dependencies
+                @Dependency(\.pdf.render.configuration) var configuration
+                let poolSize = configuration.concurrency.resolved
+
+                // Create pool with warmup
+                // Batch replacement (every 30K PDFs) handles memory leaks at pool level
+                return try await ResourcePool<WKWebViewResource>(
+                    capacity: poolSize,
+                    resourceConfig: (),
+                    warmup: true,
+                    maxUsesBeforeCycling: nil  // No per-resource cycling - using batch replacement
+                )
+            }
+        )
+    }
+
+    public static var testValue: WebViewPoolClient {
+        WebViewPoolClient(poolProvider: { @MainActor in
+            return try await ResourcePool<WKWebViewResource>(
+                capacity: 2,
+                resourceConfig: (),
+                warmup: false
+            )
+        })
+    }
+}
+
+extension DependencyValues {
+    public var webViewPool: WebViewPoolClient {
+        get { self[WebViewPoolClient.self] }
+        set { self[WebViewPoolClient.self] = newValue }
+    }
+}
+
+#endif
+
+
+// ========================================
+// File: Sources/HtmlToPdfLive/exports.swift
+// ========================================
+
+@_exported import HtmlToPdfTypes
+@_exported import Dependencies
+@_exported import LoggingExtras
+@_exported import ResourcePool
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.Capabilities.swift
+// ========================================
+
+//
+//  PDF.Capabilities.swift
+//  swift-html-to-pdf
+//
+//  Platform concurrency limits
+//
+
+import Foundation
+
+extension PDF {
+    /// Platform-specific maximum concurrent operations
+    ///
+    /// These constants define safe concurrency limits for each platform based on:
+    /// - Memory constraints (especially iOS)
+    /// - WebView process limits
+    /// - Thermal management (mobile devices)
+    ///
+    /// Used for:
+    /// - Validating requested concurrency doesn't exceed platform max
+    /// - Capping automatic concurrency calculation
+    public enum PlatformConcurrencyLimit {
+        /// macOS maximum: 16 concurrent WebViews
+        ///
+        /// Based on:
+        /// - Desktop-class memory
+        /// - Active cooling
+        /// - Background process support
+        public static let macOS = 16
+
+        /// iOS maximum: 8 concurrent WebViews
+        ///
+        /// Based on:
+        /// - Mobile memory constraints
+        /// - Thermal management
+        /// - App suspension policies
+        public static let iOS = 8
+
+        /// Linux maximum: 32 concurrent operations
+        ///
+        /// Future support via wkhtmltopdf or headless Chrome
+        public static let linux = 32
+
+        /// Mock/test limit: 1 for deterministic testing
+        public static let mock = 1
+    }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.ConcurrencyStrategy.swift
+// ========================================
+
+//
+//  PDF.ConcurrencyStrategy.swift
+//  swift-html-to-pdf
+//
+//  Strategy for determining concurrency during PDF rendering
+//
+
+import Foundation
+
+// MARK: - Concurrency Strategy
+
+extension PDF {
+    /// Strategy for determining concurrency during PDF rendering
+    ///
+    /// Supports both explicit integer values and automatic calculation:
+    /// ```swift
+    /// // Integer literal
+    /// configuration.concurrency = 4
+    ///
+    /// // Explicit fixed
+    /// configuration.concurrency = .fixed(8)
+    ///
+    /// // Automatic (intelligent defaults based on hardware)
+    /// configuration.concurrency = .automatic
+    /// ```
+    public struct ConcurrencyStrategy: Sendable, Equatable, ExpressibleByIntegerLiteral {
+        internal let mode: Mode
+
+        internal enum Mode: Sendable, Equatable {
+            case fixed(Int)
+            case automatic
+        }
+
+        // MARK: - Initialization
+
+        private init(mode: Mode) {
+            self.mode = mode
+        }
+
+        // MARK: - ExpressibleByIntegerLiteral
+
+        public init(integerLiteral value: Int) {
+            self.mode = .fixed(value)
+        }
+
+        // MARK: - Static Constructors
+
+        /// Fixed concurrency - use exact number of concurrent operations
+        public static func fixed(_ value: Int) -> Self {
+            Self(mode: .fixed(value))
+        }
+
+        /// Automatic concurrency - calculate optimal value based on CPU count and available memory
+        public static let automatic = Self(mode: .automatic)
+
+        // MARK: - Internal
+
+        /// Calculate optimal concurrency based on system hardware
+        ///
+        /// Empirical testing shows WebView memory usage does NOT scale linearly:
+        /// - 1 WebView: ~100 MB total (includes pool overhead)
+        /// - 4 WebViews: ~37 MB total (GC cleanup)
+        /// - 8 WebViews: ~38 MB total
+        /// - 16 WebViews: ~32 MB total
+        ///
+        /// Memory actually DECREASES with higher concurrency due to efficient resource management.
+        ///
+        /// Adaptive throughput optimization testing (5000 PDFs sample) on 8-core M-series Mac:
+        /// - 4 WebViews: 860 PDFs/sec
+        /// - 8 WebViews: 928 PDFs/sec (1x CPU count)
+        /// - 12 WebViews: 686 PDFs/sec
+        /// - 16 WebViews: 771 PDFs/sec (2x CPU count)
+        /// - 20 WebViews: 946 PDFs/sec
+        /// - 24 WebViews: 1113 PDFs/sec (3x CPU count) ← OPTIMAL
+        /// - 28 WebViews: 1086 PDFs/sec
+        /// - 32 WebViews: 1057 PDFs/sec (4x CPU count)
+        ///
+        /// Peak throughput occurs at 3x CPU count due to WebView I/O waiting.
+        internal static func calculateDefaultConcurrency() -> Int {
+            let cpuCount = ProcessInfo.processInfo.activeProcessorCount
+
+            #if canImport(UIKit)
+            // iOS: Still cap at 4 due to mobile constraints (battery, thermal, app suspension)
+            let calculated = max(2, min(cpuCount, 4))
+            // Cap at platform maximum
+            return min(calculated, PDF.PlatformConcurrencyLimit.iOS)
+            #else
+            // macOS/Linux: Use 3x CPU count for optimal throughput
+            // WebViews spend significant time in I/O, so oversubscription helps
+            let calculated = max(2, cpuCount * 3)
+            // Cap at platform maximum
+            #if os(macOS)
+            return min(calculated, PDF.PlatformConcurrencyLimit.macOS)
+            #else
+            return calculated
+            #endif
+            #endif
+        }
+
+        /// Resolve to concrete concurrency value
+        public var resolved: Int {
+            switch mode {
+            case .fixed(let value):
+                return max(1, value)
+            case .automatic:
+                return Self.calculateDefaultConcurrency()
+            }
+        }
+    }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.Configuration.swift
+// ========================================
+
+//
+//  PDF.Configuration.swift
+//  swift-html-to-pdf
+//
+//  Configuration for PDF rendering
+//
+
+import Dependencies
+import DependenciesMacros
+import Foundation
+
+// MARK: - Configuration
+
+extension PDF {
+    /// Configuration for PDF rendering
+    ///
+    /// Set configuration once via `withDependencies`:
+    /// ```swift
+    /// try await withDependencies {
+    ///     $0.pdfConfiguration.paperSize = .letter
+    ///     $0.pdfConfiguration.margins = .wide
+    ///     $0.pdfConfiguration.concurrency = 16
+    /// } operation: {
+    ///     @Dependency(\.pdf) var pdf
+    ///     try await pdf.render(html, to: url)
+    /// }
+    /// ```
+    public struct Configuration: Sendable {
+
+        // MARK: - Document Configuration
+
+        /// Paper size for PDF documents
+        public var paperSize: CGSize
+
+        /// Margins applied to each page
+        public var margins: EdgeInsets
+
+        /// Base URL for resolving relative URLs in HTML
+        public var baseURL: URL?
+
+        /// How content should be paginated in the PDF
+        public var paginationMode: PaginationMode
+
+        // MARK: - Batch Configuration
+
+        /// Concurrency strategy for PDF rendering
+        ///
+        /// Supports multiple forms:
+        /// - Integer literal: `concurrency = 4`
+        /// - Explicit: `concurrency = .fixed(8)`
+        /// - Automatic: `concurrency = .automatic`
+        ///
+        /// Default is `.automatic`, which calculates optimal concurrency based on CPU count and available memory.
+        public var concurrency: ConcurrencyStrategy = .automatic
+
+        /// Enable adaptive throughput optimization
+        ///
+        /// When enabled, the system monitors throughput in real-time and automatically:
+        /// - Detects performance degradation (>15% drop from peak)
+        /// - Triggers early pool replacement to restore performance
+        /// - Adapts to workload characteristics dynamically
+        ///
+        /// This is particularly beneficial for long-running batch operations (>10K PDFs).
+        /// Default is `false` for backward compatibility.
+        public var adaptiveThroughputOptimization: Bool = false
+
+        /// Pool replacement threshold (number of PDFs before triggering pool replacement)
+        ///
+        /// The WebView pool is automatically replaced after processing this many PDFs to mitigate
+        /// WebKit process-level memory leaks that accumulate over long batch operations.
+        ///
+        /// **Rationale:**
+        /// - WebKit processes accumulate memory over time even with proper cleanup
+        /// - Periodic pool replacement ensures sustained performance for long-running services
+        /// - Default (30,000) balances performance with resource management
+        ///
+        /// **Tuning Guidelines:**
+        /// - **Long-running services**: Use default (30,000) or higher
+        /// - **Short-lived CLIs**: Set to `nil` to disable automatic replacement
+        /// - **Memory-constrained environments**: Lower to 10,000-15,000
+        /// - **High-throughput systems**: Rely on `adaptiveThroughputOptimization` instead
+        ///
+        /// Set to `nil` to disable automatic pool replacement entirely.
+        /// Default is `30_000` for long-running services.
+        public var poolReplacementThreshold: Int? = 30_000
+
+        /// Timeout per document (nil = no timeout)
+        public var documentTimeout: Duration?
+
+        /// Timeout for entire batch (nil = no timeout)
+        public var batchTimeout: Duration?
+
+        /// Timeout for acquiring WebView from pool
+        ///
+        /// Default is 60 seconds, which is appropriate for interactive apps and services.
+        /// For bulk/offline jobs or CI environments, consider increasing to 300-600 seconds
+        /// using the `.largeBatch` preset or setting explicitly.
+        public var webViewAcquisitionTimeout: Duration
+
+        // MARK: - File System
+
+        /// Automatically create directories if they don't exist
+        public var createDirectories: Bool
+
+        // MARK: - Naming Strategy
+
+        /// How to name files in batch operations
+        public var namingStrategy: NamingStrategy
+
+        // MARK: - Computed Properties
+
+        /// Pre-computed margin CSS bytes for performance
+        /// Generated on-demand and cached based on margins
+        public var marginCSSBytes: ContiguousArray<UInt8> {
+            let css = """
+            <style>
+            @media print, screen {
+                html {
+                    margin: 0;
+                    padding: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: \(margins.top)pt \(margins.right)pt \(margins.bottom)pt \(margins.left)pt;
+                    box-sizing: border-box;
+                }
+            }
+            </style>
+            """
+            return ContiguousArray(css.utf8)
+        }
+
+        public init(
+            paperSize: CGSize = .a4,
+            margins: EdgeInsets = .standard,
+            baseURL: URL? = nil,
+            paginationMode: PaginationMode = .continuous,
+            concurrency: ConcurrencyStrategy = .automatic,
+            adaptiveThroughputOptimization: Bool = false,
+            poolReplacementThreshold: Int? = 30_000,
+            documentTimeout: Duration? = nil,
+            batchTimeout: Duration? = nil,
+            webViewAcquisitionTimeout: Duration = .seconds(60),
+            createDirectories: Bool = true,
+            namingStrategy: NamingStrategy = .sequential
+        ) {
+            self.paperSize = paperSize
+            self.margins = margins
+            self.baseURL = baseURL
+            self.paginationMode = paginationMode
+            self.concurrency = concurrency
+            self.adaptiveThroughputOptimization = adaptiveThroughputOptimization
+            self.poolReplacementThreshold = poolReplacementThreshold
+            self.documentTimeout = documentTimeout
+            self.batchTimeout = batchTimeout
+            self.webViewAcquisitionTimeout = webViewAcquisitionTimeout
+            self.createDirectories = createDirectories
+            self.namingStrategy = namingStrategy
+        }
+    }
+}
+
+// MARK: - Configuration Presets
+
+extension PDF.Configuration {
+    /// Default configuration (A4, standard margins, continuous mode for fast rendering)
+    public static let `default` = PDF.Configuration()
+
+    /// US Letter size with standard margins
+    public static let letter = PDF.Configuration(paperSize: .letter)
+
+    /// A4 landscape with minimal margins
+    public static let landscapeMinimal = PDF.Configuration(
+        paperSize: .a4.landscape,
+        margins: .minimal
+    )
+
+    /// Multi-page documents with correct A4 dimensions (alias for .default)
+    public static let multiPage = PDF.Configuration(
+        paginationMode: .paginated
+    )
+
+    /// Fast continuous mode for screen viewing (single tall page)
+    public static let continuous = PDF.Configuration(
+        paginationMode: .continuous
+    )
+
+    /// Smart auto-detection based on content
+    public static let smart = PDF.Configuration(
+        paginationMode: .automatic()
+    )
+
+    /// Optimized for large batch processing (auto-detect with speed preference)
+    public static let largeBatch = PDF.Configuration(
+        paginationMode: .automatic(heuristic: .preferSpeed),
+        concurrency: .automatic,
+        batchTimeout: .seconds(86400), // 24 hours
+        webViewAcquisitionTimeout: .seconds(600)
+    )
+
+    /// Optimized for current platform
+    public static var platformOptimized: Self {
+        .init(
+            paperSize: .a4,
+            margins: .standard,
+            concurrency: .automatic,
+            webViewAcquisitionTimeout: .seconds(60)
+        )
+    }
+}
+
+// MARK: - Dependency Registration
+
+extension PDF.Configuration: TestDependencyKey {
+    public static let testValue = PDF.Configuration.default
+}
+
+// Note: PDF.Configuration is now accessed via \.pdf.configuration
+// The PDF struct (in PDF.swift) handles the main dependency registration
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.Document.swift
+// ========================================
+
+//
+//  PDF.Document.swift
+//  swift-html-to-pdf
+//
+//  Document model for PDF rendering (Types - no HTML library dependencies)
+//
+
+import Foundation
+
+// MARK: - CSS Injection Cache
+
+/// Thread-safe cache for CSS-injected HTML to avoid redundant processing
+private actor CSSInjectionCache {
+    private var cache: [Int: ContiguousArray<UInt8>] = [:]
+    private var accessOrder: [Int] = []
+    private let maxEntries = 100
+
+    func get(key: Int) -> ContiguousArray<UInt8>? {
+        cache[key]
+    }
+
+    func set(key: Int, value: ContiguousArray<UInt8>) {
+        // Evict oldest entry if at capacity
+        if cache.count >= maxEntries, !cache.keys.contains(key) {
+            if let oldestKey = accessOrder.first {
+                cache.removeValue(forKey: oldestKey)
+                accessOrder.removeFirst()
+            }
+        }
+
+        cache[key] = value
+        accessOrder.append(key)
+    }
+
+    func clear() {
+        cache.removeAll()
+        accessOrder.removeAll()
+    }
+}
+
+private let cssInjectionCache = CSSInjectionCache()
+
+extension PDF {
+    /// A document to be rendered as a PDF
+    ///
+    /// Examples:
+    /// ```swift
+    /// // Using String (simple)
+    /// let doc = PDF.Document(htmlString: "<html><body>Hello</body></html>", destination: fileURL)
+    ///
+    /// // Using raw bytes (advanced)
+    /// let doc = PDF.Document(htmlBytes: bytes, destination: fileURL)
+    /// ```
+    public struct Document: Sendable {
+        let htmlBytes: ContiguousArray<UInt8>
+        public let destination: URL
+
+        // MARK: - Initializers
+
+        /// Create a document from raw HTML bytes (advanced usage)
+        public init(htmlBytes: ContiguousArray<UInt8>, destination: URL) {
+            self.htmlBytes = htmlBytes
+            self.destination = destination
+        }
+
+        public init(htmlBytes: ContiguousArray<UInt8>, title: String, in directory: URL) {
+            self.htmlBytes = htmlBytes
+            self.destination = directory
+                .appendingPathComponent(title.replacingSlashesWithDivisionSlash())
+                .appendingPathExtension("pdf")
+        }
+
+        /// Create a document from an HTML string (convenience)
+        public init(htmlString: String, destination: URL) {
+            self.htmlBytes = ContiguousArray(htmlString.utf8)
+            self.destination = destination
+        }
+
+        public init(htmlString: String, title: String, in directory: URL) {
+            self.htmlBytes = ContiguousArray(htmlString.utf8)
+            self.destination = directory
+                .appendingPathComponent(title.replacingSlashesWithDivisionSlash())
+                .appendingPathExtension("pdf")
+        }
+
+        // MARK: - Internal Access
+
+        /// Access the HTML bytes for rendering
+        public var html: ContiguousArray<UInt8> { htmlBytes }
+    }
+}
+
+// MARK: - String Utilities
+
+extension String {
+    func replacingSlashesWithDivisionSlash() -> String {
+        let divisionSlash = "\u{2215}" // Unicode for Division Slash (∕)
+        return self
+            .replacingOccurrences(of: "/", with: divisionSlash)
+            .replacingOccurrences(of: ":", with: "-")      // Colon not allowed in filenames
+            .replacingOccurrences(of: "?", with: "")       // Question mark not allowed
+            .replacingOccurrences(of: "*", with: "-")      // Asterisk not allowed
+            .replacingOccurrences(of: "<", with: "")       // Less-than not allowed
+            .replacingOccurrences(of: ">", with: "")       // Greater-than not allowed
+            .replacingOccurrences(of: "|", with: "-")      // Pipe not allowed
+            .replacingOccurrences(of: "\"", with: "")      // Quote not allowed
+            .replacingOccurrences(of: "\\", with: divisionSlash)  // Backslash treated like forward slash
+    }
+}
+
+// MARK: - ContiguousArray Utilities
+
+extension ContiguousArray where Element == UInt8 {
+    /// Injects CSS bytes into HTML with caching for repeated injections
+    ///
+    /// This method caches the result to avoid redundant work when the same HTML+CSS
+    /// combination is processed multiple times (common in batch operations).
+    public func injectingCSS(_ cssBytes: ContiguousArray<UInt8>) async -> ContiguousArray<UInt8> {
+        // Generate cache key from HTML + CSS content
+        let cacheKey = generateCacheKey(html: self, css: cssBytes)
+
+        // Check cache first
+        if let cached = await cssInjectionCache.get(key: cacheKey) {
+            return cached
+        }
+
+        // Cache miss - perform injection
+        let result = performCSSInjection(cssBytes)
+
+        // Store in cache for future reuse
+        await cssInjectionCache.set(key: cacheKey, value: result)
+
+        return result
+    }
+
+    /// Generate a cache key for HTML + CSS combination
+    private func generateCacheKey(html: ContiguousArray<UInt8>, css: ContiguousArray<UInt8>) -> Int {
+        // Use Swift's Hasher (xxHash-based) - 10-100x faster than SHA256
+        // Collision resistance is sufficient for cache keys
+        var hasher = Hasher()
+        html.withUnsafeBufferPointer { htmlBuffer in
+            hasher.combine(bytes: UnsafeRawBufferPointer(htmlBuffer))
+        }
+        css.withUnsafeBufferPointer { cssBuffer in
+            hasher.combine(bytes: UnsafeRawBufferPointer(cssBuffer))
+        }
+        return hasher.finalize()
+    }
+
+    /// Perform the actual CSS injection (uncached)
+    private func performCSSInjection(_ cssBytes: ContiguousArray<UInt8>) -> ContiguousArray<UInt8> {
+        let headEndBytes = ContiguousArray("</head>".utf8)
+        let headStartBytes = ContiguousArray("<head>".utf8)
+        let bodyBytes = ContiguousArray("<body".utf8)
+
+        // Try to inject before </head>
+        if let range = self.firstRange(of: headEndBytes, options: .caseInsensitive) {
+            var result = ContiguousArray<UInt8>()
+            result.reserveCapacity(self.count + cssBytes.count)
+            result.append(contentsOf: self[..<range.lowerBound])
+            result.append(contentsOf: cssBytes)
+            result.append(contentsOf: self[range.lowerBound...])
+            return result
+        }
+        // Try to inject after <head>
+        else if let headRange = self.firstRange(of: headStartBytes, options: .caseInsensitive) {
+            // Find closing >
+            if let closingBracket = self[headRange.upperBound...].firstIndex(of: UInt8(ascii: ">")) {
+                let insertPoint = self.index(after: closingBracket)
+                var result = ContiguousArray<UInt8>()
+                result.reserveCapacity(self.count + cssBytes.count)
+                result.append(contentsOf: self[..<insertPoint])
+                result.append(contentsOf: cssBytes)
+                result.append(contentsOf: self[insertPoint...])
+                return result
+            }
+        }
+        // Try to inject before <body>
+        else if let bodyRange = self.firstRange(of: bodyBytes, options: .caseInsensitive) {
+            var result = ContiguousArray<UInt8>()
+            result.reserveCapacity(self.count + cssBytes.count)
+            result.append(contentsOf: self[..<bodyRange.lowerBound])
+            result.append(contentsOf: cssBytes)
+            result.append(contentsOf: self[bodyRange.lowerBound...])
+            return result
+        }
+
+        // Otherwise inject at the beginning
+        var result = cssBytes
+        result.append(contentsOf: self)
+        return result
+    }
+
+    /// Convert to Data for WKWebView loading
+    public func toData() -> Data {
+        Data(self)
+    }
+}
+
+// MARK: - Byte Search Utilities
+
+extension ContiguousArray where Element == UInt8 {
+    enum SearchOptions {
+        case caseInsensitive
+    }
+
+    /// Find first occurrence of pattern in array
+    func firstRange(of pattern: ContiguousArray<UInt8>, options: SearchOptions? = nil) -> Range<Int>? {
+        guard !pattern.isEmpty, pattern.count <= self.count else { return nil }
+
+        let caseInsensitive = options == .caseInsensitive
+
+        for i in 0...(count - pattern.count) {
+            var matches = true
+            for j in 0..<pattern.count {
+                let selfByte = caseInsensitive ? self[i + j].lowercased : self[i + j]
+                let patternByte = caseInsensitive ? pattern[j].lowercased : pattern[j]
+                if selfByte != patternByte {
+                    matches = false
+                    break
+                }
+            }
+            if matches {
+                return i..<(i + pattern.count)
+            }
+        }
+        return nil
+    }
+}
+
+extension UInt8 {
+    /// Simple ASCII lowercase conversion
+    var lowercased: UInt8 {
+        if self >= 65 && self <= 90 { // A-Z
+            return self + 32
+        }
+        return self
+    }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.EdgeInsets.swift
+// ========================================
+
+//
+//  PDF.EdgeInsets.swift
+//  swift-html-to-pdf
+//
+//  Edge insets for PDF margins
+//
+
+import Foundation
+
+/// Edge insets for defining margins
+///
+/// All margin values must be non-negative. Negative values are automatically clamped to zero.
+///
+/// ## Example
+///
+/// ```swift
+/// // Using presets (recommended)
+/// let margins = EdgeInsets.standard  // 0.5 inch (36pt) on all sides
+///
+/// // Custom margins
+/// let margins = EdgeInsets(top: 50, left: 40, bottom: 50, right: 40)
+///
+/// // Negative values are clamped to zero
+/// let margins = EdgeInsets(all: -10)  // Results in 0 on all sides
+/// ```
+public struct EdgeInsets: Sendable {
+    public let top: CGFloat
+    public let left: CGFloat
+    public let bottom: CGFloat
+    public let right: CGFloat
+
+    /// Creates edge insets with the specified margins
+    ///
+    /// Negative values are automatically clamped to zero to prevent invalid margin configurations.
+    ///
+    /// - Parameters:
+    ///   - top: Top margin in points (clamped to >= 0)
+    ///   - left: Left margin in points (clamped to >= 0)
+    ///   - bottom: Bottom margin in points (clamped to >= 0)
+    ///   - right: Right margin in points (clamped to >= 0)
+    public init(top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat) {
+        self.top = max(0, top)
+        self.left = max(0, left)
+        self.bottom = max(0, bottom)
+        self.right = max(0, right)
+    }
+
+    // Convenience initializers
+
+    /// Creates edge insets with the same margin on all sides
+    ///
+    /// Negative values are automatically clamped to zero.
+    ///
+    /// - Parameter all: Margin for all sides in points (clamped to >= 0)
+    public init(all: CGFloat) {
+        self.init(top: all, left: all, bottom: all, right: all)
+    }
+
+    /// Creates edge insets with horizontal and vertical margins
+    ///
+    /// Negative values are automatically clamped to zero.
+    ///
+    /// - Parameters:
+    ///   - horizontal: Left and right margin in points (clamped to >= 0)
+    ///   - vertical: Top and bottom margin in points (clamped to >= 0)
+    public init(horizontal: CGFloat, vertical: CGFloat) {
+        self.init(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
+    }
+}
+
+// MARK: - Presets
+
+extension EdgeInsets {
+    /// No margins
+    public static let none = EdgeInsets(all: 0)
+
+    /// Minimal margins (0.25 inch)
+    public static let minimal = EdgeInsets(all: 18)
+
+    /// Standard margins (0.5 inch)
+    public static let standard = EdgeInsets(all: 36)
+
+    /// Comfortable margins (0.75 inch)
+    public static let comfortable = EdgeInsets(all: 54)
+
+    /// Wide margins (1 inch)
+    public static let wide = EdgeInsets(all: 72)
+}
+
+// MARK: - Platform Conversions
+
+#if os(macOS)
+import AppKit
+
+extension NSEdgeInsets {
+    init(edgeInsets: EdgeInsets) {
+        self = .init(
+            top: edgeInsets.top,
+            left: edgeInsets.left,
+            bottom: edgeInsets.bottom,
+            right: edgeInsets.right
+        )
+    }
+}
+#endif
+
+#if canImport(UIKit)
+import UIKit
+
+extension UIEdgeInsets {
+    init(edgeInsets: EdgeInsets) {
+        self = .init(
+            top: .init(edgeInsets.top),
+            left: .init(edgeInsets.left),
+            bottom: .init(edgeInsets.bottom),
+            right: .init(edgeInsets.right)
+        )
+    }
+}
+#endif
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.FailedDocument.swift
+// ========================================
+
+//
+//  PDF.FailedDocument.swift
+//  swift-html-to-pdf
+//
+//  Error information for failed document rendering
+//
+
+import Foundation
+
+extension PDF {
+    /// Information about a document that failed to render
+    ///
+    /// Used in resilient batch operations to report failures without stopping the entire batch.
+    public struct FailedDocument: Sendable, Error {
+        /// The document that failed to render
+        public let document: PDF.Document
+
+        /// The index of this document in the batch
+        public let index: Int
+
+        /// The underlying error that caused the failure
+        public let error: Error
+
+        /// How long was spent attempting to render before failure
+        public let duration: Duration
+
+        public init(
+            document: PDF.Document,
+            index: Int,
+            error: Error,
+            duration: Duration
+        ) {
+            self.document = document
+            self.index = index
+            self.error = error
+            self.duration = duration
+        }
+    }
+}
+
+extension PDF.FailedDocument: LocalizedError {
+    public var errorDescription: String? {
+        "Failed to render document \(index + 1) ('\(document.destination.lastPathComponent)'): \(error.localizedDescription)"
+    }
+
+    public var failureReason: String? {
+        (error as? LocalizedError)?.failureReason
+    }
+
+    public var recoverySuggestion: String? {
+        (error as? LocalizedError)?.recoverySuggestion
+    }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.NamingStrategy.swift
+// ========================================
+
+//
+//  PDF.NamingStrategy.swift
+//  swift-html-to-pdf
+//
+//  Naming strategies for batch PDF operations
+//
+
+import Foundation
+
+extension PDF {
+    /// Strategy for naming files in batch operations
+    public struct NamingStrategy: Sendable {
+        private let _filename: @Sendable (Int) -> String
+
+        /// Create a custom naming strategy
+        public init(filename: @escaping @Sendable (Int) -> String) {
+            self._filename = filename
+        }
+
+        /// Generate filename for given index
+        public func filename(for index: Int) -> String {
+            _filename(index)
+        }
+    }
+}
+
+// MARK: - Presets
+
+extension PDF.NamingStrategy {
+    /// Sequential numbering: "1.pdf", "2.pdf", ...
+    public static let sequential = PDF.NamingStrategy { index in
+        "\(index + 1)"
+    }
+
+    /// UUID-based names
+    public static let uuid = PDF.NamingStrategy { _ in
+        UUID().uuidString
+    }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.PaginationMode.swift
+// ========================================
+
+//
+//  PDF.PaginationMode.swift
+//  swift-html-to-pdf
+//
+//  Pagination mode for PDF rendering
+//
+
+import Foundation
+
+extension PDF {
+    /// How content should be paginated in the PDF
+    ///
+    /// This determines how HTML content flows into the PDF:
+    ///
+    /// - `.paginated`: Content is split into multiple pages (e.g., 3 pages of A4)
+    ///   - Best for: Invoices, reports, documents for printing
+    ///   - Performance: Slower (538 PDFs/sec on M1)
+    ///   - Implementation: Uses NSPrintOperation (macOS) or UIPrintPageRenderer (iOS)
+    ///
+    /// - `.continuous`: Single tall page containing all content
+    ///   - Best for: Articles, web captures, infographics for screen viewing
+    ///   - Performance: Fast (1796 PDFs/sec on M1)
+    ///   - Implementation: Uses WKWebView.createPDF
+    ///
+    /// - `.automatic`: Chooses based on content analysis
+    ///   - Best for: Unknown content, balanced performance
+    ///   - Performance: Varies based on detection
+    public enum PaginationMode: Sendable, Equatable {
+        /// Split content into multiple pages of exact paperSize
+        ///
+        /// Each page will match the configured `paperSize` exactly.
+        /// CSS page breaks are respected.
+        /// Margins are applied via print settings.
+        case paginated
+
+        /// Single continuous page
+        ///
+        /// Width matches `paperSize.width`, height matches content height.
+        /// CSS page breaks are ignored.
+        /// Margins are applied via CSS padding.
+        case continuous
+
+        /// Automatically choose based on content analysis
+        ///
+        /// Uses the provided heuristic to determine whether to use
+        /// paginated or continuous mode.
+        case automatic(heuristic: AutomaticHeuristic = .contentLength())
+    }
+
+    /// Strategy for automatic pagination detection
+    public enum AutomaticHeuristic: Sendable, Equatable {
+        /// Choose based on estimated page count
+        ///
+        /// Measures content height and compares to page height.
+        /// If content would span more than the threshold (in pages), uses paginated mode.
+        ///
+        /// - Parameter threshold: Number of pages that triggers pagination (default: 1.5)
+        ///
+        /// Example: threshold of 1.5 means content over 1.5 pages uses paginated mode
+        case contentLength(threshold: CGFloat = 1.5)
+
+        /// Choose based on HTML structure
+        ///
+        /// Detects presence of print-specific CSS or page break directives.
+        /// If found, uses paginated mode for proper print output.
+        case htmlStructure
+
+        /// Always prefer speed (continuous mode)
+        ///
+        /// Uses WKWebView.createPDF for maximum throughput.
+        /// Results in continuous tall pages.
+        case preferSpeed
+
+        /// Always prefer print-ready output (paginated mode)
+        ///
+        /// Uses NSPrintOperation/UIPrintPageRenderer for proper pagination.
+        /// Results in properly paginated documents.
+        case preferPrintReady
+    }
+}
+
+// MARK: - Metrics Support
+
+extension PDF.PaginationMode {
+    /// Label for metrics dimension tracking
+    ///
+    /// Provides a stable string representation for use in metrics dimensions.
+    /// This allows segmentation of render duration metrics by pagination mode.
+    var metricsLabel: String {
+        switch self {
+        case .continuous:
+            return "continuous"
+        case .paginated:
+            return "paginated"
+        case .automatic(let heuristic):
+            switch heuristic {
+            case .contentLength:
+                return "automatic_content_length"
+            case .htmlStructure:
+                return "automatic_html_structure"
+            case .preferSpeed:
+                return "automatic_prefer_speed"
+            case .preferPrintReady:
+                return "automatic_prefer_print_ready"
+            }
+        }
+    }
+}
+
+// MARK: - Internal Rendering Method
+
+extension PDF {
+    /// Internal rendering method (not exposed in public API)
+    ///
+    /// This is the actual implementation strategy chosen after
+    /// analyzing the pagination mode and content.
+    public enum InternalRenderingMethod {
+        case webView
+        case printOperation
+    }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.PaperSize.swift
+// ========================================
+
+//
+//  PDF.PaperSize.swift
+//  swift-html-to-pdf
+//
+//  Paper size extensions for CGSize
+//
+
+import Foundation
+
+/// Paper size extensions for CGSize
+///
+/// Provides standard paper sizes in points (1 point = 1/72 inch).
+///
+/// ## Important
+///
+/// When creating custom paper sizes, ensure both width and height are positive values.
+/// Using the provided static properties (`.a4`, `.letter`, etc.) is recommended for
+/// standard sizes.
+///
+/// ## Example
+///
+/// ```swift
+/// // Using standard sizes (recommended)
+/// configuration.paperSize = .a4
+/// configuration.paperSize = .letter
+///
+/// // Custom size
+/// configuration.paperSize = CGSize(width: 600, height: 800)
+///
+/// // Landscape orientation
+/// configuration.paperSize = .a4.landscape
+/// ```
+extension CGSize {
+    // MARK: - ISO 216 Sizes (in points)
+
+    /// A3 paper size (297 × 420 mm)
+    public static let a3 = CGSize(width: 841.89, height: 1190.55)
+
+    /// A4 paper size (210 × 297 mm)
+    public static let a4 = CGSize(width: 595.28, height: 841.89)
+
+    /// A5 paper size (148 × 210 mm)
+    public static let a5 = CGSize(width: 420.94, height: 595.28)
+
+    // MARK: - US Paper Sizes (in points)
+
+    /// US Letter size (8.5 × 11 inches)
+    public static let letter = CGSize(width: 612, height: 792)
+
+    /// US Legal size (8.5 × 14 inches)
+    public static let legal = CGSize(width: 612, height: 1008)
+
+    /// US Tabloid size (11 × 17 inches)
+    public static let tabloid = CGSize(width: 792, height: 1224)
+
+    // MARK: - Orientation
+
+    /// Returns landscape version of this size (wider than tall)
+    public var landscape: CGSize {
+        CGSize(
+            width: max(width, height),
+            height: min(width, height)
+        )
+    }
+
+    /// Returns portrait version of this size (taller than wide)
+    public var portrait: CGSize {
+        CGSize(
+            width: min(width, height),
+            height: max(width, height)
+        )
+    }
+
+    /// Whether this size is landscape orientation
+    public var isLandscape: Bool { width > height }
+
+    /// Whether this size is portrait orientation
+    public var isPortrait: Bool { height >= width }
+}
+
+
+// ========================================
+// File: Sources/HtmlToPdfTypes/PDF.Render.Client.swift
 // ========================================
 
 //
@@ -2688,18 +3321,12 @@ extension PDF.Render {
         public var documents: @Sendable (
             _ documents: any Sequence<PDF.Document>
         ) async throws -> AsyncThrowingStream<PDF.Result, Error>
-
-        // MARK: - Platform Capabilities
-
-        /// Get capabilities of current implementation
-        @DependencyEndpoint
-        public var capabilities: @Sendable () -> PDF.Capabilities = { .mock }
     }
 }
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.Metrics+macOS.swift
+// File: Sources/HtmlToPdfTypes/PDF.Render.Metrics+macOS.swift
 // ========================================
 
 //
@@ -2752,7 +3379,7 @@ extension PDF.Render.Metrics: DependencyKey {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.Metrics.swift
+// File: Sources/HtmlToPdfTypes/PDF.Render.Metrics.swift
 // ========================================
 
 //
@@ -2877,7 +3504,7 @@ extension PDF.Render {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.Result.swift
+// File: Sources/HtmlToPdfTypes/PDF.Render.Result.swift
 // ========================================
 
 //
@@ -2891,7 +3518,7 @@ import Foundation
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Render.swift
+// File: Sources/HtmlToPdfTypes/PDF.Render.swift
 // ========================================
 
 //
@@ -2952,7 +3579,7 @@ extension PDF {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.Result.swift
+// File: Sources/HtmlToPdfTypes/PDF.Result.swift
 // ========================================
 
 //
@@ -3008,7 +3635,7 @@ extension PDF {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PDF.swift
+// File: Sources/HtmlToPdfTypes/PDF.swift
 // ========================================
 
 //
@@ -3020,7 +3647,6 @@ extension PDF {
 
 import Dependencies
 import Foundation
-import PointFreeHTML
 
 /// PDF domain containing rendering capability
 ///
@@ -3085,31 +3711,12 @@ public struct PDF: Sendable {
 }
 
 // MARK: - Dependency Registration
-
-extension PDF: DependencyKey {
-    public static let liveValue = PDF(
-        render: .liveValue
-    )
-}
-
-
-extension PDF: TestDependencyKey {
-    public static let testValue = PDF(
-        render: .testValue
-    )
-}
-
-extension DependencyValues {
-    public var pdf: PDF {
-        get { self[PDF.self] }
-        set { self[PDF.self] = newValue }
-    }
-}
+// DependencyKey conformances and DependencyValues extension are in HtmlToPdfLive target
 
 
 
 // ========================================
-// File: Sources/HtmlToPdf/PrintingError.swift
+// File: Sources/HtmlToPdfTypes/PrintingError.swift
 // ========================================
 
 //
@@ -3350,6 +3957,57 @@ public enum PrintingError: Error, LocalizedError, Sendable {
     }
 }
 
+// MARK: - Error Code Support
+
+extension PrintingError {
+    /// Stable error code for programmatic branching
+    ///
+    /// Use this for switch statements and error handling logic instead of pattern matching.
+    /// These codes are guaranteed to remain stable across versions for long-term compatibility.
+    ///
+    /// Example:
+    /// ```swift
+    /// do {
+    ///     try await pdf.render(html, to: url)
+    /// } catch let error as PrintingError {
+    ///     switch error.errorCode {
+    ///     case "webview_acquisition_timeout":
+    ///         // Increase timeout and retry
+    ///     case "pdf_generation_failed":
+    ///         // Check underlying error
+    ///         if let underlying = error.underlyingError {
+    ///             // Handle specific underlying error
+    ///         }
+    ///     default:
+    ///         // Generic error handling
+    ///     }
+    /// }
+    /// ```
+    public var errorCode: String {
+        metricsReason
+    }
+
+    /// Access to underlying error for branching logic
+    ///
+    /// Many errors wrap underlying system errors (WKError, URLError, NSError).
+    /// Use this to access the underlying error for more specific error handling.
+    public var underlyingError: Error? {
+        switch self {
+        case .invalidFilePath(_, let error),
+             .webViewPoolInitializationFailed(let error),
+             .printOperationFailed(_, let error):
+            return error
+        case .directoryCreationFailed(_, let error),
+             .webViewLoadingFailed(let error),
+             .webViewNavigationFailed(let error),
+             .pdfGenerationFailed(let error):
+            return error
+        default:
+            return nil
+        }
+    }
+}
+
 // MARK: - Metrics Support
 
 extension PrintingError {
@@ -3424,461 +4082,12 @@ extension PrintingError {
 
 
 // ========================================
-// File: Sources/HtmlToPdf/WKWebViewResource.swift
+// File: Sources/HtmlToPdfTypes/exports.swift
 // ========================================
 
-//
-//  WKWebViewResource.swift
-//  swift-html-to-pdf
-//
-//  Adapter for WKWebView to work with ResourcePool
-//
-
-#if canImport(WebKit)
-import Foundation
-import WebKit
-import ResourcePool
-import Dependencies
-import LoggingExtras
-
-/// WKWebView wrapper that conforms to PoolableResource
-@MainActor
-public final class WKWebViewResource: PoolableResource {
-    public typealias Config = Void
-
-    /// The underlying WKWebView
-    public let webView: WKWebView
-
-    private init(webView: WKWebView) {
-        self.webView = webView
-    }
-
-    /// Create a new WKWebView resource
-    @MainActor
-    public static func create(config: Config) async throws -> WKWebViewResource {
-        let webViewConfig = WKWebViewConfiguration()
-
-        // Note: processPool defaults to a shared instance, no need to set it explicitly
-        // (avoiding deprecated WKProcessPool APIs)
-
-        // Disable GPU acceleration features we don't need for PDF
-        webViewConfig.suppressesIncrementalRendering = true
-        webViewConfig.preferences.setValue(false, forKey: "acceleratedDrawingEnabled")
-        webViewConfig.preferences.setValue(false, forKey: "displayListDrawingEnabled")
-
-        // Use non-persistent data store (correct for stateless PDF generation)
-        webViewConfig.websiteDataStore = .nonPersistent()
-
-        // Disable JavaScript for PDF rendering
-        if #available(macOS 11.0, iOS 14.0, *) {
-            webViewConfig.defaultWebpagePreferences.allowsContentJavaScript = false
-        } else {
-            webViewConfig.preferences.setValue(false, forKey: "javaScriptEnabled")
-        }
-        webViewConfig.preferences.javaScriptCanOpenWindowsAutomatically = false
-        webViewConfig.preferences.minimumFontSize = 0
-
-        // Disable fraud warning
-        if #available(macOS 11.0, iOS 14.0, *) {
-            webViewConfig.preferences.isFraudulentWebsiteWarningEnabled = false
-        }
-
-        // Suppress WebKit logging warnings
-        webViewConfig.preferences.setValue(true, forKey: "logsPageMessagesToSystemConsoleEnabled")
-        webViewConfig.preferences.setValue(false, forKey: "developerExtrasEnabled")
-
-        #if os(iOS)
-        webViewConfig.allowsInlineMediaPlayback = true
-        webViewConfig.suppressesIncrementalRendering = true
-        #endif
-
-        let webView = WKWebView(frame: .zero, configuration: webViewConfig)
-
-        // Disable background drawing on macOS
-        #if os(macOS)
-        webView.setValue(false, forKey: "drawsBackground")
-        #endif
-
-        return WKWebViewResource(webView: webView)
-    }
-
-    /// Validate that the resource is still usable
-    @MainActor
-    public func validate() async -> Bool {
-        // Check if WebView is still responsive
-        do {
-            // Try a simple JavaScript evaluation to check responsiveness
-            _ = try await webView.evaluateJavaScript("1 + 1")
-            return true
-        } catch {
-            // WebView is unresponsive or in error state
-            @Dependency(\.logger) var logger
-            logger.warning("WebView validation failed, will be replaced", metadata: [
-                "error": "\(error)",
-                "error_type": "\(type(of: error))"
-            ])
-            return false
-        }
-    }
-
-    /// Reset the resource for reuse
-    @MainActor
-    public func reset() async throws {
-        // Stop any ongoing loads
-        webView.stopLoading()
-
-        // Clear navigation delegate
-        webView.navigationDelegate = nil
-
-        // Note: Expensive operations like loading blank HTML, clearing data stores,
-        // or JavaScript validation caused 10x performance degradation.
-        // Instead, rely on resource cycling (maxUsesBeforeCycling in ResourcePool)
-        // and validate() to periodically replace unhealthy WebViews.
-        // The stopLoading() and delegate clearing above is sufficient for cleanup.
-    }
-}
-
-#endif
-
-// ========================================
-// File: Sources/HtmlToPdf/WebViewPoolClient-ResourcePool.swift
-// ========================================
-
-//
-//  WebViewPoolClient-ResourcePool.swift
-//  swift-html-to-pdf
-//
-//  WebViewPoolClient implementation using ResourcePool
-//
-
-#if canImport(WebKit)
-import Foundation
-import WebKit
-import Dependencies
-import LoggingExtras
-import ResourcePool
-import IssueReporting
-
-/// Adaptive throughput optimizer that monitors performance and triggers optimizations
-private actor AdaptiveThroughputOptimizer {
-    struct MetricsWindow: Sendable {
-        let timestamp: Date
-        let pdfsCompleted: Int
-        let throughput: Double // PDFs/sec
-    }
-
-    enum OptimizationAction {
-        case triggerPoolReplacement
-        case none
-    }
-
-    private var windows: [MetricsWindow] = []
-    private let windowDuration: TimeInterval = 5.0
-    private let maxWindows = 10 // Keep last 50 seconds of history
-    private var windowStartTime: Date = Date()
-    private var windowPDFCount: Int = 0
-    private var absolutePeakThroughput: Double = 0.0 // Track peak across entire run
-
-    /// Record a completed PDF and update metrics
-    func recordPDF() -> OptimizationAction? {
-        windowPDFCount += 1
-
-        let now = Date()
-        let elapsed = now.timeIntervalSince(windowStartTime)
-
-        // Complete window if duration exceeded
-        if elapsed >= windowDuration {
-            let throughput = Double(windowPDFCount) / elapsed
-            let window = MetricsWindow(
-                timestamp: now,
-                pdfsCompleted: windowPDFCount,
-                throughput: throughput
-            )
-
-            windows.append(window)
-
-            // Update absolute peak
-            if throughput > absolutePeakThroughput {
-                absolutePeakThroughput = throughput
-            }
-
-            // Update metrics gauge with current throughput
-            @Dependency(\.pdf.render.metrics) var metrics
-            metrics.updateThroughput(throughput)
-
-            // Keep only recent windows
-            if windows.count > maxWindows {
-                windows.removeFirst()
-            }
-
-            // Reset window
-            windowStartTime = now
-            windowPDFCount = 0
-
-            // Check if optimization needed
-            return shouldOptimize()
-        }
-
-        return nil
-    }
-
-    /// Detect if throughput is degrading and optimization is needed
-    private func shouldOptimize() -> OptimizationAction? {
-        // Need at least 5 windows to establish reliable baseline (25 seconds of data)
-        guard windows.count >= 5 else { return nil }
-
-        // Get recent average (last 3 windows = 15 seconds)
-        let recentWindows = Array(windows.suffix(3))
-        let recentAverage = recentWindows.map(\.throughput).reduce(0, +) / Double(recentWindows.count)
-
-        // Get peak from the last 5 windows (local peak within recent history)
-        let localPeak = windows.suffix(5).map(\.throughput).max()!
-
-        // Trigger if recent average drops >5% from local peak
-        // This balances early detection with avoiding false positives
-        // 5% degradation is significant enough to warrant pool replacement
-        if localPeak > 1500 && recentAverage < localPeak * 0.95 {
-            @Dependency(\.logger) var logger
-            let degradationPercent = (1.0 - recentAverage/localPeak) * 100
-            logger.warning("Adaptive pool replacement triggered due to performance degradation", metadata: [
-                "recent_average_pdfs_sec": "\(Int(recentAverage))",
-                "local_peak_pdfs_sec": "\(Int(localPeak))",
-                "degradation_percent": "\(String(format: "%.1f", degradationPercent))"
-            ])
-            return .triggerPoolReplacement
-        }
-
-        return nil
-    }
-
-    /// Reset peak after pool replacement to allow new baseline
-    func resetPeak() {
-        absolutePeakThroughput = 0.0
-        windows.removeAll()
-        windowStartTime = Date()
-        windowPDFCount = 0
-    }
-
-    /// Get current throughput statistics
-    func getStats() -> (current: Double?, peak: Double?, windows: Int) {
-        let currentThroughput = windows.last?.throughput
-        let peakThroughput = windows.map(\.throughput).max()
-        return (currentThroughput, peakThroughput, windows.count)
-    }
-}
-
-/// Global shared pool actor to ensure only one pool exists across all consumers
-/// Adds batch replacement capability to mitigate WebKit process-level memory leaks
-/// Now includes adaptive throughput optimization
-@globalActor
-private actor WebViewPoolActor {
-    static let shared = WebViewPoolActor()
-
-    private var sharedPool: ResourcePool<WKWebViewResource>?
-    private var totalPDFsGenerated: Int = 0
-    private var batchReplacementThreshold = 30_000 // Reduced from 50K for better sustained performance
-    private var poolProvider: (@Sendable () async throws -> ResourcePool<WKWebViewResource>)?
-    private var isReplacing: Bool = false  // Prevent concurrent replacements
-    private var adaptiveOptimizer: AdaptiveThroughputOptimizer?
-    private var adaptiveOptimizationEnabled: Bool = false
-
-    func getOrCreatePool(
-        provider: @escaping @Sendable () async throws -> ResourcePool<WKWebViewResource>,
-        adaptiveOptimization: Bool = false
-    ) async throws -> ResourcePool<WKWebViewResource> {
-        // Store provider for pool replacement
-        if poolProvider == nil {
-            poolProvider = provider
-        }
-
-        // Enable adaptive optimization if requested
-        if adaptiveOptimization && adaptiveOptimizer == nil {
-            adaptiveOptimizer = AdaptiveThroughputOptimizer()
-            adaptiveOptimizationEnabled = true
-            @Dependency(\.logger) var logger
-            logger.debug("Adaptive throughput optimization enabled")
-        }
-
-        if let existing = sharedPool {
-            return existing
-        }
-
-        let newPool = try await provider()
-        sharedPool = newPool
-        @Dependency(\.logger) var logger
-        logger.info("WebView pool initialized")
-        return newPool
-    }
-
-    /// Record PDF generation and trigger batch replacement if threshold reached
-    func recordPDFGenerated() async throws {
-        totalPDFsGenerated += 1
-
-        // Adaptive optimization: monitor throughput and trigger early optimization
-        if adaptiveOptimizationEnabled, let optimizer = adaptiveOptimizer {
-            if let action = await optimizer.recordPDF() {
-                switch action {
-                case .triggerPoolReplacement:
-                    // Adaptive optimizer detected degradation - trigger early replacement
-                    if !isReplacing, let provider = poolProvider {
-                        try await triggerPoolReplacement(provider: provider, reason: "adaptive optimization")
-                    }
-                case .none:
-                    break
-                }
-            }
-        }
-
-        // Check if we've hit the batch replacement threshold (fallback/safety mechanism)
-        // Use isReplacing flag to prevent race condition where multiple PDFs trigger replacement
-        if totalPDFsGenerated >= batchReplacementThreshold,
-           !isReplacing,
-           let provider = poolProvider {
-            try await triggerPoolReplacement(provider: provider, reason: "threshold reached")
-        }
-    }
-
-    /// Trigger pool replacement
-    private func triggerPoolReplacement(
-        provider: @Sendable () async throws -> ResourcePool<WKWebViewResource>,
-        reason: String
-    ) async throws {
-        isReplacing = true
-        let oldCount = totalPDFsGenerated
-        let startTime = Date()
-        @Dependency(\.logger) var logger
-        @Dependency(\.pdf.render.metrics) var metrics
-
-        logger.info("Pool replacement started", metadata: [
-            "pdf_count": "\(oldCount)",
-            "reason": "\(reason)"
-        ])
-
-        // Create new pool (warmup will happen in background)
-        let newPool = try await provider()
-
-        // Swap to new pool immediately
-        // The old pool will be released when all current operations complete
-        // Swift's ARC will handle cleanup automatically
-        sharedPool = newPool
-        totalPDFsGenerated = 0
-
-        // Record pool replacement metric
-        metrics.recordPoolReplacement()
-
-        // Reset adaptive optimizer to establish new baseline
-        if let optimizer = adaptiveOptimizer {
-            await optimizer.resetPeak()
-        }
-
-        isReplacing = false
-
-        let duration = Date().timeIntervalSince(startTime)
-        logger.info("Pool replacement complete", metadata: [
-            "duration_seconds": "\(String(format: "%.2f", duration))",
-            "previous_pdf_count": "\(oldCount)"
-        ])
-    }
-}
-
-// MARK: - Active Operations Tracker
-
-/// Tracks the number of currently active WebView operations for pool utilization metrics
-actor ActiveOperationsTracker {
-    private var activeCount: Int = 0
-    static let shared = ActiveOperationsTracker()
-
-    func increment() {
-        activeCount += 1
-        updateMetrics()
-    }
-
-    func decrement() {
-        activeCount -= 1
-        updateMetrics()
-    }
-
-    private func updateMetrics() {
-        @Dependency(\.pdf.render.metrics) var metrics
-        metrics.updatePoolUtilization(activeCount)
-    }
-}
-
-/// Client for managing WebView pool using ResourcePool
-public struct WebViewPoolClient: Sendable {
-    /// Lazy-initialized resource pool provider
-    private let poolProvider: @Sendable () async throws -> ResourcePool<WKWebViewResource>
-
-    init(
-        poolProvider: @escaping @Sendable () async throws -> ResourcePool<WKWebViewResource>
-    ) {
-        self.poolProvider = poolProvider
-    }
-
-    /// Get the pool, creating it if necessary (globally shared)
-    private func getPool() async throws -> ResourcePool<WKWebViewResource> {
-        // Read configuration dynamically at pool creation time (not client creation time)
-        // This ensures withDependencies overrides are properly captured
-        @Dependency(\.pdf.render.configuration) var configuration
-
-        return try await WebViewPoolActor.shared.getOrCreatePool(
-            provider: poolProvider,
-            adaptiveOptimization: configuration.adaptiveThroughputOptimization
-        )
-    }
-
-    /// The underlying resource pool (for direct access)
-    public var pool: ResourcePool<WKWebViewResource> {
-        get async throws {
-            try await getPool()
-        }
-    }
-
-    /// Record that a PDF was generated (triggers batch replacement if threshold reached)
-    public func recordPDFGenerated() async throws {
-        try await WebViewPoolActor.shared.recordPDFGenerated()
-    }
-}
-
-extension WebViewPoolClient: DependencyKey {
-    public static var liveValue: WebViewPoolClient {
-        return WebViewPoolClient(
-            poolProvider: { @MainActor in
-                // Pool size comes from configuration via dependencies
-                @Dependency(\.pdf.render.configuration) var configuration
-                let poolSize = configuration.concurrency.resolved
-
-                // Create pool with warmup
-                // Batch replacement (every 30K PDFs) handles memory leaks at pool level
-                return try await ResourcePool<WKWebViewResource>(
-                    capacity: poolSize,
-                    resourceConfig: (),
-                    warmup: true,
-                    maxUsesBeforeCycling: nil  // No per-resource cycling - using batch replacement
-                )
-            }
-        )
-    }
-
-    public static var testValue: WebViewPoolClient {
-        WebViewPoolClient(poolProvider: { @MainActor in
-            return try await ResourcePool<WKWebViewResource>(
-                capacity: 2,
-                resourceConfig: (),
-                warmup: false
-            )
-        })
-    }
-}
-
-extension DependencyValues {
-    public var webViewPool: WebViewPoolClient {
-        get { self[WebViewPoolClient.self] }
-        set { self[WebViewPoolClient.self] = newValue }
-    }
-}
-
-#endif
+@_exported import struct Foundation.URL
+@_exported import struct Foundation.Data
+@_exported import Dependencies
 
 
 // ========================================
@@ -4068,6 +4277,20 @@ public struct MetricsComparison: Sendable {
     public let baselineThroughput: Double
     public let tolerance: Double
 
+    public init(
+        currentP95Latency: TimeInterval,
+        baselineP95Latency: TimeInterval,
+        currentThroughput: Double,
+        baselineThroughput: Double,
+        tolerance: Double
+    ) {
+        self.currentP95Latency = currentP95Latency
+        self.baselineP95Latency = baselineP95Latency
+        self.currentThroughput = currentThroughput
+        self.baselineThroughput = baselineThroughput
+        self.tolerance = tolerance
+    }
+
     public var latencyRegression: Double {
         (currentP95Latency - baselineP95Latency) / baselineP95Latency
     }
@@ -4235,7 +4458,7 @@ public enum MetricsTestError: Error, CustomStringConvertible {
 
 import Dependencies
 import Foundation
-@testable import HtmlToPdf
+@testable import HtmlToPdfTypes
 
 /// Create test metrics with storage for assertions
 public func makeTestMetrics() -> (metrics: PDF.Render.Metrics, storage: TestMetricsStorage) {
@@ -4375,6 +4598,168 @@ public enum TestError: Error, CustomStringConvertible {
 }
 
 #endif
+
+
+// ========================================
+// File: Sources/PDFTestSupport/TestCSS.swift
+// ========================================
+
+//
+//  TestCSS.swift
+//  PDFTestSupport
+//
+//  Reusable CSS styles for PDF testing
+//
+
+import Foundation
+
+/// Common CSS styles for visual verification tests
+public enum TestCSS {
+    /// Modern document styling with gradients, sections, and responsive layout
+    public static let modern = """
+    body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        padding: 30px;
+        line-height: 1.6;
+        color: #333;
+    }
+    .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    .header h1 {
+        margin: 0;
+        font-size: 32px;
+    }
+    .section {
+        margin: 20px 0;
+        padding: 20px;
+        background: #f8f9fa;
+        border-left: 4px solid #667eea;
+        border-radius: 4px;
+    }
+    .section h2 {
+        margin-top: 0;
+        color: #667eea;
+    }
+    code {
+        background: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Monaco', monospace;
+        color: #e83e8c;
+    }
+    .warning {
+        background: #fff3cd;
+        border-left-color: #ffc107;
+        color: #856404;
+    }
+    .success {
+        background: #d4edda;
+        border-left-color: #28a745;
+        color: #155724;
+    }
+    .footer {
+        margin-top: 30px;
+        padding: 20px;
+        text-align: center;
+        color: #6c757d;
+        border-top: 2px solid #e9ecef;
+    }
+    """
+
+    /// Rich verification CSS with tables, grids, and complex layouts
+    public static let richVerification = """
+    body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+    }
+    .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        text-align: center;
+        border-radius: 8px;
+        margin-bottom: 30px;
+    }
+    .header h1 {
+        margin: 0;
+        font-size: 48px;
+        font-weight: bold;
+    }
+    .header p {
+        margin: 10px 0 0 0;
+        font-size: 18px;
+        opacity: 0.9;
+    }
+    .section {
+        margin: 30px 0;
+        padding: 20px;
+        background: #f8f9fa;
+        border-left: 4px solid #667eea;
+        border-radius: 4px;
+    }
+    .section h2 {
+        margin-top: 0;
+        color: #667eea;
+    }
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .feature {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .feature h3 {
+        margin-top: 0;
+        color: #764ba2;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    th {
+        background: #667eea;
+        color: white;
+        padding: 12px;
+        text-align: left;
+    }
+    td {
+        padding: 12px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    tr:hover {
+        background: #f8f9fa;
+    }
+    code {
+        background: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Monaco', 'Courier New', monospace;
+        color: #e83e8c;
+    }
+    .footer {
+        margin-top: 40px;
+        padding: 20px;
+        text-align: center;
+        color: #6c757d;
+        border-top: 2px solid #e9ecef;
+    }
+    """
+}
 
 
 // ========================================
@@ -4530,6 +4915,73 @@ public enum TestHTML {
             </body>
         </html>
         """
+    }
+}
+
+
+// ========================================
+// File: Sources/PDFTestSupport/TestImages.swift
+// ========================================
+
+//
+//  TestImages.swift
+//  PDFTestSupport
+//
+//  Image loading utilities for PDF testing
+//
+
+import Foundation
+
+/// Test image utilities for loading and encoding test images
+public enum TestImages {
+    /// Load an image from the test bundle and encode as base64
+    ///
+    /// Usage:
+    /// ```swift
+    /// // In test file with Bundle.module:
+    /// let base64PNG = try TestImages.loadBase64(named: "coenttb", extension: "png", from: .module)
+    /// let html = #"<img src="data:image/png;base64,\#(base64PNG)">"#
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - name: Image filename without extension
+    ///   - ext: File extension (e.g., "png", "jpg")
+    ///   - bundle: Bundle containing the resource (must be provided by caller)
+    /// - Returns: Base64-encoded string of the image data
+    /// - Throws: Error if image resource not found
+    public static func loadBase64(
+        named name: String,
+        extension ext: String,
+        from bundle: Bundle
+    ) throws -> String {
+        guard let imageURL = bundle.url(forResource: name, withExtension: ext) else {
+            throw TestError.resourceNotFound(name: "\(name).\(ext)")
+        }
+        let imageData = try Data(contentsOf: imageURL)
+        return imageData.base64EncodedString()
+    }
+
+    /// Common SVG test images encoded as base64
+    public enum SVG {
+        /// Red 50x50px square
+        public static let redSquare = "PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSIjZmYwMDAwIi8+PC9zdmc+"
+
+        /// Green 50x50px square
+        public static let greenSquare = "PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSIjMDBmZjAwIi8+PC9zdmc+"
+
+        /// Blue 50x50px square
+        public static let blueSquare = "PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSIjMDAwMGZmIi8+PC9zdmc+"
+    }
+
+    public enum TestError: Error, CustomStringConvertible {
+        case resourceNotFound(name: String)
+
+        public var description: String {
+            switch self {
+            case .resourceNotFound(let name):
+                return "Test resource not found: \(name)"
+            }
+        }
     }
 }
 
@@ -5016,6 +5468,191 @@ extension TestMetricsBackend {
 // This ensures the same backend instance used for recording metrics
 // is the one tests inspect, solving the "separate instances" problem
 // that occurs with Swift 6.2+ where testValue is evaluated once globally.
+
+
+// ========================================
+// File: Sources/PDFTestSupport/TestUtilities.swift
+// ========================================
+
+//
+//  TestUtilities.swift
+//  PDFTestSupport
+//
+//  Common test utilities and extensions
+//
+
+import Foundation
+import Testing
+
+// MARK: - URL Extensions
+
+extension URL {
+    /// Generate a temporary output URL for test PDFs
+    public static func output(id: UUID = UUID()) -> Self {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("html-to-pdf")
+            .appendingPathComponent(id.uuidString)
+    }
+
+    /// Local HtmlToPdf directory (platform-aware)
+    public static var localHtmlToPdf: Self {
+        #if os(macOS)
+        return URL.documentsDirectory.appendingPathComponent("HtmlToPdf")
+        #else
+        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        return paths.first!.appendingPathComponent("HtmlToPdf")
+        #endif
+    }
+}
+
+// MARK: - FileManager Extensions
+
+extension FileManager {
+    /// Remove all items within a directory
+    public func removeItems(at url: URL) throws {
+        let fileURLs = try contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [])
+        for fileURL in fileURLs {
+            try removeItem(at: fileURL)
+        }
+    }
+
+    /// Clean up any leftover test directories from interrupted tests
+    ///
+    /// This is useful when tests timeout or are interrupted before cleanup can run
+    public static func cleanupTestDirectories() {
+        let fm = FileManager.default
+        let tempDir = fm.temporaryDirectory.appendingPathComponent("html-to-pdf")
+
+        guard fm.fileExists(atPath: tempDir.path) else { return }
+
+        do {
+            let subdirs = try fm.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
+            print("🧹 Cleaning up \(subdirs.count) leftover test directories...")
+
+            for subdir in subdirs {
+                try? fm.removeItem(at: subdir)
+            }
+
+            try? fm.removeItem(at: tempDir)
+            print("✅ Cleanup complete")
+        } catch {
+            print("⚠️ Cleanup failed: \(error)")
+        }
+    }
+}
+
+// MARK: - AsyncStream Extensions
+
+extension AsyncStream<URL> {
+    /// Test that yielded URLs exist on the file system
+    public func testIfYieldedUrlExistsOnFileSystem(directory: URL) async throws {
+        for await url in self {
+            let contents = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ).map(\.lastPathComponent)
+            #expect(contents.contains(where: { $0 == url.lastPathComponent }))
+        }
+    }
+}
+
+extension AsyncThrowingStream<URL, Error> {
+    /// Test that yielded URLs exist on the file system
+    public func testIfYieldedUrlExistsOnFileSystem(directory: URL) async throws {
+        for try await url in self {
+            let contents = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ).map(\.lastPathComponent)
+            #expect(contents.contains(where: { $0 == url.lastPathComponent }))
+        }
+    }
+}
+
+
+// ========================================
+// File: Sources/PDFTestSupport/iOSPrintFormatterRenderer.swift
+// ========================================
+
+//
+//  iOSPrintFormatterRenderer.swift
+//  PDFTestSupport
+//
+//  Direct UIMarkupTextPrintFormatter rendering for testing iOS capabilities
+//
+
+#if canImport(UIKit)
+import UIKit
+import Foundation
+
+/// Render HTML directly using UIMarkupTextPrintFormatter for testing
+///
+/// This bypasses the library's automatic routing logic to test the
+/// capabilities and limitations of UIMarkupTextPrintFormatter in isolation.
+///
+/// **Known limitation**: UIMarkupTextPrintFormatter cannot render images.
+/// This was verified through testing - `<img>` tags in HTML are ignored.
+///
+/// Usage:
+/// ```swift
+/// let html = "<html><body><h1>Test</h1></body></html>"
+/// let url = try await iOSPrintFormatterRenderer.renderPDF(
+///     html: html,
+///     to: outputURL
+/// )
+/// ```
+@MainActor
+public enum iOSPrintFormatterRenderer {
+    /// Render HTML to PDF using UIMarkupTextPrintFormatter
+    ///
+    /// - Parameters:
+    ///   - html: HTML string to render
+    ///   - destination: Output file URL for the PDF
+    ///   - paperSize: Paper dimensions (default: A4)
+    ///   - margins: Page margins in points (default: 36pt all sides)
+    /// - Returns: Time taken to render in seconds
+    /// - Throws: Error if rendering or file writing fails
+    @discardableResult
+    public static func renderPDF(
+        html: String,
+        to destination: URL,
+        paperSize: CGSize = CGSize(width: 595.28, height: 841.89), // A4
+        margins: UIEdgeInsets = UIEdgeInsets(top: 36, left: 36, bottom: 36, right: 36)
+    ) throws -> TimeInterval {
+        let start = Date()
+
+        let formatter = UIMarkupTextPrintFormatter(markupText: html)
+        let renderer = UIPrintPageRenderer()
+        renderer.addPrintFormatter(formatter, startingAtPageAt: 0)
+
+        let paperRect = CGRect(origin: .zero, size: paperSize)
+        let printableRect = CGRect(
+            x: margins.left,
+            y: margins.top,
+            width: paperSize.width - margins.left - margins.right,
+            height: paperSize.height - margins.top - margins.bottom
+        )
+
+        renderer.setValue(NSValue(cgRect: paperRect), forKey: "paperRect")
+        renderer.setValue(NSValue(cgRect: printableRect), forKey: "printableRect")
+
+        let pdfData = NSMutableData()
+        UIGraphicsBeginPDFContextToData(pdfData, paperRect, nil)
+        renderer.prepare(forDrawingPages: NSRange(location: 0, length: renderer.numberOfPages))
+
+        let bounds = UIGraphicsGetPDFContextBounds()
+        for i in 0..<renderer.numberOfPages {
+            UIGraphicsBeginPDFPage()
+            renderer.drawPage(at: i, in: bounds)
+        }
+        UIGraphicsEndPDFContext()
+
+        try (pdfData as Data).write(to: destination)
+
+        return Date().timeIntervalSince(start)
+    }
+}
+#endif
 
 
 // ========================================

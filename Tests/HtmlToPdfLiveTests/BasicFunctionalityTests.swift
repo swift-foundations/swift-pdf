@@ -127,21 +127,6 @@ struct BasicFunctionalityTests {
         #expect(data.starts(with: [0x25, 0x50, 0x44, 0x46]), "Should start with %PDF magic bytes")
     }
 
-    @Test("capabilities returns platform info")
-    func testCapabilities() throws {
-
-        let caps = pdf.render.client.capabilities()
-        #if os(macOS)
-        #expect(caps.supportsWebViewPooling == true, "macOS should support WebView pooling")
-        #expect(caps.supportsBackgroundRendering == true, "macOS should support background rendering")
-        #expect(caps.maxConcurrentOperations > 0, "Should have max concurrent operations")
-        #else
-        #expect(caps.supportsWebViewPooling == true, "iOS should support WebView pooling")
-        #expect(caps.supportsBackgroundRendering == false, "iOS should not support background rendering")
-        #expect(caps.maxConcurrentOperations > 0, "Should have max concurrent operations")
-        #endif
-    }
-
     // MARK: - Configuration Coverage
 
     @Test(

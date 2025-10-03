@@ -224,26 +224,15 @@ struct PlatformSpecificTests {
         }
     }
 
-    @Test("macOS supports background rendering")
-    func macOSBackgroundRendering() async throws {
-        let caps = pdf.render.client.capabilities()
-        #expect(caps.supportsBackgroundRendering == true, "macOS should support background rendering")
-    }
     #endif
 
     // Shared tests with platform-aware expectations
-    @Test("Platform capabilities are correctly reported")
-    func platformCapabilities() throws {
-        let caps = pdf.render.client.capabilities()
-
+    @Test("Platform concurrency limits are correctly defined")
+    func platformConcurrencyLimits() {
         #if os(macOS)
-        #expect(caps.supportsWebViewPooling == true, "macOS should support WebView pooling")
-        #expect(caps.supportsBackgroundRendering == true, "macOS should support background rendering")
-        #expect(caps.maxConcurrentOperations == 16, "macOS should support 16 concurrent operations")
+        #expect(PDF.PlatformConcurrencyLimit.macOS == 16, "macOS should support 16 concurrent operations")
         #else
-        #expect(caps.supportsWebViewPooling == true, "iOS should support WebView pooling")
-        #expect(caps.supportsBackgroundRendering == false, "iOS should not support background rendering")
-        #expect(caps.maxConcurrentOperations == 8, "iOS should support 8 concurrent operations")
+        #expect(PDF.PlatformConcurrencyLimit.iOS == 8, "iOS should support 8 concurrent operations")
         #endif
     }
 

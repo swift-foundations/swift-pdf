@@ -32,29 +32,26 @@ extension PDF.Render.Client {
         documents: { documents in
             @Dependency(\.pdf.render.configuration) var config
 
-            // Validate configuration against platform capabilities
-            try validateConfiguration(config, against: .iOS)
+            // Validate configuration against platform limits
+            try validateConfiguration(config)
 
             return try await renderDocumentsInternal(documents, config: config)
-        },
-        capabilities: {
-            .iOS
         }
     )
 }
 
 // MARK: - Configuration Validation
 
-/// Validate configuration against platform capabilities
-private func validateConfiguration(_ config: PDF.Configuration, against capabilities: PDF.Capabilities) throws {
+/// Validate configuration against platform limits
+private func validateConfiguration(_ config: PDF.Configuration) throws {
     let requestedConcurrency = config.concurrency.resolved
 
     // Check if requested concurrency exceeds platform maximum
-    if requestedConcurrency > capabilities.maxConcurrentOperations {
+    if requestedConcurrency > PDF.PlatformConcurrencyLimit.iOS {
         throw PrintingError.capabilityUnavailable(
             capability: "concurrency=\(requestedConcurrency)",
             platform: "iOS",
-            reason: "Platform maximum is \(capabilities.maxConcurrentOperations). Requested \(requestedConcurrency) concurrent operations."
+            reason: "Platform maximum is \(PDF.PlatformConcurrencyLimit.iOS). Requested \(requestedConcurrency) concurrent operations."
         )
     }
 }
@@ -122,7 +119,7 @@ extension PDF.Document {
         let htmlString = String(decoding: self.html, as: UTF8.self)
         let printFormatter = UIMarkupTextPrintFormatter(markupText: htmlString)
         let data = try await renderToDataWithFormatter(printFormatter, config: config)
-        try data.write(to: self.destination)
+        try writeAtomically(data, to: self.destination)
         return self.destination
     }
 
@@ -348,7 +345,7 @@ private class DocumentWKRenderer: NSObject, WKNavigationDelegate {
             do {
                 let printFormatter = webView.viewPrintFormatter()
                 let data = try await renderToDataWithFormatter(printFormatter, config: configuration)
-                try data.write(to: document.destination)
+                try writeAtomically(data, to: document.destination)
                 continuation.resume(returning: ())
             } catch {
                 continuation.resume(throwing: error)

@@ -7,6 +7,8 @@
 
 import Testing
 import HtmlToPdf
+
+#if HTML
 import PointFreeHTML
 
 @Suite("PDF swift-html Integration Tests")
@@ -45,3 +47,4 @@ struct HtmlToPdfTests {
         #expect(doc.destination.deletingLastPathComponent().path.hasSuffix("tmp"))
     }
 }
+#endif

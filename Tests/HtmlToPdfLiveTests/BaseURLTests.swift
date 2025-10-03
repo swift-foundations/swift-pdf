@@ -98,34 +98,30 @@ struct BaseURLTests {
     }
 }
 
-@Suite("Capability Tests", .dependency(\.pdf, .liveValue))
-struct CapabilityTests {
+@Suite("Concurrency Limit Tests", .dependency(\.pdf, .liveValue))
+struct ConcurrencyLimitTests {
     @Dependency(\.pdf) var pdf
 
-    @Test("Platform capabilities are reported correctly")
-    func testPlatformCapabilities() async throws {
-        let capabilities = pdf.render.client.capabilities()
-
+    @Test("Platform concurrency limits are correct")
+    func testPlatformLimits() {
         #if os(macOS)
-        #expect(capabilities.maxConcurrentOperations == 16)
-        #expect(capabilities.supportsWebViewPooling == true)
-        #expect(capabilities.supportsBackgroundRendering == true)
-        #expect(capabilities.supportsCustomFonts == true)
+        #expect(PDF.PlatformConcurrencyLimit.macOS == 16)
         #elseif os(iOS)
-        #expect(capabilities.maxConcurrentOperations == 8)
-        #expect(capabilities.supportsWebViewPooling == true)
-        #expect(capabilities.supportsBackgroundRendering == false)
-        #expect(capabilities.supportsCustomFonts == true)
+        #expect(PDF.PlatformConcurrencyLimit.iOS == 8)
         #endif
     }
 
     @Test("Exceeding platform concurrency throws capability error")
     func testExceedingConcurrencyThrows() async throws {
         await withTemporaryDirectory { dir in
-            let capabilities = pdf.render.client.capabilities()
+            #if os(macOS)
+            let platformMax = PDF.PlatformConcurrencyLimit.macOS
+            #else
+            let platformMax = PDF.PlatformConcurrencyLimit.iOS
+            #endif
 
             // Try to set concurrency above platform maximum
-            let excessiveConcurrency = capabilities.maxConcurrentOperations + 10
+            let excessiveConcurrency = platformMax + 10
 
             await withDependencies {
                 $0.pdf.render.configuration.concurrency = .fixed(excessiveConcurrency)

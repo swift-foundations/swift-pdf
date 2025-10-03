@@ -151,6 +151,9 @@ let package = Package(
                 .htmlToPdf,
                 .pdfTestSupport,
                 .dependenciesTestSupport
+            ],
+            swiftSettings: [
+                .define("HTML", .when(traits: ["HTML"]))
             ]
         )
     ],

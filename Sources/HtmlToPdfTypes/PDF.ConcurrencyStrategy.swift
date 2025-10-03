@@ -83,14 +83,14 @@ extension PDF {
             // iOS: Still cap at 4 due to mobile constraints (battery, thermal, app suspension)
             let calculated = max(2, min(cpuCount, 4))
             // Cap at platform maximum
-            return min(calculated, PDF.Capabilities.iOS.maxConcurrentOperations)
+            return min(calculated, PDF.PlatformConcurrencyLimit.iOS)
             #else
             // macOS/Linux: Use 3x CPU count for optimal throughput
             // WebViews spend significant time in I/O, so oversubscription helps
             let calculated = max(2, cpuCount * 3)
             // Cap at platform maximum
             #if os(macOS)
-            return min(calculated, PDF.Capabilities.macOS.maxConcurrentOperations)
+            return min(calculated, PDF.PlatformConcurrencyLimit.macOS)
             #else
             return calculated
             #endif

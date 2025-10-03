@@ -2,72 +2,45 @@
 //  PDF.Capabilities.swift
 //  swift-html-to-pdf
 //
-//  Platform capabilities for PDF rendering
+//  Platform concurrency limits
 //
 
 import Foundation
 
 extension PDF {
-    /// Platform-specific capabilities
-    public struct Capabilities: Sendable {
-        /// Whether this platform supports WebView pooling for performance
-        public let supportsWebViewPooling: Bool
+    /// Platform-specific maximum concurrent operations
+    ///
+    /// These constants define safe concurrency limits for each platform based on:
+    /// - Memory constraints (especially iOS)
+    /// - WebView process limits
+    /// - Thermal management (mobile devices)
+    ///
+    /// Used for:
+    /// - Validating requested concurrency doesn't exceed platform max
+    /// - Capping automatic concurrency calculation
+    public enum PlatformConcurrencyLimit {
+        /// macOS maximum: 16 concurrent WebViews
+        ///
+        /// Based on:
+        /// - Desktop-class memory
+        /// - Active cooling
+        /// - Background process support
+        public static let macOS = 16
 
-        /// Whether this platform supports background rendering
-        public let supportsBackgroundRendering: Bool
+        /// iOS maximum: 8 concurrent WebViews
+        ///
+        /// Based on:
+        /// - Mobile memory constraints
+        /// - Thermal management
+        /// - App suspension policies
+        public static let iOS = 8
 
-        /// Whether this platform supports custom fonts
-        public let supportsCustomFonts: Bool
+        /// Linux maximum: 32 concurrent operations
+        ///
+        /// Future support via wkhtmltopdf or headless Chrome
+        public static let linux = 32
 
-        /// Maximum recommended concurrent operations for this platform
-        public let maxConcurrentOperations: Int
-
-        public init(
-            supportsWebViewPooling: Bool,
-            supportsBackgroundRendering: Bool,
-            supportsCustomFonts: Bool,
-            maxConcurrentOperations: Int
-        ) {
-            self.supportsWebViewPooling = supportsWebViewPooling
-            self.supportsBackgroundRendering = supportsBackgroundRendering
-            self.supportsCustomFonts = supportsCustomFonts
-            self.maxConcurrentOperations = maxConcurrentOperations
-        }
+        /// Mock/test limit: 1 for deterministic testing
+        public static let mock = 1
     }
-}
-
-// MARK: - Platform Presets
-
-extension PDF.Capabilities {
-    /// macOS capabilities
-    public static let macOS = PDF.Capabilities(
-        supportsWebViewPooling: true,
-        supportsBackgroundRendering: true,
-        supportsCustomFonts: true,
-        maxConcurrentOperations: 16
-    )
-
-    /// iOS capabilities
-    public static let iOS = PDF.Capabilities(
-        supportsWebViewPooling: true,
-        supportsBackgroundRendering: false,
-        supportsCustomFonts: true,
-        maxConcurrentOperations: 8
-    )
-
-    /// Linux capabilities (future)
-    public static let linux = PDF.Capabilities(
-        supportsWebViewPooling: false,
-        supportsBackgroundRendering: true,
-        supportsCustomFonts: true,
-        maxConcurrentOperations: 32
-    )
-
-    /// Mock/test capabilities
-    public static let mock = PDF.Capabilities(
-        supportsWebViewPooling: false,
-        supportsBackgroundRendering: false,
-        supportsCustomFonts: false,
-        maxConcurrentOperations: 1
-    )
 }

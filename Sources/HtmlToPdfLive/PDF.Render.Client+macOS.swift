@@ -85,42 +85,28 @@ extension PDF.Render.Client {
         documents: { documents in
             @Dependency(\.pdf.render.configuration) var config
 
-            // Validate configuration against platform capabilities
-            try validateConfiguration(config, against: .macOS)
+            // Validate configuration against platform limits
+            try validateConfiguration(config)
 
             return try await renderDocumentsInternal(documents, config: config)
-        },
-        capabilities: {
-            .macOS
         }
     )
 }
 
 // MARK: - Configuration Validation
 
-/// Validate configuration against platform capabilities
-private func validateConfiguration(_ config: PDF.Configuration, against capabilities: PDF.Capabilities) throws {
+/// Validate configuration against platform limits
+private func validateConfiguration(_ config: PDF.Configuration) throws {
     let requestedConcurrency = config.concurrency.resolved
 
     // Check if requested concurrency exceeds platform maximum
-    if requestedConcurrency > capabilities.maxConcurrentOperations {
+    if requestedConcurrency > PDF.PlatformConcurrencyLimit.macOS {
         throw PrintingError.capabilityUnavailable(
             capability: "concurrency=\(requestedConcurrency)",
-            platform: platformName(for: capabilities),
-            reason: "Platform maximum is \(capabilities.maxConcurrentOperations). Requested \(requestedConcurrency) concurrent operations."
+            platform: "macOS",
+            reason: "Platform maximum is \(PDF.PlatformConcurrencyLimit.macOS). Requested \(requestedConcurrency) concurrent operations."
         )
     }
-}
-
-/// Get platform name from capabilities
-private func platformName(for capabilities: PDF.Capabilities) -> String {
-    #if os(macOS)
-    return "macOS"
-    #elseif os(iOS)
-    return "iOS"
-    #else
-    return "Unknown"
-    #endif
 }
 
 // MARK: - Internal Implementation
@@ -485,17 +471,8 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
                 // Move file I/O and page extraction off main actor to reduce contention
                 Task.detached(priority: .userInitiated) { [outputURL = self.outputURL, paginationMode = self.configuration.paginationMode] in
                     do {
-                        // Atomic file write: write to temp file in same directory, then move
-                        // This prevents partial PDFs if the task is cancelled mid-write
-                        let parentDir = outputURL.deletingLastPathComponent()
-                        let tempURL = parentDir
-                            .appendingPathComponent(UUID().uuidString)
-                            .appendingPathExtension("pdf.tmp")
-
-                        try data.write(to: tempURL)
-
-                        // Atomic move (replaces existing file if present)
-                        try FileManager.default.moveItem(at: tempURL, to: outputURL)
+                        // Write atomically to prevent partial PDFs
+                        try writeAtomically(data, to: outputURL)
 
                         // Extract page info (PDFDocument is thread-safe)
                         let (pageCount, dimensions) = extractPageInfoFromData(data)

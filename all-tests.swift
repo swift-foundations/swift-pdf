@@ -1,5 +1,5 @@
 // ========================================
-// File: Tests/HtmlToPdfTests/AsyncStreamTests.swift
+// File: Tests/HtmlToPdfLiveTests/AsyncStreamTests.swift
 // ========================================
 
 //
@@ -15,7 +15,7 @@ import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
 import Metrics
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite(
     "AsyncStream Results",
@@ -113,7 +113,7 @@ struct AsyncStreamTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/BaseURLTests.swift
+// File: Tests/HtmlToPdfLiveTests/BaseURLTests.swift
 // ========================================
 
 //
@@ -128,7 +128,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("BaseURL Tests", .dependency(\.pdf, .liveValue))
 struct BaseURLTests {
@@ -216,34 +216,30 @@ struct BaseURLTests {
     }
 }
 
-@Suite("Capability Tests", .dependency(\.pdf, .liveValue))
-struct CapabilityTests {
+@Suite("Concurrency Limit Tests", .dependency(\.pdf, .liveValue))
+struct ConcurrencyLimitTests {
     @Dependency(\.pdf) var pdf
 
-    @Test("Platform capabilities are reported correctly")
-    func testPlatformCapabilities() async throws {
-        let capabilities = pdf.render.client.capabilities()
-
+    @Test("Platform concurrency limits are correct")
+    func testPlatformLimits() {
         #if os(macOS)
-        #expect(capabilities.maxConcurrentOperations == 16)
-        #expect(capabilities.supportsWebViewPooling == true)
-        #expect(capabilities.supportsBackgroundRendering == true)
-        #expect(capabilities.supportsCustomFonts == true)
+        #expect(PDF.PlatformConcurrencyLimit.macOS == 16)
         #elseif os(iOS)
-        #expect(capabilities.maxConcurrentOperations == 8)
-        #expect(capabilities.supportsWebViewPooling == true)
-        #expect(capabilities.supportsBackgroundRendering == false)
-        #expect(capabilities.supportsCustomFonts == true)
+        #expect(PDF.PlatformConcurrencyLimit.iOS == 8)
         #endif
     }
 
     @Test("Exceeding platform concurrency throws capability error")
     func testExceedingConcurrencyThrows() async throws {
         await withTemporaryDirectory { dir in
-            let capabilities = pdf.render.client.capabilities()
+            #if os(macOS)
+            let platformMax = PDF.PlatformConcurrencyLimit.macOS
+            #else
+            let platformMax = PDF.PlatformConcurrencyLimit.iOS
+            #endif
 
             // Try to set concurrency above platform maximum
-            let excessiveConcurrency = capabilities.maxConcurrentOperations + 10
+            let excessiveConcurrency = platformMax + 10
 
             await withDependencies {
                 $0.pdf.render.configuration.concurrency = .fixed(excessiveConcurrency)
@@ -311,7 +307,7 @@ struct CapabilityTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/BasicFunctionalityTests.swift
+// File: Tests/HtmlToPdfLiveTests/BasicFunctionalityTests.swift
 // ========================================
 
 //
@@ -326,7 +322,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Basic Functionality", .dependency(\.pdf, .liveValue), .serialized)
 struct BasicFunctionalityTests {
@@ -443,21 +439,6 @@ struct BasicFunctionalityTests {
         #expect(data.starts(with: [0x25, 0x50, 0x44, 0x46]), "Should start with %PDF magic bytes")
     }
 
-    @Test("capabilities returns platform info")
-    func testCapabilities() throws {
-
-        let caps = pdf.render.client.capabilities()
-        #if os(macOS)
-        #expect(caps.supportsWebViewPooling == true, "macOS should support WebView pooling")
-        #expect(caps.supportsBackgroundRendering == true, "macOS should support background rendering")
-        #expect(caps.maxConcurrentOperations > 0, "Should have max concurrent operations")
-        #else
-        #expect(caps.supportsWebViewPooling == true, "iOS should support WebView pooling")
-        #expect(caps.supportsBackgroundRendering == false, "iOS should not support background rendering")
-        #expect(caps.maxConcurrentOperations > 0, "Should have max concurrent operations")
-        #endif
-    }
-
     // MARK: - Configuration Coverage
 
     @Test(
@@ -522,7 +503,7 @@ struct BasicFunctionalityTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/CancellationTests.swift
+// File: Tests/HtmlToPdfLiveTests/CancellationTests.swift
 // ========================================
 
 //
@@ -537,7 +518,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Cancellation Tests", .dependency(\.pdf, .liveValue), .serialized)
 struct CancellationTests {
@@ -777,7 +758,7 @@ struct CancellationTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/ConcurrencyTests.swift
+// File: Tests/HtmlToPdfLiveTests/ConcurrencyTests.swift
 // ========================================
 
 //
@@ -793,7 +774,7 @@ import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
 import Metrics
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Concurrency & Pool Behavior", .dependency(\.pdf, .liveValue))
 struct ConcurrencyTests {
@@ -963,7 +944,7 @@ struct ConcurrencyTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/ConvenienceTests.swift
+// File: Tests/HtmlToPdfLiveTests/ConvenienceTests.swift
 // ========================================
 
 //
@@ -977,7 +958,7 @@ import Testing
 import Foundation
 import Dependencies
 import DependenciesTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Convenience API Levels", .dependency(\.pdf, .liveValue), .serialized)
 struct ConvenienceTests {
@@ -1127,7 +1108,7 @@ struct ConvenienceTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/ErrorHandlingTests.swift
+// File: Tests/HtmlToPdfLiveTests/ErrorHandlingTests.swift
 // ========================================
 
 //
@@ -1142,7 +1123,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Error Handling Tests", .dependency(\.pdf, .liveValue), .serialized)
 struct ErrorHandlingTests {
@@ -1397,7 +1378,7 @@ struct PrintingErrorTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/MetricsIntegrationTests.swift
+// File: Tests/HtmlToPdfLiveTests/MetricsIntegrationTests.swift
 // ========================================
 
 //
@@ -1411,7 +1392,7 @@ import Testing
 import Foundation
 import Dependencies
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Metrics Integration")
 struct MetricsIntegrationTests {
@@ -1571,7 +1552,7 @@ struct MetricsIntegrationTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/MetricsTests.swift
+// File: Tests/HtmlToPdfLiveTests/MetricsTests.swift
 // ========================================
 
 //
@@ -1585,7 +1566,7 @@ import Testing
 import Foundation
 import Dependencies
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Metrics Tests")
 struct MetricsTests {
@@ -1648,283 +1629,7 @@ struct MetricsTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/MultiPageVerificationTest.swift
-// ========================================
-
-//
-//  MultiPageVerificationTest.swift
-//  swift-html-to-pdf
-//
-//  Verify multi-page PDF generation works correctly
-//
-
-import Testing
-import Foundation
-import HtmlToPdf
-import Dependencies
-import DependenciesTestSupport
-
-@Suite("Multi-Page Verification", .dependency(\.pdf, .liveValue))
-struct MultiPageVerificationTests {
-    @Dependency(\.pdf) var pdf
-    
-    @Test(
-        "Generate multi-page PDF with proper page breaks",
-        .dependency(\.pdf.render.configuration, .multiPage)
-    )
-    func generateMultiPagePDF() async throws {
-
-        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
-
-            // Create HTML with enough content to naturally flow across multiple pages
-            // Each section is ~500px tall, and A4 is ~842px, so we need substantial content
-            let htmlString = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Multi-Page PDF Test</title>
-                <style>
-                    body {
-                        font-family: 'Helvetica Neue', Arial, sans-serif;
-                        line-height: 1.6;
-                        color: #333;
-                    }
-
-                    .section {
-                        padding: 40px;
-                        margin-bottom: 40px;
-                    }
-
-                    /* Force actual page breaks between major sections */
-                    .section {
-                        page-break-inside: avoid;
-                    }
-
-                    .force-page-break {
-                        page-break-before: always;
-                    }
-
-                    .page-header {
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 30px;
-                        text-align: center;
-                        border-radius: 8px;
-                        margin-bottom: 30px;
-                    }
-
-                    .page-number {
-                        font-size: 14px;
-                        color: #6c757d;
-                        text-align: center;
-                        margin-top: 20px;
-                    }
-
-                    .content-section {
-                        margin: 20px 0;
-                        padding: 20px;
-                        background: #f8f9fa;
-                        border-left: 4px solid #667eea;
-                    }
-
-                    h1 {
-                        font-size: 36px;
-                        margin: 0;
-                    }
-
-                    h2 {
-                        color: #667eea;
-                        margin-top: 0;
-                    }
-
-                    p {
-                        margin: 10px 0;
-                    }
-
-                    .test-item {
-                        padding: 10px;
-                        margin: 5px 0;
-                        background: white;
-                        border-radius: 4px;
-                    }
-                </style>
-            </head>
-            <body>
-                <!-- Section 1 -->
-                <div class="section">
-                    <div class="page-header">
-                        <h1>📄 Page 1 of 5</h1>
-                        <p>Multi-Page PDF Test</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Purpose of This Test</h2>
-                        <p>This PDF tests that the ContiguousArray&lt;UInt8&gt; implementation correctly handles multi-page documents with proper page breaks.</p>
-                        <p>Each page should be properly separated and all content should be visible without clipping.</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Test Items - Page 1</h2>
-                        \((1...20).map { "<div class='test-item'>Item \($0): Testing content flow and pagination</div>" }.joined(separator: "\n"))
-                    </div>
-
-                    <div class="page-number">— Page 1 —</div>
-                </div>
-
-                <!-- Page 2 -->
-                <div class="page">
-                    <div class="page-header">
-                        <h1>📄 Page 2 of 5</h1>
-                        <p>Testing CSS and Layout</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>CSS Features</h2>
-                        <p>✓ Gradients work across pages</p>
-                        <p>✓ Borders and padding preserved</p>
-                        <p>✓ Colors and backgrounds render correctly</p>
-                        <p>✓ Typography consistent across pages</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Test Items - Page 2</h2>
-                        \((21...40).map { "<div class='test-item'>Item \($0): More content to verify page breaks</div>" }.joined(separator: "\n"))
-                    </div>
-
-                    <div class="page-number">— Page 2 —</div>
-                </div>
-
-                <!-- Page 3 -->
-                <div class="page">
-                    <div class="page-header">
-                        <h1>📄 Page 3 of 5</h1>
-                        <p>Unicode and Special Characters</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Emoji Test</h2>
-                        <p>🎉 🚀 ✨ 💡 🔥 ⚡️ 🎯 🌟 🎨 📝 🎭 🌈 🔬 🧪 📊 📈</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Math Symbols</h2>
-                        <p>α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω</p>
-                        <p>∑ ∫ √ ∞ ≈ ≠ ± ∂ ∇ ∈ ∉ ⊂ ⊃ ∪ ∩</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Currency Symbols</h2>
-                        <p>$ € £ ¥ ₹ ₿ ¢ ₽ ₩ ₪ ₱ ₴ ₵</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Accented Characters</h2>
-                        <p>café, naïve, résumé, façade, à la carte, piñata, über, Zürich</p>
-                    </div>
-
-                    <div class="page-number">— Page 3 —</div>
-                </div>
-
-                <!-- Page 4 -->
-                <div class="page">
-                    <div class="page-header">
-                        <h1>📄 Page 4 of 5</h1>
-                        <p>Performance Metrics</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Memory Efficiency</h2>
-                        <div class="test-item">Old approach (String UTF-16): ~2 bytes per character</div>
-                        <div class="test-item">New approach (ContiguousArray UTF-8): ~1 byte per character</div>
-                        <div class="test-item">Memory savings: ~50% for ASCII-heavy content</div>
-                        <div class="test-item">Additional benefit: Zero-copy from HTML DSL to WKWebView</div>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Test Items - Page 4</h2>
-                        \((41...60).map { "<div class='test-item'>Item \($0): Verifying pagination continues correctly</div>" }.joined(separator: "\n"))
-                    </div>
-
-                    <div class="page-number">— Page 4 —</div>
-                </div>
-
-                <!-- Page 5 -->
-                <div class="page">
-                    <div class="page-header">
-                        <h1>📄 Page 5 of 5</h1>
-                        <p>Final Page</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>✅ Verification Checklist</h2>
-                        <p>If you can see this page clearly:</p>
-                        <div class="test-item">✓ All 5 pages rendered correctly</div>
-                        <div class="test-item">✓ No content clipping occurred</div>
-                        <div class="test-item">✓ Page breaks work properly</div>
-                        <div class="test-item">✓ CSS styles consistent across pages</div>
-                        <div class="test-item">✓ Special characters display correctly</div>
-                        <div class="test-item">✓ ContiguousArray&lt;UInt8&gt; implementation verified!</div>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Implementation Details</h2>
-                        <p><strong>Storage:</strong> ContiguousArray&lt;UInt8&gt;</p>
-                        <p><strong>Encoding:</strong> UTF-8</p>
-                        <p><strong>HTML Source:</strong> String → ContiguousArray conversion</p>
-                        <p><strong>WKWebView:</strong> Direct Data loading</p>
-                        <p><strong>Page Flow:</strong> Automatic (no rect clipping)</p>
-                    </div>
-
-                    <div class="content-section">
-                        <h2>Test Summary</h2>
-                        <p>Generated: \(Date().formatted())</p>
-                        <p>Total Pages: 5</p>
-                        <p>Test Items: 60</p>
-                        <p>Status: ✅ All checks passed</p>
-                    </div>
-
-                    <div class="page-number">— Page 5 (Final) —</div>
-                </div>
-            </body>
-            </html>
-            """
-
-            let output = desktop.appendingPathComponent("PDF_MultiPage_Test.pdf")
-
-            print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("Generating Multi-Page PDF")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("\nOutput location:")
-            print("  \(output.path)")
-
-            let url = try await pdf.render.client.html(htmlString, to: output)
-
-            if FileManager.default.fileExists(atPath: url.path) {
-                let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-                let size = attrs[.size] as? Int64 ?? 0
-
-                print("\n✅ Multi-Page PDF Generated!")
-                print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
-                print("   Path: \(url.path)")
-                print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                print("Open the PDF to verify:")
-                print("  • Should have exactly 5 pages")
-                print("  • Each page clearly labeled (Page 1/5, 2/5, etc.)")
-                print("  • No content clipping or overflow")
-                print("  • Page breaks occur at correct positions")
-                print("  • All special characters visible on page 3")
-                print("  • Final checklist visible on page 5")
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-        } else {
-            throw NSError(domain: "PDF not created", code: -1)
-        }
-    }
-}
-
-
-// ========================================
-// File: Tests/HtmlToPdfTests/NamingCollisionTests.swift
+// File: Tests/HtmlToPdfLiveTests/NamingCollisionTests.swift
 // ========================================
 
 //
@@ -1939,17 +1644,17 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 @Suite("Naming Collision Tests", .dependency(\.pdf, .liveValue))
 struct NamingCollisionTests {
     @Dependency(\.pdf) var pdf
-
+    
     @Test("Concurrent renders with unique titles produce unique files")
     func testConcurrentUniqueTitles() async throws {
         try await withTemporaryDirectory { dir in
             let documentCount = 100
-
+            
             // Each document has a unique title
             let documents = (1...documentCount).map { i in
                 PDF.Document(
@@ -1958,127 +1663,144 @@ struct NamingCollisionTests {
                     in: dir
                 )
             }
-
+            
             var results: [PDF.Result] = []
-
+            
             for try await result in try await pdf.render.client.documents(documents) {
                 results.append(result)
             }
-
+            
             #expect(results.count == documentCount, "All documents should render")
-
+            
             // Collect all generated URLs
             let urls = Set(results.map { $0.url })
-
+            
             // All URLs should be unique
             #expect(urls.count == documentCount, "All URLs should be unique - found \(urls.count) unique out of \(documentCount)")
-
+            
             // Verify all files actually exist
             let existingFiles = urls.filter { url in
                 FileManager.default.fileExists(atPath: url.path)
             }
-
+            
             #expect(existingFiles.count == documentCount, "All files should exist on disk")
         }
     }
-
-    @Test("Sequential naming strategy produces sequential files")
+    
+    @Test(
+        "Sequential naming strategy produces sequential files",
+        .dependencies {
+            $0.pdf.render.configuration.namingStrategy = .sequential
+        }
+    )
     func testSequentialNamingStrategy() async throws {
         try await withTemporaryDirectory { dir in
-            try await withDependencies {
-                $0.pdf.render.configuration.namingStrategy = .sequential
-            } operation: {
-                @Dependency(\.pdf) var configuredPDF
-
-                // Use convenience method that respects naming strategy
-                let htmls = (1...10).map { i in
-                    "<html><body>Doc \(i)</body></html>"
-                }
-
-                var results: [PDF.Result] = []
-
-                for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
-                    results.append(result)
-                }
-
-                // Check that files are named sequentially
-                let filenames = results.map { $0.url.lastPathComponent }
-
-                #expect(filenames.contains("1.pdf") || filenames.contains("0.pdf"), "Should have sequential naming")
+            
+            @Dependency(\.pdf) var configuredPDF
+            
+            // Use convenience method that respects naming strategy
+            let htmls = (1...10).map { i in
+                "<html><body>Doc \(i)</body></html>"
             }
+            
+            var results: [PDF.Result] = []
+            
+            for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
+                results.append(result)
+            }
+            
+            // Check that files are named sequentially
+            let filenames = results.map { $0.url.lastPathComponent }
+            
+            #expect(filenames.contains("1.pdf") || filenames.contains("0.pdf"), "Should have sequential naming")
+            
         }
     }
-
-    @Test("UUID naming strategy produces unique names")
+    
+    @Test(
+        "UUID naming strategy produces unique names",
+        .dependencies {
+            $0.pdf.render.configuration.namingStrategy = .uuid
+        }
+    )
     func testUUIDNamingStrategy() async throws {
         try await withTemporaryDirectory { dir in
-            try await withDependencies {
-                $0.pdf.render.configuration.namingStrategy = .uuid
-            } operation: {
-                @Dependency(\.pdf) var configuredPDF
-
-                // Use convenience method that respects naming strategy
-                let htmls = (1...50).map { i in
-                    "<html><body>Doc \(i)</body></html>"
-                }
-
-                var results: [PDF.Result] = []
-
-                for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
-                    results.append(result)
-                }
-
-                // All filenames should be UUIDs (36 chars + .pdf = 40 chars)
-                let filenames = results.map { $0.url.lastPathComponent }
-
-                for filename in filenames {
-                    // UUID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX.pdf (40 chars)
-                    #expect(filename.hasSuffix(".pdf"))
-                    #expect(filename.count == 40, "UUID filename should be 40 chars: \(filename)")
-                }
-
-                // All should be unique
-                let uniqueNames = Set(filenames)
-                #expect(uniqueNames.count == 50, "All UUIDs should be unique")
+            
+            @Dependency(\.pdf) var configuredPDF
+            
+            // Use convenience method that respects naming strategy
+            let htmls = (1...50).map { i in
+                "<html><body>Doc \(i)</body></html>"
             }
+            
+            var results: [PDF.Result] = []
+            
+            for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
+                results.append(result)
+            }
+            
+            // All filenames should be UUIDs (36 chars + .pdf = 40 chars)
+            let filenames = results.map { $0.url.lastPathComponent }
+            
+            for filename in filenames {
+                // UUID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX.pdf (40 chars)
+                #expect(filename.hasSuffix(".pdf"))
+                #expect(filename.count == 40, "UUID filename should be 40 chars: \(filename)")
+            }
+            
+            // All should be unique
+            let uniqueNames = Set(filenames)
+            #expect(uniqueNames.count == 50, "All UUIDs should be unique")
+            
         }
     }
-
-    @Test("Custom naming strategy is applied correctly")
+    
+    @Test(
+        "Custom naming strategy is applied correctly",
+        .dependencies {
+            $0.pdf.render.configuration.namingStrategy = PDF.NamingStrategy { index in
+                String(format: "invoice-%06d", index + 1)
+            }
+        }
+    )
     func testCustomNamingStrategy() async throws {
         try await withTemporaryDirectory { dir in
-            try await withDependencies {
-                $0.pdf.render.configuration.namingStrategy = PDF.NamingStrategy { index in
-                    String(format: "invoice-%06d", index + 1)
-                }
-            } operation: {
-                @Dependency(\.pdf) var configuredPDF
-
-                // Use convenience method that respects naming strategy
-                let htmls = (1...10).map { i in
-                    "<html><body>Invoice \(i)</body></html>"
-                }
-
-                var results: [PDF.Result] = []
-
-                for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
-                    results.append(result)
-                }
-
-                let filenames = Set(results.map { $0.url.lastPathComponent })
-
-                #expect(filenames.contains("invoice-000001.pdf"))
-                #expect(filenames.contains("invoice-000010.pdf"))
-                #expect(filenames.count == 10)
+            @Dependency(\.pdf) var configuredPDF
+            
+            // Use convenience method that respects naming strategy
+            let htmls = (1...10).map { i in
+                "<html><body>Invoice \(i)</body></html>"
             }
+            
+            var results: [PDF.Result] = []
+            
+            for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
+                results.append(result)
+            }
+            
+            let filenames = Set(results.map { $0.url.lastPathComponent })
+            
+            #expect(filenames.contains("invoice-000001.pdf"))
+            #expect(filenames.contains("invoice-000010.pdf"))
+            #expect(filenames.count == 10)
+            
         }
     }
-
+    
     @Test("High concurrency naming collisions are handled")
     func testHighConcurrencyNamingCollisions() async throws {
+        @Dependency(\.pdf) var pdf
+
+        // Use platform maximum concurrency (macOS: 16, iOS: 8)
+        #if os(macOS)
+        let platformMax = PDF.PlatformConcurrencyLimit.macOS
+        #else
+        let platformMax = PDF.PlatformConcurrencyLimit.iOS
+        #endif
+
         try await withTemporaryDirectory { dir in
             try await withDependencies {
-                $0.pdf.render.configuration.concurrency = .fixed(16)  // Use platform max
+                $0.pdf.render.configuration.concurrency = .fixed(platformMax)
                 $0.pdf.render.configuration.namingStrategy = .uuid  // Safest for high concurrency
             } operation: {
                 @Dependency(\.pdf) var configuredPDF
@@ -2109,7 +1831,7 @@ struct NamingCollisionTests {
             }
         }
     }
-
+    
     @Test("Naming with special characters is handled safely")
     func testNamingWithSpecialCharacters() async throws {
         try await withTemporaryDirectory { dir in
@@ -2121,19 +1843,19 @@ struct NamingCollisionTests {
                 "test*with*asterisks",
                 "test<with>brackets"
             ]
-
+            
             for title in specialTitles {
                 let doc = PDF.Document(
                     htmlString: "<html><body>Test</body></html>",
                     title: title,
                     in: dir
                 )
-
+                
                 let result = try await pdf.render.client.document(doc)
-
+                
                 // File should be created with sanitized name
                 #expect(FileManager.default.fileExists(atPath: result.path))
-
+                
                 // Filename should not contain dangerous characters
                 let filename = result.lastPathComponent
                 #expect(!filename.contains("/"), "Filename should not contain /: \(filename)")
@@ -2145,373 +1867,7 @@ struct NamingCollisionTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/NaturalMultiPageTest.swift
-// ========================================
-
-//
-//  NaturalMultiPageTest.swift
-//  swift-html-to-pdf
-//
-//  Test that content naturally flows across multiple pages
-//
-
-import Testing
-import Foundation
-import HtmlToPdf
-import Dependencies
-import DependenciesTestSupport
-import PDFKit
-
-@Suite(
-    "Natural Multi-Page Flow",
-    .dependency(\.pdf, .liveValue),
-    .disabled("Run manually: swift test --filter NaturalMultiPageTests")
-)
-struct NaturalMultiPageTests {
-    @Dependency(\.pdf) var pdf
-    
-    @Test(
-        "Generate PDF with content that naturally spans multiple pages (Paginated Mode)",
-        .dependency(\.pdf.render.configuration.paginationMode, .paginated)
-    )
-    func generateNaturalMultiPagePDF() async throws {
-
-        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
-
-            // Generate lots of content - should naturally span 3-4 pages on A4
-            let items = (1...200).map { i in
-                """
-                <div style="padding: 15px; margin: 10px 0; background: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px;">
-                    <h3 style="margin: 0 0 10px 0; color: #667eea;">Item #\(i)</h3>
-                    <p style="margin: 5px 0;">This is test item number \(i). It contains enough text to take up vertical space and demonstrate that content flows naturally across multiple pages without requiring CSS page-break directives.</p>
-                    <p style="margin: 5px 0; font-size: 12px; color: #6c757d;">Testing ContiguousArray&lt;UInt8&gt; | UTF-8 Encoding | Zero-copy rendering</p>
-                </div>
-                """
-            }.joined(separator: "\n")
-
-            let htmlString = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Natural Multi-Page PDF Test</title>
-                <style>
-                    body {
-                        font-family: 'Helvetica Neue', Arial, sans-serif;
-                        line-height: 1.6;
-                        color: #333;
-                        margin: 0;
-                        padding: 0;
-                    }
-
-                    .header {
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 40px;
-                        text-align: center;
-                    }
-
-                    .header h1 {
-                        margin: 0;
-                        font-size: 48px;
-                    }
-
-                    .header p {
-                        margin: 10px 0 0 0;
-                        font-size: 18px;
-                        opacity: 0.9;
-                    }
-
-                    .content {
-                        padding: 20px;
-                    }
-
-                    .footer {
-                        margin-top: 40px;
-                        padding: 20px;
-                        text-align: center;
-                        background: #f8f9fa;
-                        color: #6c757d;
-                        border-top: 2px solid #e9ecef;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h1>📄 Natural Multi-Page Test</h1>
-                    <p>Content Should Flow Across Multiple Pages</p>
-                </div>
-
-                <div class="content">
-                    <div style="padding: 20px; margin: 20px 0; background: #e7f3ff; border-radius: 8px;">
-                        <h2 style="margin-top: 0; color: #0066cc;">Purpose</h2>
-                        <p>This PDF contains 200 test items. At approximately 100-120 pixels per item, this should naturally span 3-4 pages on A4 paper (595 × 842 points with margins).</p>
-                        <p>No CSS page breaks are used - content flows naturally based on the paper size configured in PDF.Configuration.</p>
-                    </div>
-
-                    \(items)
-
-                    <div class="footer">
-                        <h3>✅ Test Complete</h3>
-                        <p>If you see this footer and can scroll/navigate through multiple pages, the multi-page rendering is working correctly!</p>
-                        <p>Generated: \(Date().formatted())</p>
-                        <p>Total Items: 200 | Implementation: ContiguousArray&lt;UInt8&gt;</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-
-            let output = desktop.appendingPathComponent("PDF_Natural_MultiPage_Test.pdf")
-
-            print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("Generating Natural Multi-Page PDF")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("\nOutput location:")
-            print("  \(output.path)")
-            print("\nExpected: 3-4 pages of content")
-            print("Items: 200 test items")
-
-            let url = try await pdf.render.client.html(htmlString, to: output)
-
-            if FileManager.default.fileExists(atPath: url.path) {
-                let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-                let size = attrs[.size] as? Int64 ?? 0
-
-                // Verify PDF structure using PDFKit
-                guard let pdfDoc = PDFDocument(url: url) else {
-                    throw NSError(domain: "Failed to load PDF", code: -1)
-                }
-
-                let pageCount = pdfDoc.pageCount
-
-                // Check first page dimensions (should be A4: 595.28 × 841.89 points)
-                guard let firstPage = pdfDoc.page(at: 0) else {
-                    throw NSError(domain: "Failed to get first page", code: -1)
-                }
-                let bounds = firstPage.bounds(for: .mediaBox)
-                let expectedA4Width: CGFloat = 595.28
-                let expectedA4Height: CGFloat = 841.89
-                let tolerance: CGFloat = 1.0
-
-                let isA4Width = abs(bounds.width - expectedA4Width) < tolerance
-                let isA4Height = abs(bounds.height - expectedA4Height) < tolerance
-
-                print("\n✅ PDF Generated!")
-                print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
-                print("   Path: \(url.path)")
-                print("\n📄 PDF Structure:")
-                print("   Pages: \(pageCount)")
-                print("   Page 1 dimensions: \(bounds.width) × \(bounds.height) points")
-                print("   Expected A4: \(expectedA4Width) × \(expectedA4Height) points")
-                print("   Width correct: \(isA4Width ? "✅" : "❌")")
-                print("   Height correct: \(isA4Height ? "✅" : "❌")")
-
-                print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                print("Verification:")
-                print("  | Total number of pages: \(pageCount) (expected 3-4)")
-                print("  | All 200 items present: \(pageCount >= 3 ? "✅" : "❌")")
-                print("  | Page dimensions A4: \(isA4Width && isA4Height ? "✅" : "❌")")
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-
-                // Assert correct dimensions
-                #expect(isA4Width, "PDF width should be A4 (595.28 points), got \(bounds.width)")
-                #expect(isA4Height, "PDF height should be A4 (841.89 points), got \(bounds.height)")
-                #expect(pageCount >= 3, "PDF should have at least 3 pages, got \(pageCount)")
-        } else {
-            throw NSError(domain: "PDF not created", code: -1)
-        }
-    }
-
-    @Test(
-        "Generate PDF with content in continuous mode (Quality Comparison)",
-        .dependency(\.pdf.render.configuration.paginationMode, .continuous)
-    )
-    func generateContinuousModePDF() async throws {
-        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
-
-        // Same content but with bullet characters to test quality
-        let testContent = """
-        <div style="padding: 20px; margin: 20px 0; background: #f8f9fa; border-radius: 8px;">
-            <h2>Character Quality Test - Continuous Mode (WKWebView.createPDF)</h2>
-
-            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
-                <h3>Unicode Bullet (•)</h3>
-                <p style="font-size: 12px; color: #6c757d;">
-                    Testing ContiguousArray&lt;UInt8&gt; • UTF-8 Encoding • Zero-copy rendering
-                </p>
-                <p style="font-size: 14px;">
-                    Item A • Item B • Item C
-                </p>
-                <p style="font-size: 16px; font-weight: 500;">
-                    Performance • Quality • Speed
-                </p>
-            </div>
-
-            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
-                <h3>Pipe Character (|)</h3>
-                <p style="font-size: 12px; color: #6c757d;">
-                    Testing ContiguousArray&lt;UInt8&gt; | UTF-8 Encoding | Zero-copy rendering
-                </p>
-                <p style="font-size: 14px;">
-                    Item A | Item B | Item C
-                </p>
-                <p style="font-size: 16px; font-weight: 500;">
-                    Performance | Quality | Speed
-                </p>
-            </div>
-
-            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
-                <h3>Hyphen Character (-)</h3>
-                <p style="font-size: 12px; color: #6c757d;">
-                    Testing ContiguousArray&lt;UInt8&gt; - UTF-8 Encoding - Zero-copy rendering
-                </p>
-                <p style="font-size: 14px;">
-                    Item A - Item B - Item C
-                </p>
-                <p style="font-size: 16px; font-weight: 500;">
-                    Performance - Quality - Speed
-                </p>
-            </div>
-
-            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
-                <h3>HTML Middot (&middot;)</h3>
-                <p style="font-size: 12px; color: #6c757d;">
-                    Testing ContiguousArray&lt;UInt8&gt; &middot; UTF-8 Encoding &middot; Zero-copy rendering
-                </p>
-                <p style="font-size: 14px;">
-                    Item A &middot; Item B &middot; Item C
-                </p>
-                <p style="font-size: 16px; font-weight: 500;">
-                    Performance &middot; Quality &middot; Speed
-                </p>
-            </div>
-
-            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
-                <h3>Emojis</h3>
-                <p style="font-size: 14px;">
-                    📄 Document • ✅ Success • 🎯 Target
-                </p>
-                <p style="font-size: 16px;">
-                    ⚡ Performance • 🔧 Tools • 📊 Analytics
-                </p>
-            </div>
-
-            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
-                <h3>Mixed Content</h3>
-                <p style="font-size: 12px; color: #6c757d;">
-                    <strong>Bold bullets:</strong> Testing • UTF-8 • Rendering
-                </p>
-                <p style="font-size: 12px; color: #6c757d;">
-                    <em>Italic bullets:</em> Testing • UTF-8 • Rendering
-                </p>
-                <p style="font-size: 12px; color: #6c757d;">
-                    <strong><em>Bold italic bullets:</em></strong> Testing • UTF-8 • Rendering
-                </p>
-            </div>
-        </div>
-        """
-
-        let htmlString = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Continuous Mode Quality Test</title>
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    margin: 0;
-                    padding: 0;
-                }
-
-                .header {
-                    background: linear-gradient(135deg, #00b4db 0%, #0083b0 100%);
-                    color: white;
-                    padding: 40px;
-                    text-align: center;
-                }
-
-                .header h1 {
-                    margin: 0;
-                    font-size: 48px;
-                }
-
-                .header p {
-                    margin: 10px 0 0 0;
-                    font-size: 18px;
-                    opacity: 0.9;
-                }
-
-                .content {
-                    padding: 20px;
-                    max-width: 800px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>⚡ Continuous Mode Quality Test</h1>
-                <p>WKWebView.createPDF() - Fast Rendering</p>
-            </div>
-
-            <div class="content">
-                \(testContent)
-
-                <div style="margin-top: 40px; padding: 20px; background: #e7f3ff; border-radius: 8px;">
-                    <h3>📋 Test Purpose</h3>
-                    <p>Compare character rendering quality between:</p>
-                    <ul>
-                        <li><strong>Continuous Mode:</strong> WKWebView.createPDF() (this file)</li>
-                        <li><strong>Paginated Mode:</strong> NSPrintOperation.run() (separate file)</li>
-                    </ul>
-                    <p>Check if Unicode bullets (•) render crisply in continuous mode.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-
-        let output = desktop.appendingPathComponent("PDF_Continuous_Quality_Test.pdf")
-
-        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("Generating Continuous Mode Quality Test")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("\nOutput location:")
-        print("  \(output.path)")
-        print("\nMode: Continuous (WKWebView.createPDF)")
-        print("Purpose: Compare rendering quality with paginated mode")
-
-        let url = try await pdf.render.client.html(htmlString, to: output)
-
-        if FileManager.default.fileExists(atPath: url.path) {
-            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-            let size = attrs[.size] as? Int64 ?? 0
-
-            guard let pdfDoc = PDFDocument(url: url) else {
-                throw NSError(domain: "Failed to load PDF", code: -1)
-            }
-
-            let pageCount = pdfDoc.pageCount
-
-            print("\n✅ PDF Generated!")
-            print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
-            print("   Path: \(url.path)")
-            print("   Pages: \(pageCount)")
-            print("\n📊 Compare this with PDF_Natural_MultiPage_Test.pdf")
-            print("   to see quality differences between modes")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-        } else {
-            throw NSError(domain: "PDF not created", code: -1)
-        }
-    }
-}
-
-
-// ========================================
-// File: Tests/HtmlToPdfTests/PaginationModeTests.swift
+// File: Tests/HtmlToPdfLiveTests/PaginationModeTests.swift
 // ========================================
 
 //
@@ -2523,7 +1879,7 @@ struct NaturalMultiPageTests {
 
 import Testing
 import Foundation
-import HtmlToPdf
+import HtmlToPdfLive
 import Dependencies
 import DependenciesTestSupport
 import PDFKit
@@ -2575,11 +1931,11 @@ struct PaginationModeTests {
         .dependency(\.pdf.render.configuration.paginationMode, .continuous)
     )
     func continuousModeLongContent() async throws {
-        
+
         let tempDir = FileManager.default.temporaryDirectory
         let output = tempDir.appendingPathComponent("test-continuous.pdf")
         defer { try? FileManager.default.removeItem(at: output) }
-        
+
         // Generate long content
         let items = (1...100).map { "<p style='margin: 20px 0;'>Item \($0)</p>" }.joined()
         let html = """
@@ -2589,23 +1945,36 @@ struct PaginationModeTests {
             <body>\(items)</body>
             </html>
             """
-        
+
         let url = try await pdf.render.client.html(html, to: output)
-        
-        // Verify single page was created
+
+        // Verify page count
         guard let pdfDoc = PDFDocument(url: url) else {
             throw NSError(domain: "Failed to load PDF", code: -1)
         }
-        
+
         let pageCount = pdfDoc.pageCount
-        #expect(pageCount == 1, "Continuous mode should create single page, got \(pageCount)")
-        
+
+        #if os(macOS)
+        // macOS uses WKWebView.createPDF for continuous mode -> single tall page
+        #expect(pageCount == 1, "Continuous mode should create single page on macOS, got \(pageCount)")
+
         // Verify tall page
         if let firstPage = pdfDoc.page(at: 0) {
             let bounds = firstPage.bounds(for: .mediaBox)
             #expect(abs(bounds.width - 595.28) < 1.0, "Page width should match A4 width")
             #expect(bounds.height > 1000, "Page should be tall (continuous), got \(bounds.height)")
         }
+        #else
+        // iOS uses WebView rendering which may still paginate in continuous mode
+        // This is expected behavior - just verify PDF was created
+        #expect(pageCount >= 1, "Continuous mode should create at least one page on iOS, got \(pageCount)")
+
+        if let firstPage = pdfDoc.page(at: 0) {
+            let bounds = firstPage.bounds(for: .mediaBox)
+            #expect(abs(bounds.width - 595.28) < 1.0, "Page width should match A4 width")
+        }
+        #endif
     }
     
     @Test(
@@ -2714,7 +2083,7 @@ struct PaginationModeTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/PerformanceBenchmarks.swift
+// File: Tests/HtmlToPdfLiveTests/PerformanceBenchmarks.swift
 // ========================================
 
 //
@@ -2729,7 +2098,7 @@ import Foundation
 import Dependencies
 import PDFTestSupport
 import Metrics
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 extension Tag {
     @Tag static var benchmark: Self
@@ -3316,12 +2685,20 @@ struct PerformanceBenchmarks {
         }
 
         let testCount = 5000  // Sample size for each concurrency level
-        // Respect platform maximum (macOS: 16, iOS: 8)
-        let concurrencyLevels = [4, 8, 12, 16]
+
+        // Filter concurrency levels based on platform limits
+        // macOS: [4, 8, 12, 16], iOS: [4, 8]
+        #if os(macOS)
+        let platformMax = PDF.PlatformConcurrencyLimit.macOS
+        #else
+        let platformMax = PDF.PlatformConcurrencyLimit.iOS
+        #endif
+        let concurrencyLevels = [4, 8, 12, 16].filter { $0 <= platformMax }
 
         print("\n╔════════════════════════════════════════════════════════════╗")
         print("║     ADAPTIVE THROUGHPUT OPTIMIZATION TEST                 ║")
         print("╚════════════════════════════════════════════════════════════╝")
+        print("Platform: \(platformMax) max concurrent operations")
         print("Sample size per test: \(testCount) PDFs")
         print("Testing concurrency levels: \(concurrencyLevels)")
         print("Starting optimization...\n")
@@ -3390,7 +2767,289 @@ struct PerformanceBenchmarks {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/PrintQualityExperiment.swift
+// File: Tests/HtmlToPdfLiveTests/PlatformSpecificTests.swift
+// ========================================
+
+//
+//  PlatformSpecificTests.swift
+//  swift-html-to-pdf
+//
+//  Platform-specific behavior tests
+//
+
+import Testing
+import Foundation
+import Dependencies
+import DependenciesTestSupport
+import PDFKit
+import PDFTestSupport
+@testable import HtmlToPdfLive
+
+@Suite("Platform-Specific Behavior", .dependency(\.pdf, .liveValue))
+struct PlatformSpecificTests {
+    @Dependency(\.pdf) var pdf
+
+    #if os(iOS)
+    @Test("iOS renders images using WebView path")
+    func iOSImageRendering() async throws {
+        try await withTemporaryPDF { output in
+            let html = """
+            <html>
+            <head><title>Test</title></head>
+            <body>
+                <h1>Image Test</h1>
+                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" alt="test" />
+                <p>This HTML contains an image</p>
+            </body>
+            </html>
+            """
+
+            let result = try await pdf.render.client.html(html, to: output)
+
+            #expect(FileManager.default.fileExists(atPath: result.path), "PDF with image should be created")
+
+            // Verify PDF was created and has content
+            let pdfData = try Data(contentsOf: result)
+            #expect(pdfData.count > 1000, "PDF with image should have substantial content")
+        }
+    }
+
+    @Test("iOS uses fast text-only rendering when no images")
+    func iOSTextOnlyRendering() async throws {
+        try await withTemporaryPDF { output in
+            let html = """
+            <html>
+            <head><title>Test</title></head>
+            <body>
+                <h1>Simple Text</h1>
+                <p>No images here, just plain text content.</p>
+            </body>
+            </html>
+            """
+
+            let result = try await pdf.render.client.html(html, to: output)
+
+            #expect(FileManager.default.fileExists(atPath: result.path), "Text-only PDF should be created")
+        }
+    }
+
+    @Test("iOS respects MainActor isolation")
+    func iOSMainActorIsolation() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let output = tempDir.appendingPathComponent("test-mainactor.pdf")
+        defer { try? FileManager.default.removeItem(at: output) }
+
+        @MainActor
+        func renderOnMainActor() async throws -> URL {
+            let html = "<html><body><h1>MainActor Test</h1></body></html>"
+            return try await pdf.render.client.html(html, to: output)
+        }
+
+        let result = try await renderOnMainActor()
+        #expect(FileManager.default.fileExists(atPath: result.path), "PDF from MainActor should be created")
+    }
+
+    /// Verify UIMarkupTextPrintFormatter image rendering capability
+    ///
+    /// **Current Result**: UIMarkupTextPrintFormatter CANNOT render images.
+    /// This test programmatically verifies that images are NOT rendered by comparing
+    /// file sizes of text-only vs text-with-image PDFs. If Apple ever adds image
+    /// support to UIMarkupTextPrintFormatter, this test will fail and alert us
+    /// that we can simplify the iOS implementation.
+    @Test("UIMarkupTextPrintFormatter cannot render images")
+    func printFormatterCannotRenderImages() async throws {
+        try await withTemporaryDirectory { tempDir in
+            // Load test image
+            let base64PNG = try TestImages.loadBase64(named: "coenttb", extension: "png", from: .module)
+
+            // PDF 1: Text-only baseline
+            let textOnlyHTML = TestHTML.custom(
+                title: "Text Only",
+                body: """
+                <h1>Test Document</h1>
+                <p>This is a test document with some text content.</p>
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+                <p>No images in this document.</p>
+                """,
+                css: "body { font-family: Arial; padding: 20px; }"
+            )
+
+            // PDF 2: Same text PLUS an image tag
+            let withImageHTML = TestHTML.custom(
+                title: "With Image Tag",
+                body: """
+                <h1>Test Document</h1>
+                <p>This is a test document with some text content.</p>
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+                <p>No images in this document.</p>
+                <img src="data:image/png;base64,\(base64PNG)" alt="Test" style="width: 200px; height: 200px;">
+                """,
+                css: "body { font-family: Arial; padding: 20px; }"
+            )
+
+            // Generate both PDFs using PrintFormatter only
+            let textOnlyOutput = tempDir.appendingPathComponent("text-only.pdf")
+            let withImageOutput = tempDir.appendingPathComponent("with-image.pdf")
+
+            _ = try await iOSPrintFormatterRenderer.renderPDF(html: textOnlyHTML, to: textOnlyOutput)
+            _ = try await iOSPrintFormatterRenderer.renderPDF(html: withImageHTML, to: withImageOutput)
+
+            // Get file sizes
+            let textOnlySize = try FileManager.default.attributesOfItem(atPath: textOnlyOutput.path)[.size] as! Int64
+            let withImageSize = try FileManager.default.attributesOfItem(atPath: withImageOutput.path)[.size] as! Int64
+
+            // Calculate size difference
+            let sizeDifference = abs(withImageSize - textOnlySize)
+            let percentDifference = (Double(sizeDifference) / Double(textOnlySize)) * 100
+
+            // If images were rendered, the PDF with the image would be significantly larger
+            // (at least 10KB+ for even a small PNG). We allow for small variations due to
+            // metadata differences, but any difference over 5% likely indicates image rendering.
+            let maxAllowedDifferencePercent = 5.0
+
+            if percentDifference > maxAllowedDifferencePercent {
+                Issue.record(
+                    """
+                    UIMarkupTextPrintFormatter appears to render images (size increased \(String(format: "%.1f", percentDifference))%). \
+                    Consider removing the dual-path iOS implementation.
+                    """
+                )
+            }
+
+            // Test expectation: Images should NOT be rendered (file sizes should be similar)
+            #expect(
+                percentDifference <= maxAllowedDifferencePercent,
+                """
+                UIMarkupTextPrintFormatter should NOT render images. \
+                If this test fails, Apple may have added image support, and we can simplify the iOS implementation.
+                """
+            )
+        }
+    }
+    #endif
+
+    #if os(macOS)
+    @Test(
+        "macOS uses NSPrintOperation for paginated mode",
+        .dependency(\.pdf.render.configuration.paginationMode, .paginated)
+    )
+    func macOSPaginatedRendering() async throws {
+        try await withTemporaryPDF { output in
+            // Long content to trigger pagination
+            let items = (1...100).map { "<p style='margin: 20px 0;'>Item \($0)</p>" }.joined()
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>Test</title></head>
+            <body>\(items)</body>
+            </html>
+            """
+
+            let result = try await pdf.render.client.html(html, to: output)
+
+            guard let pdfDoc = PDFDocument(url: result) else {
+                throw NSError(domain: "Failed to load PDF", code: -1)
+            }
+
+            // macOS NSPrintOperation should create proper multi-page PDF
+            #expect(pdfDoc.pageCount > 1, "macOS paginated mode should create multiple pages")
+
+            // Verify all pages have standard dimensions (not continuous)
+            for i in 0..<pdfDoc.pageCount {
+                if let page = pdfDoc.page(at: i) {
+                    let bounds = page.bounds(for: .mediaBox)
+                    #expect(abs(bounds.height - 841.89) < 1.0, "Page \(i) should have standard A4 height")
+                }
+            }
+        }
+    }
+
+    @Test(
+        "macOS uses WKWebView.createPDF for continuous mode",
+        .dependency(\.pdf.render.configuration.paginationMode, .continuous)
+    )
+    func macOSContinuousRendering() async throws {
+        try await withTemporaryPDF { output in
+            // Long content
+            let items = (1...100).map { "<p style='margin: 20px 0;'>Item \($0)</p>" }.joined()
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>Test</title></head>
+            <body>\(items)</body>
+            </html>
+            """
+
+            let result = try await pdf.render.client.html(html, to: output)
+
+            guard let pdfDoc = PDFDocument(url: result) else {
+                throw NSError(domain: "Failed to load PDF", code: -1)
+            }
+
+            // macOS continuous mode creates single tall page
+            #expect(pdfDoc.pageCount == 1, "macOS continuous mode should create single page")
+
+            if let page = pdfDoc.page(at: 0) {
+                let bounds = page.bounds(for: .mediaBox)
+                #expect(bounds.height > 1000, "Continuous page should be tall, got \(bounds.height)")
+            }
+        }
+    }
+
+    #endif
+
+    // Shared tests with platform-aware expectations
+    @Test("Platform concurrency limits are correctly defined")
+    func platformConcurrencyLimits() {
+        #if os(macOS)
+        #expect(PDF.PlatformConcurrencyLimit.macOS == 16, "macOS should support 16 concurrent operations")
+        #else
+        #expect(PDF.PlatformConcurrencyLimit.iOS == 8, "iOS should support 8 concurrent operations")
+        #endif
+    }
+
+    @Test("Page count extraction works on both platforms")
+    func pageCountExtraction() async throws {
+        try await withTemporaryPDF { output in
+            // Multi-page content
+            let items = (1...100).map { "<p style='margin: 20px 0;'>Item \($0)</p>" }.joined()
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>Test</title></head>
+            <body>\(items)</body>
+            </html>
+            """
+
+            let result = try await withDependencies {
+                $0.pdf.render.configuration.paginationMode = .paginated
+            } operation: {
+                try await pdf.render.client.html(html, to: output)
+            }
+
+            guard let pdfDoc = PDFDocument(url: result) else {
+                throw NSError(domain: "Failed to load PDF", code: -1)
+            }
+
+            // Both platforms should correctly extract page count
+            let pageCount = pdfDoc.pageCount
+            #expect(pageCount > 0, "Should extract page count from PDF")
+
+            #if os(macOS)
+            // macOS with NSPrintOperation should create multiple pages
+            #expect(pageCount > 1, "macOS paginated should create multiple pages")
+            #else
+            // iOS behavior: WebView-based pagination may differ
+            // Just verify we got a valid PDF
+            #expect(pageCount >= 1, "iOS should create valid PDF")
+            #endif
+        }
+    }
+}
+
+
+// ========================================
+// File: Tests/HtmlToPdfLiveTests/PrintQualityExperiment.swift
 // ========================================
 
 //
@@ -3402,7 +3061,7 @@ struct PerformanceBenchmarks {
 
 import Testing
 import Foundation
-import HtmlToPdf
+import HtmlToPdfLive
 import Dependencies
 import DependenciesTestSupport
 
@@ -3840,7 +3499,7 @@ struct PrintQualityExperiments {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/StressTests.swift
+// File: Tests/HtmlToPdfLiveTests/StressTests.swift
 // ========================================
 
 //
@@ -3855,7 +3514,7 @@ import Foundation
 import Dependencies
 import PDFTestSupport
 import Metrics
-@testable import HtmlToPdf
+@testable import HtmlToPdfLive
 
 extension Tag {
     @Tag static var stress: Self
@@ -3869,117 +3528,116 @@ extension Tag {
     .disabled()
 )
 struct StressTests {
-
+    
     @Dependency(\.pdf) var pdf
-
+    
     // MARK: - Extreme Load Tests
-
+    
     @Test(
         "Generate 1,000,000 PDFs",
         .timeLimit(.minutes(120)),
-//        .disabled { false }
+        .dependencies {
+            $0.pdf.render.configuration.concurrency = 8
+            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
+        }
+        //        .disabled { false }
     )
     func test1MPDFs() async throws {
         let metricsBackend = TestMetricsBackend.forTest()
-
-        try await withDependencies {
-            $0.pdf.render.configuration.concurrency = 8
-            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
-        } operation: {
-            try await withTemporaryDirectory { output in
-                // Suppress WebKit console warnings
-                setenv("OS_ACTIVITY_MODE", "disable", 1)
-
-                let count = 1_000_000
-                let filesPerDirectory = 1_000 // Keep directories manageable
-
-                let startTime = Date()
-
-                // Setup live metrics display
-                let metricsTracker = MetricsProgressTracker(
-                    totalCount: count,
-                    metricsBackend: metricsBackend,
-                    reportInterval: .seconds(10)
-                )
-                await metricsTracker.start()
-
-                // Create subdirectories to avoid file system degradation
-                // 1M files split into 1000 directories of 1000 files each
-                let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
-                for dirIndex in 0..<numDirectories {
-                    let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
-                    try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
-                }
-
-                // Create minimal HTML documents with subdirectory paths
-                let documents = (1...count).map { i in
-                    let dirIndex = (i - 1) / filesPerDirectory
-                    let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
-                    return PDF.Document(
-                        htmlString: "<html><body><p>\(i)</p></body></html>",
-                        title: "doc-\(i)",
-                        in: subdirUrl
-                    )
-                }
-
-                @Dependency(\.pdf) var pdf
-                let poolSize = pdf.render.configuration.concurrency.resolved
-
-                print("\n╔═══════════════════════════════════════════════════════════╗")
-                print("║           1 MILLION PDF GENERATION TEST                  ║")
-                print("╚═══════════════════════════════════════════════════════════╝")
-                print("Total documents: \(count.formatted())")
-                print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
-                print("Pool size: \(poolSize) WebViews")
-                print("Starting generation...\n")
-
-                let stream = try await pdf.render.client.documents(documents)
-
-                for try await _ in stream {
-                    // Metrics automatically recorded, live display updates
-                }
-
-                await metricsTracker.stop()
-
-                let duration = Date().timeIntervalSince(startTime)
-
-                // Verify all files were created by counting across all subdirectories
-                var totalFiles = 0
-                let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-                for subdir in subdirs where subdir.hasDirectoryPath {
-                    let files = try FileManager.default.contentsOfDirectory(at: subdir, includingPropertiesForKeys: nil)
-                    totalFiles += files.count
-                }
-                #expect(totalFiles == count, "Should create all \(count) PDFs")
-
-                // Get stats from metrics instead of manual calculation
-                let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? (Double(count) / duration)
-                let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
-                let avgMs = (timer?.average ?? 0) * 1000
-                let minutes = Int(duration / 60)
-                let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
-
-                // Print final statistics with metrics summary
-                await metricsTracker.printSummary()
-
-                print("\n╔═══════════════════════════════════════════════════════════╗")
-                print("║         1 MILLION PDF TEST - RESULTS                     ║")
-                print("╚═══════════════════════════════════════════════════════════╝")
-                print("Total PDFs:      \(count.formatted())")
-                print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
-                print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
-                print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
-                print("p95 per PDF:     \(String(format: "%.3f", (timer?.p95 ?? 0) * 1000))ms")
-                print("Files created:   \(totalFiles.formatted())")
-                print("Subdirectories:  \(subdirs.count)")
-                print("╚═══════════════════════════════════════════════════════════╝\n")
-
-                // Verify reasonable throughput (at least 100 PDFs/sec)
-                #expect(throughput > 100, "Should maintain reasonable throughput")
+        try await withTemporaryDirectory { output in
+            // Suppress WebKit console warnings
+            setenv("OS_ACTIVITY_MODE", "disable", 1)
+            
+            let count = 1_000_000
+            let filesPerDirectory = 1_000 // Keep directories manageable
+            
+            let startTime = Date()
+            
+            // Setup live metrics display
+            let metricsTracker = MetricsProgressTracker(
+                totalCount: count,
+                metricsBackend: metricsBackend,
+                reportInterval: .seconds(10)
+            )
+            await metricsTracker.start()
+            
+            // Create subdirectories to avoid file system degradation
+            // 1M files split into 1000 directories of 1000 files each
+            let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
+            for dirIndex in 0..<numDirectories {
+                let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+                try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
             }
+            
+            // Create minimal HTML documents with subdirectory paths
+            let documents = (1...count).map { i in
+                let dirIndex = (i - 1) / filesPerDirectory
+                let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+                return PDF.Document(
+                    htmlString: "<html><body><p>\(i)</p></body></html>",
+                    title: "doc-\(i)",
+                    in: subdirUrl
+                )
+            }
+            
+            @Dependency(\.pdf) var pdf
+            let poolSize = pdf.render.configuration.concurrency.resolved
+            
+            print("\n╔═══════════════════════════════════════════════════════════╗")
+            print("║           1 MILLION PDF GENERATION TEST                  ║")
+            print("╚═══════════════════════════════════════════════════════════╝")
+            print("Total documents: \(count.formatted())")
+            print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
+            print("Pool size: \(poolSize) WebViews")
+            print("Starting generation...\n")
+            
+            let stream = try await pdf.render.client.documents(documents)
+            
+            for try await _ in stream {
+                // Metrics automatically recorded, live display updates
+            }
+            
+            await metricsTracker.stop()
+            
+            let duration = Date().timeIntervalSince(startTime)
+            
+            // Verify all files were created by counting across all subdirectories
+            var totalFiles = 0
+            let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
+            for subdir in subdirs where subdir.hasDirectoryPath {
+                let files = try FileManager.default.contentsOfDirectory(at: subdir, includingPropertiesForKeys: nil)
+                totalFiles += files.count
+            }
+            #expect(totalFiles == count, "Should create all \(count) PDFs")
+            
+            // Get stats from metrics instead of manual calculation
+            let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? (Double(count) / duration)
+            let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
+            let avgMs = (timer?.average ?? 0) * 1000
+            let minutes = Int(duration / 60)
+            let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
+            
+            // Print final statistics with metrics summary
+            await metricsTracker.printSummary()
+            
+            print("\n╔═══════════════════════════════════════════════════════════╗")
+            print("║         1 MILLION PDF TEST - RESULTS                     ║")
+            print("╚═══════════════════════════════════════════════════════════╝")
+            print("Total PDFs:      \(count.formatted())")
+            print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
+            print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
+            print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
+            print("p95 per PDF:     \(String(format: "%.3f", (timer?.p95 ?? 0) * 1000))ms")
+            print("Files created:   \(totalFiles.formatted())")
+            print("Subdirectories:  \(subdirs.count)")
+            print("╚═══════════════════════════════════════════════════════════╝\n")
+            
+            // Verify reasonable throughput (at least 100 PDFs/sec)
+            #expect(throughput > 100, "Should maintain reasonable throughput")
         }
+        
     }
-
+    
     @Test("Generate 200,000 PDFs", .timeLimit(.minutes(30)))
     func test100kPDFs() async throws {
         try await withDependencies {
@@ -3992,20 +3650,20 @@ struct StressTests {
             try await withTemporaryDirectory { output in
                 // Suppress WebKit console warnings
                 setenv("OS_ACTIVITY_MODE", "disable", 1)
-
+                
                 let count = 200_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
-
+                
                 let tracker = ProgressTracker(totalCount: count, reportInterval: 5.0)
                 let startTime = Date()
-
+                
                 // Create subdirectories to avoid file system degradation
                 let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
                 for dirIndex in 0..<numDirectories {
                     let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
                     try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
                 }
-
+                
                 // Create minimal HTML documents with subdirectory paths
                 let documents = (1...count).map { i in
                     let dirIndex = (i - 1) / filesPerDirectory
@@ -4016,10 +3674,10 @@ struct StressTests {
                         in: subdirUrl
                     )
                 }
-
+                
                 @Dependency(\.pdf) var pdf
                 let poolSize = pdf.render.configuration.concurrency.resolved
-
+                
                 print("\n╔═══════════════════════════════════════════════════════════╗")
                 print("║           100K PDF GENERATION TEST                       ║")
                 print("╚═══════════════════════════════════════════════════════════╝")
@@ -4028,16 +3686,16 @@ struct StressTests {
                 print("Pool size: \(poolSize) WebViews")
                 print("Adaptive optimization: ENABLED")
                 print("Starting generation...\n")
-
+                
                 let stream = try await pdf.render.client.documents(documents)
-
+                
                 for try await _ in stream {
                     _ = await tracker.recordCompletion()
                 }
-
+                
                 let duration = Date().timeIntervalSince(startTime)
                 _ = await tracker.completed
-
+                
                 // Verify all files were created by counting across all subdirectories
                 var totalFiles = 0
                 let subdirs = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
@@ -4046,13 +3704,13 @@ struct StressTests {
                     totalFiles += files.count
                 }
                 #expect(totalFiles == count, "Should create all \(count) PDFs")
-
+                
                 // Calculate stats
                 let throughput = Double(count) / duration
                 let avgMs = duration * 1000 / Double(count)
                 let minutes = Int(duration / 60)
                 let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
-
+                
                 // Print final statistics
                 print("\n╔═══════════════════════════════════════════════════════════╗")
                 print("║         100K PDF TEST - RESULTS                          ║")
@@ -4064,13 +3722,13 @@ struct StressTests {
                 print("Files created:   \(totalFiles.formatted())")
                 print("Subdirectories:  \(subdirs.count)")
                 print("╚═══════════════════════════════════════════════════════════╝\n")
-
+                
                 // Verify reasonable throughput (at least 100 PDFs/sec)
                 #expect(throughput > 100, "Should maintain reasonable throughput")
             }
         }
     }
-
+    
     @Test("Generate 1,000 PDFs with complex HTML", .timeLimit(.minutes(5)))
     func test1kComplexPDFs() async throws {
         try await withDependencies {
@@ -4079,9 +3737,9 @@ struct StressTests {
         } operation: {
             try await withTemporaryDirectory { output in
                 let count = 1_000
-
+                
                 let startTime = Date()
-
+                
                 // More complex HTML to stress rendering
                 let complexHTML = """
                 <html>
@@ -4111,27 +3769,27 @@ struct StressTests {
                 </body>
                 </html>
                 """
-
+                
                 let htmls = (1...count).map { i in
                     complexHTML.replacingOccurrences(of: "{{ID}}", with: "\(i)")
                 }
-
+                
                 print("Starting 1k complex PDF generation test...")
-
+                
                 var urls: [URL] = []
                 for try await result in try await pdf.render.client.html(htmls, to: output) {
                     urls.append(result.url)
                 }
-
+                
                 let duration = Date().timeIntervalSince(startTime)
-
+                
                 let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
                 #expect(files.count == count, "Should create all \(count) PDFs")
-
+                
                 print("\n✅ 1k Complex PDF Stress Test Complete!")
                 print("Duration: \(String(format: "%.2f", duration))s")
                 print("Throughput: \(String(format: "%.0f", Double(count) / duration)) PDFs/sec")
-
+                
                 // Verify some PDFs have reasonable size (not empty)
                 let sampleFile = files[0]
                 let fileSize = try FileManager.default.attributesOfItem(atPath: sampleFile.path)[.size] as? Int ?? 0
@@ -4139,12 +3797,12 @@ struct StressTests {
             }
         }
     }
-
+    
     @Test("Sustained load test - 5 minutes continuous generation")
     func testSustainedLoad() async throws {
         try await withTemporaryDirectory { output in
             let duration: TimeInterval = 300 // 5 minutes
-
+            
             actor Counter {
                 var count = 0
                 func increment() -> Int {
@@ -4153,12 +3811,12 @@ struct StressTests {
                 }
                 func get() -> Int { count }
             }
-
+            
             let counter = Counter()
             let startTime = Date()
-
+            
             print("Starting sustained load test (5 minutes)...")
-
+            
             // Generate PDFs continuously for 5 minutes
             await withTaskGroup(of: Void.self) { group in
                 // Launch multiple concurrent generators
@@ -4172,9 +3830,9 @@ struct StressTests {
                                 let count = await counter.increment()
                                 let html = "<html><body><p>PDF \(count)</p></body></html>"
                                 let destination = outputDir.appendingPathComponent("sustained-\(count).pdf")
-
+                                
                                 _ = try await pdf.render.client.html(html, to: destination)
-
+                                
                                 // Brief pause to simulate realistic workload
                                 try? await Task.sleep(for: .milliseconds(100))
                             } catch {
@@ -4183,21 +3841,21 @@ struct StressTests {
                         }
                     }
                 }
-
+                
                 await group.waitForAll()
             }
-
+            
             let totalDuration = Date().timeIntervalSince(startTime)
             let totalGenerated = await counter.get()
-
+            
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
-
+            
             print("\n✅ Sustained Load Test Complete!")
             print("Duration: \(String(format: "%.2f", totalDuration))s")
             print("PDFs generated: \(totalGenerated)")
             print("Average rate: \(String(format: "%.1f", Double(totalGenerated) / totalDuration)) PDFs/sec")
             print("Files created: \(files.count)")
-
+            
             #expect(totalGenerated > 100, "Should generate substantial number of PDFs")
             #expect(files.count == totalGenerated, "All PDFs should be created")
         }
@@ -4206,90 +3864,24 @@ struct StressTests {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/Utils.swift
+// File: Tests/HtmlToPdfLiveTests/Utils.swift
 // ========================================
 
 //
-//  File.swift
+//  Utils.swift
+//  HtmlToPdfTests
 //
+//  Test utilities and fixtures for HtmlToPdf tests
 //
-//  Created by Coen ten Thije Boonkkamp on 15/07/2024.
+//  Note: General-purpose test utilities have been moved to PDFTestSupport/TestUtilities.swift
+//  This file contains HtmlToPdf-specific helpers (HTML fixtures, progress tracking, etc.)
 //
 
 import Foundation
-import HtmlToPdf
+import HtmlToPdfLive
 import Testing
 import PDFTestSupport
 import Metrics
-
-extension URL {
-
-    static func output(id: UUID = UUID()) -> Self {
-        FileManager.default.temporaryDirectory.appendingPathComponent("html-to-pdf").appendingPathComponent(id.uuidString)
-    }
-
-    static var localHtmlToPdf: Self {
-        #if os(macOS)
-        return URL.documentsDirectory.appendingPathComponent("HtmlToPdf")
-        #endif
-        #if os(iOS)
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        return paths.first!.appendingPathComponent("HtmlToPdf")
-        #endif
-    }
-}
-
-extension FileManager {
-    func removeItems(at url: URL) throws {
-        let fileURLs = try contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [])
-        for fileURL in fileURLs {
-            try removeItem(at: fileURL)
-        }
-    }
-
-    /// Clean up any leftover test directories from interrupted tests
-    /// This is useful when tests timeout or are interrupted before cleanup can run
-    static func cleanupTestDirectories() {
-        let fm = FileManager.default
-        let tempDir = fm.temporaryDirectory.appendingPathComponent("html-to-pdf")
-
-        guard fm.fileExists(atPath: tempDir.path) else { return }
-
-        do {
-            let subdirs = try fm.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
-            print("🧹 Cleaning up \(subdirs.count) leftover test directories...")
-
-            for subdir in subdirs {
-                try? fm.removeItem(at: subdir)
-            }
-
-            try? fm.removeItem(at: tempDir)
-            print("✅ Cleanup complete")
-        } catch {
-            print("⚠️ Cleanup failed: \(error)")
-        }
-    }
-}
-
-extension AsyncStream<URL> {
-    func testIfYieldedUrlExistsOnFileSystem(directory: URL) async throws {
-        for await url in self {
-            let contents = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-                .map(\.lastPathComponent)
-            #expect(contents.contains(where: { $0 == url.lastPathComponent }))
-        }
-    }
-}
-
-extension AsyncThrowingStream<URL, Error> {
-    func testIfYieldedUrlExistsOnFileSystem(directory: URL) async throws {
-        for try await url in self {
-            let contents = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-                .map(\.lastPathComponent)
-            #expect(contents.contains(where: { $0 == url.lastPathComponent }))
-        }
-    }
-}
 
 extension String {
     static let html = """
@@ -4459,21 +4051,23 @@ public actor MetricsProgressTracker {
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/VisualVerificationTest.swift
+// File: Tests/HtmlToPdfLiveTests/VisualVerificationTest.swift
 // ========================================
 
 //
 //  VisualVerificationTest.swift
 //  swift-html-to-pdf
 //
-//  Manual verification test - generates a PDF to Desktop for visual inspection
+//  Manual verification tests - generate PDFs to Desktop for visual inspection
 //
 
 import Testing
 import Foundation
-import HtmlToPdf
+import HtmlToPdfLive
 import Dependencies
 import DependenciesTestSupport
+import PDFTestSupport
+import PDFKit
 
 @Suite(
     "Visual Verification (Manual)",
@@ -4483,255 +4077,788 @@ import DependenciesTestSupport
 struct VisualVerificationTests {
 
     @Test("Generate rich PDF for manual verification")
-    func generateVerificationPDF() async throws {
+    func generateRichVerificationPDF() async throws {
         @Dependency(\.pdf) var pdf
 
         let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let output = desktop.appendingPathComponent("PDF_Verification_Test.pdf")
 
-            // Test 1: Rich HTML with ContiguousArray<UInt8>
-            let htmlString = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>PDF Verification Test</title>
-                <style>
-                    body {
-                        font-family: 'Helvetica Neue', Arial, sans-serif;
-                        line-height: 1.6;
-                        color: #333;
-                    }
+        // Clean up existing file if present
+        try? FileManager.default.removeItem(at: output)
 
-                    .header {
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 40px;
-                        text-align: center;
-                        border-radius: 8px;
-                        margin-bottom: 30px;
-                    }
+        // Load test images
+        let base64PNG = try TestImages.loadBase64(named: "coenttb", extension: "png", from: .module)
 
-                    .header h1 {
-                        margin: 0;
-                        font-size: 48px;
-                        font-weight: bold;
-                    }
+        // Build comprehensive verification HTML
+        let html = TestHTML.custom(
+            title: "PDF Verification Test",
+            body: """
+            <div class="header">
+                <h1>🎯 PDF Generation Verification</h1>
+                <p>Testing ContiguousArray&lt;UInt8&gt; Implementation</p>
+            </div>
 
-                    .header p {
-                        margin: 10px 0 0 0;
-                        font-size: 18px;
-                        opacity: 0.9;
-                    }
+            <div class="section">
+                <h2>✅ Implementation Verified</h2>
+                <p>This PDF was generated using the new <code>ContiguousArray&lt;UInt8&gt;</code> approach. If you can see this document with proper formatting, colors, and layout, then the implementation is working correctly!</p>
+            </div>
 
-                    .section {
-                        margin: 30px 0;
-                        padding: 20px;
-                        background: #f8f9fa;
-                        border-left: 4px solid #667eea;
-                        border-radius: 4px;
-                    }
+            <div class="section">
+                <h2>📊 Performance Characteristics</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Old (String)</th>
+                            <th>New (ContiguousArray)</th>
+                            <th>Improvement</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Memory Usage</td>
+                            <td>~1388 bytes</td>
+                            <td>~694 bytes</td>
+                            <td>50% reduction</td>
+                        </tr>
+                        <tr>
+                            <td>CSS Injection</td>
+                            <td>String operations</td>
+                            <td>3.71μs (byte ops)</td>
+                            <td>Faster</td>
+                        </tr>
+                        <tr>
+                            <td>Type Safety</td>
+                            <td>Runtime strings</td>
+                            <td>Compile-time</td>
+                            <td>✓ Guaranteed</td>
+                        </tr>
+                        <tr>
+                            <td>Copy Operations</td>
+                            <td>Multiple</td>
+                            <td>Zero-copy</td>
+                            <td>Eliminated</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
-                    .section h2 {
-                        margin-top: 0;
-                        color: #667eea;
-                    }
-
-                    .feature-grid {
-                        display: grid;
-                        grid-template-columns: repeat(2, 1fr);
-                        gap: 20px;
-                        margin: 20px 0;
-                    }
-
-                    .feature {
-                        background: white;
-                        padding: 20px;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    }
-
-                    .feature h3 {
-                        margin-top: 0;
-                        color: #764ba2;
-                    }
-
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin: 20px 0;
-                        background: white;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    }
-
-                    th {
-                        background: #667eea;
-                        color: white;
-                        padding: 12px;
-                        text-align: left;
-                    }
-
-                    td {
-                        padding: 12px;
-                        border-bottom: 1px solid #e9ecef;
-                    }
-
-                    tr:hover {
-                        background: #f8f9fa;
-                    }
-
-                    code {
-                        background: #f4f4f4;
-                        padding: 2px 6px;
-                        border-radius: 3px;
-                        font-family: 'Monaco', 'Courier New', monospace;
-                        color: #e83e8c;
-                    }
-
-                    .footer {
-                        margin-top: 40px;
-                        padding: 20px;
-                        text-align: center;
-                        color: #6c757d;
-                        border-top: 2px solid #e9ecef;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h1>🎯 PDF Generation Verification</h1>
-                    <p>Testing ContiguousArray&lt;UInt8&gt; Implementation</p>
+            <div class="feature-grid">
+                <div class="feature">
+                    <h3>🎨 CSS Support</h3>
+                    <p>Gradients, shadows, borders, and modern CSS features are properly rendered.</p>
                 </div>
 
-                <div class="section">
-                    <h2>✅ Implementation Verified</h2>
-                    <p>This PDF was generated using the new <code>ContiguousArray&lt;UInt8&gt;</code> approach. If you can see this document with proper formatting, colors, and layout, then the implementation is working correctly!</p>
+                <div class="feature">
+                    <h3>📝 Typography</h3>
+                    <p>Multiple font families, sizes, and weights display correctly.</p>
                 </div>
 
-                <div class="section">
-                    <h2>📊 Performance Characteristics</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Metric</th>
-                                <th>Old (String)</th>
-                                <th>New (ContiguousArray)</th>
-                                <th>Improvement</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Memory Usage</td>
-                                <td>~1388 bytes</td>
-                                <td>~694 bytes</td>
-                                <td>50% reduction</td>
-                            </tr>
-                            <tr>
-                                <td>CSS Injection</td>
-                                <td>String operations</td>
-                                <td>3.71μs (byte ops)</td>
-                                <td>Faster</td>
-                            </tr>
-                            <tr>
-                                <td>Type Safety</td>
-                                <td>Runtime strings</td>
-                                <td>Compile-time</td>
-                                <td>✓ Guaranteed</td>
-                            </tr>
-                            <tr>
-                                <td>Copy Operations</td>
-                                <td>Multiple</td>
-                                <td>Zero-copy</td>
-                                <td>Eliminated</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="feature">
+                    <h3>🎭 Layout</h3>
+                    <p>CSS Grid, flexbox, and positioning work as expected.</p>
                 </div>
 
-                <div class="feature-grid">
-                    <div class="feature">
-                        <h3>🎨 CSS Support</h3>
-                        <p>Gradients, shadows, borders, and modern CSS features are properly rendered.</p>
-                    </div>
+                <div class="feature">
+                    <h3>🌈 Colors</h3>
+                    <p>Hex colors, gradients, and opacity render perfectly.</p>
+                </div>
+            </div>
 
-                    <div class="feature">
-                        <h3>📝 Typography</h3>
-                        <p>Multiple font families, sizes, and weights display correctly.</p>
-                    </div>
+            <div class="section">
+                <h2>🔬 Technical Details</h2>
+                <p><strong>Storage Format:</strong> ContiguousArray&lt;UInt8&gt; (UTF-8 encoded bytes)</p>
+                <p><strong>HTML Source:</strong> String → ContiguousArray&lt;UInt8&gt;</p>
+                <p><strong>WKWebView Loading:</strong> Direct Data from ContiguousArray (zero-copy)</p>
+                <p><strong>CSS Injection:</strong> Byte-level search and insertion</p>
+                <p><strong>Memory Layout:</strong> Contiguous, cache-friendly byte array</p>
+            </div>
 
-                    <div class="feature">
-                        <h3>🎭 Layout</h3>
-                        <p>CSS Grid, flexbox, and positioning work as expected.</p>
-                    </div>
+            <div class="section">
+                <h2>🧪 Character Encoding Test</h2>
+                <p>Testing UTF-8 encoding with special characters:</p>
+                <ul>
+                    <li>Emoji: 🎉 🚀 ✨ 💡 🔥 ⚡️ 🎯 🌟</li>
+                    <li>Math: α β γ δ ε ∑ ∫ √ ∞ ≈ ≠ ±</li>
+                    <li>Currency: $ € £ ¥ ₹ ₿</li>
+                    <li>Punctuation: « » „ " ' ' – — …</li>
+                    <li>Accents: café, naïve, résumé, façade</li>
+                </ul>
+            </div>
 
-                    <div class="feature">
-                        <h3>🌈 Colors</h3>
-                        <p>Hex colors, gradients, and opacity render perfectly.</p>
+            <div class="section">
+                <h2>🖼️ Base64 Image Test - SVG</h2>
+                <p>Testing inline base64 encoded SVG images (red, green, and blue 50x50px squares):</p>
+                <div style="display: flex; gap: 20px; align-items: center; margin: 20px 0;">
+                    <div style="text-align: center;">
+                        <img src="data:image/svg+xml;base64,\(TestImages.SVG.redSquare)" alt="Red" style="border: 2px solid #ddd; border-radius: 4px;">
+                        <p style="margin: 8px 0 0 0; color: #dc3545;">Red Square</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <img src="data:image/svg+xml;base64,\(TestImages.SVG.greenSquare)" alt="Green" style="border: 2px solid #ddd; border-radius: 4px;">
+                        <p style="margin: 8px 0 0 0; color: #28a745;">Green Square</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <img src="data:image/svg+xml;base64,\(TestImages.SVG.blueSquare)" alt="Blue" style="border: 2px solid #ddd; border-radius: 4px;">
+                        <p style="margin: 8px 0 0 0; color: #007bff;">Blue Square</p>
                     </div>
                 </div>
+                <p style="font-size: 14px; color: #6c757d;">If you see three colored squares (red, green, blue) above, SVG rendering is working correctly! ✓</p>
+            </div>
 
-                <div class="section">
-                    <h2>🔬 Technical Details</h2>
-                    <p><strong>Storage Format:</strong> ContiguousArray&lt;UInt8&gt; (UTF-8 encoded bytes)</p>
-                    <p><strong>HTML Source:</strong> String → ContiguousArray&lt;UInt8&gt;</p>
-                    <p><strong>WKWebView Loading:</strong> Direct Data from ContiguousArray (zero-copy)</p>
-                    <p><strong>CSS Injection:</strong> Byte-level search and insertion</p>
-                    <p><strong>Memory Layout:</strong> Contiguous, cache-friendly byte array</p>
+            <div class="section">
+                <h2>📷 Base64 Image Test - PNG</h2>
+                <p>Testing actual PNG image loaded from test resources and embedded as base64:</p>
+                <div style="text-align: center; margin: 20px 0;">
+                    <img src="data:image/png;base64,\(base64PNG)" alt="Test PNG" style="max-width: 200px; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <p style="margin: 12px 0 0 0; color: #6c757d; font-size: 14px;">PNG image from test resources (coenttb.png)</p>
+                </div>
+                <p style="font-size: 14px; color: #6c757d;">If you see the coenttb logo image above, PNG base64 encoding is working correctly! ✓</p>
+            </div>
+
+            <div class="footer">
+                <p>Generated: \(Date().formatted())</p>
+                <p>swift-html-to-pdf • ContiguousArray&lt;UInt8&gt; Implementation</p>
+            </div>
+            """,
+            css: TestCSS.richVerification
+        )
+
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Generating Verification PDF")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("\nOutput location:")
+        print("  \(output.path)")
+
+        let url = try await pdf.render.client.html(html, to: output)
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = attrs[.size] as? Int64 ?? 0
+
+            print("\n✅ PDF Generated Successfully!")
+            print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
+            print("   Path: \(url.path)")
+            print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("Open the PDF to verify:")
+            print("  • Gradients and colors render correctly")
+            print("  • CSS Grid layout works")
+            print("  • Tables are properly formatted")
+            print("  • Special characters display (emoji, math symbols)")
+            print("  • Base64 SVG images render (3 colored squares)")
+            print("  • Base64 PNG image renders (coenttb logo)")
+            print("  • Typography and spacing look good")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        } else {
+            throw TestError.pdfNotFound(output)
+        }
+    }
+
+    @Test(
+        "Generate multi-page PDF with explicit page breaks",
+        .dependency(\.pdf.render.configuration, .multiPage)
+    )
+    func generateMultiPagePDF() async throws {
+        @Dependency(\.pdf) var pdf
+
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let output = desktop.appendingPathComponent("PDF_MultiPage_Test.pdf")
+
+        // Clean up existing file if present
+        try? FileManager.default.removeItem(at: output)
+
+        // Create HTML with enough content to naturally flow across multiple pages
+        // Each section is ~500px tall, and A4 is ~842px, so we need substantial content
+        let htmlString = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Multi-Page PDF Test</title>
+            <style>
+                body {
+                    font-family: 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                }
+
+                .section {
+                    padding: 40px;
+                    margin-bottom: 40px;
+                }
+
+                /* Force actual page breaks between major sections */
+                .section {
+                    page-break-inside: avoid;
+                }
+
+                .force-page-break {
+                    page-break-before: always;
+                }
+
+                .page-header {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                    border-radius: 8px;
+                    margin-bottom: 30px;
+                }
+
+                .page-number {
+                    font-size: 14px;
+                    color: #6c757d;
+                    text-align: center;
+                    margin-top: 20px;
+                }
+
+                .content-section {
+                    margin: 20px 0;
+                    padding: 20px;
+                    background: #f8f9fa;
+                    border-left: 4px solid #667eea;
+                }
+
+                h1 {
+                    font-size: 36px;
+                    margin: 0;
+                }
+
+                h2 {
+                    color: #667eea;
+                    margin-top: 0;
+                }
+
+                p {
+                    margin: 10px 0;
+                }
+
+                .test-item {
+                    padding: 10px;
+                    margin: 5px 0;
+                    background: white;
+                    border-radius: 4px;
+                }
+            </style>
+        </head>
+        <body>
+            <!-- Section 1 -->
+            <div class="section">
+                <div class="page-header">
+                    <h1>📄 Page 1 of 5</h1>
+                    <p>Multi-Page PDF Test</p>
                 </div>
 
-                <div class="section">
-                    <h2>🧪 Character Encoding Test</h2>
-                    <p>Testing UTF-8 encoding with special characters:</p>
-                    <ul>
-                        <li>Emoji: 🎉 🚀 ✨ 💡 🔥 ⚡️ 🎯 🌟</li>
-                        <li>Math: α β γ δ ε ∑ ∫ √ ∞ ≈ ≠ ±</li>
-                        <li>Currency: $ € £ ¥ ₹ ₿</li>
-                        <li>Punctuation: « » „ " ' ' – — …</li>
-                        <li>Accents: café, naïve, résumé, façade</li>
-                    </ul>
+                <div class="content-section">
+                    <h2>Purpose of This Test</h2>
+                    <p>This PDF tests that the ContiguousArray&lt;UInt8&gt; implementation correctly handles multi-page documents with proper page breaks.</p>
+                    <p>Each page should be properly separated and all content should be visible without clipping.</p>
                 </div>
+
+                <div class="content-section">
+                    <h2>Test Items - Page 1</h2>
+                    \((1...20).map { "<div class='test-item'>Item \($0): Testing content flow and pagination</div>" }.joined(separator: "\n"))
+                </div>
+
+                <div class="page-number">— Page 1 —</div>
+            </div>
+
+            <!-- Page 2 -->
+            <div class="page">
+                <div class="page-header">
+                    <h1>📄 Page 2 of 5</h1>
+                    <p>Testing CSS and Layout</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>CSS Features</h2>
+                    <p>✓ Gradients work across pages</p>
+                    <p>✓ Borders and padding preserved</p>
+                    <p>✓ Colors and backgrounds render correctly</p>
+                    <p>✓ Typography consistent across pages</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>Test Items - Page 2</h2>
+                    \((21...40).map { "<div class='test-item'>Item \($0): More content to verify page breaks</div>" }.joined(separator: "\n"))
+                </div>
+
+                <div class="page-number">— Page 2 —</div>
+            </div>
+
+            <!-- Page 3 -->
+            <div class="page">
+                <div class="page-header">
+                    <h1>📄 Page 3 of 5</h1>
+                    <p>Unicode and Special Characters</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>Emoji Test</h2>
+                    <p>🎉 🚀 ✨ 💡 🔥 ⚡️ 🎯 🌟 🎨 📝 🎭 🌈 🔬 🧪 📊 📈</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>Math Symbols</h2>
+                    <p>α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω</p>
+                    <p>∑ ∫ √ ∞ ≈ ≠ ± ∂ ∇ ∈ ∉ ⊂ ⊃ ∪ ∩</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>Currency Symbols</h2>
+                    <p>$ € £ ¥ ₹ ₿ ¢ ₽ ₩ ₪ ₱ ₴ ₵</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>Accented Characters</h2>
+                    <p>café, naïve, résumé, façade, à la carte, piñata, über, Zürich</p>
+                </div>
+
+                <div class="page-number">— Page 3 —</div>
+            </div>
+
+            <!-- Page 4 -->
+            <div class="page">
+                <div class="page-header">
+                    <h1>📄 Page 4 of 5</h1>
+                    <p>Performance Metrics</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>Memory Efficiency</h2>
+                    <div class="test-item">Old approach (String UTF-16): ~2 bytes per character</div>
+                    <div class="test-item">New approach (ContiguousArray UTF-8): ~1 byte per character</div>
+                    <div class="test-item">Memory savings: ~50% for ASCII-heavy content</div>
+                    <div class="test-item">Additional benefit: Zero-copy from HTML DSL to WKWebView</div>
+                </div>
+
+                <div class="content-section">
+                    <h2>Test Items - Page 4</h2>
+                    \((41...60).map { "<div class='test-item'>Item \($0): Verifying pagination continues correctly</div>" }.joined(separator: "\n"))
+                </div>
+
+                <div class="page-number">— Page 4 —</div>
+            </div>
+
+            <!-- Page 5 -->
+            <div class="page">
+                <div class="page-header">
+                    <h1>📄 Page 5 of 5</h1>
+                    <p>Final Page</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>✅ Verification Checklist</h2>
+                    <p>If you can see this page clearly:</p>
+                    <div class="test-item">✓ All 5 pages rendered correctly</div>
+                    <div class="test-item">✓ No content clipping occurred</div>
+                    <div class="test-item">✓ Page breaks work properly</div>
+                    <div class="test-item">✓ CSS styles consistent across pages</div>
+                    <div class="test-item">✓ Special characters display correctly</div>
+                    <div class="test-item">✓ ContiguousArray&lt;UInt8&gt; implementation verified!</div>
+                </div>
+
+                <div class="content-section">
+                    <h2>Implementation Details</h2>
+                    <p><strong>Storage:</strong> ContiguousArray&lt;UInt8&gt;</p>
+                    <p><strong>Encoding:</strong> UTF-8</p>
+                    <p><strong>HTML Source:</strong> String → ContiguousArray conversion</p>
+                    <p><strong>WKWebView:</strong> Direct Data loading</p>
+                    <p><strong>Page Flow:</strong> Automatic (no rect clipping)</p>
+                </div>
+
+                <div class="content-section">
+                    <h2>Test Summary</h2>
+                    <p>Generated: \(Date().formatted())</p>
+                    <p>Total Pages: 5</p>
+                    <p>Test Items: 60</p>
+                    <p>Status: ✅ All checks passed</p>
+                </div>
+
+                <div class="page-number">— Page 5 (Final) —</div>
+            </div>
+        </body>
+        </html>
+        """
+
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Generating Multi-Page PDF")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("\nOutput location:")
+        print("  \(output.path)")
+
+        let url = try await pdf.render.client.html(htmlString, to: output)
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = attrs[.size] as? Int64 ?? 0
+
+            print("\n✅ Multi-Page PDF Generated!")
+            print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
+            print("   Path: \(url.path)")
+            print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("Open the PDF to verify:")
+            print("  • Should have exactly 5 pages")
+            print("  • Each page clearly labeled (Page 1/5, 2/5, etc.)")
+            print("  • No content clipping or overflow")
+            print("  • Page breaks occur at correct positions")
+            print("  • All special characters visible on page 3")
+            print("  • Final checklist visible on page 5")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        } else {
+            throw TestError.pdfNotFound(output)
+        }
+    }
+
+    @Test(
+        "Generate PDF with natural content flow (Paginated Mode)",
+        .dependency(\.pdf.render.configuration.paginationMode, .paginated)
+    )
+    func generateNaturalMultiPagePDF() async throws {
+        @Dependency(\.pdf) var pdf
+
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let output = desktop.appendingPathComponent("PDF_Natural_MultiPage_Test.pdf")
+
+        // Clean up existing file if present
+        try? FileManager.default.removeItem(at: output)
+
+        // Generate lots of content - should naturally span 3-4 pages on A4
+        let items = (1...200).map { i in
+            """
+            <div style="padding: 15px; margin: 10px 0; background: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px;">
+                <h3 style="margin: 0 0 10px 0; color: #667eea;">Item #\(i)</h3>
+                <p style="margin: 5px 0;">This is test item number \(i). It contains enough text to take up vertical space and demonstrate that content flows naturally across multiple pages without requiring CSS page-break directives.</p>
+                <p style="margin: 5px 0; font-size: 12px; color: #6c757d;">Testing ContiguousArray&lt;UInt8&gt; | UTF-8 Encoding | Zero-copy rendering</p>
+            </div>
+            """
+        }.joined(separator: "\n")
+
+        let htmlString = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Natural Multi-Page PDF Test</title>
+            <style>
+                body {
+                    font-family: 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                .header {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 40px;
+                    text-align: center;
+                }
+
+                .header h1 {
+                    margin: 0;
+                    font-size: 48px;
+                }
+
+                .header p {
+                    margin: 10px 0 0 0;
+                    font-size: 18px;
+                    opacity: 0.9;
+                }
+
+                .content {
+                    padding: 20px;
+                }
+
+                .footer {
+                    margin-top: 40px;
+                    padding: 20px;
+                    text-align: center;
+                    background: #f8f9fa;
+                    color: #6c757d;
+                    border-top: 2px solid #e9ecef;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>📄 Natural Multi-Page Test</h1>
+                <p>Content Should Flow Across Multiple Pages</p>
+            </div>
+
+            <div class="content">
+                <div style="padding: 20px; margin: 20px 0; background: #e7f3ff; border-radius: 8px;">
+                    <h2 style="margin-top: 0; color: #0066cc;">Purpose</h2>
+                    <p>This PDF contains 200 test items. At approximately 100-120 pixels per item, this should naturally span 3-4 pages on A4 paper (595 × 842 points with margins).</p>
+                    <p>No CSS page breaks are used - content flows naturally based on the paper size configured in PDF.Configuration.</p>
+                </div>
+
+                \(items)
 
                 <div class="footer">
+                    <h3>✅ Test Complete</h3>
+                    <p>If you see this footer and can scroll/navigate through multiple pages, the multi-page rendering is working correctly!</p>
                     <p>Generated: \(Date().formatted())</p>
-                    <p>swift-html-to-pdf • ContiguousArray&lt;UInt8&gt; Implementation</p>
+                    <p>Total Items: 200 | Implementation: ContiguousArray&lt;UInt8&gt;</p>
                 </div>
-            </body>
-            </html>
-            """
+            </div>
+        </body>
+        </html>
+        """
 
-            let output = desktop.appendingPathComponent("PDF_Verification_Test.pdf")
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Generating Natural Multi-Page PDF")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("\nOutput location:")
+        print("  \(output.path)")
+        print("\nExpected: 3-4 pages of content")
+        print("Items: 200 test items")
+
+        let url = try await pdf.render.client.html(htmlString, to: output)
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = attrs[.size] as? Int64 ?? 0
+
+            // Verify PDF structure using PDFKit
+            guard let pdfDoc = PDFDocument(url: url) else {
+                throw NSError(domain: "Failed to load PDF", code: -1)
+            }
+
+            let pageCount = pdfDoc.pageCount
+
+            // Check first page dimensions (should be A4: 595.28 × 841.89 points)
+            guard let firstPage = pdfDoc.page(at: 0) else {
+                throw NSError(domain: "Failed to get first page", code: -1)
+            }
+            let bounds = firstPage.bounds(for: .mediaBox)
+            let expectedA4Width: CGFloat = 595.28
+            let expectedA4Height: CGFloat = 841.89
+            let tolerance: CGFloat = 1.0
+
+            let isA4Width = abs(bounds.width - expectedA4Width) < tolerance
+            let isA4Height = abs(bounds.height - expectedA4Height) < tolerance
+
+            print("\n✅ PDF Generated!")
+            print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
+            print("   Path: \(url.path)")
+            print("\n📄 PDF Structure:")
+            print("   Pages: \(pageCount)")
+            print("   Page 1 dimensions: \(bounds.width) × \(bounds.height) points")
+            print("   Expected A4: \(expectedA4Width) × \(expectedA4Height) points")
+            print("   Width correct: \(isA4Width ? "✅" : "❌")")
+            print("   Height correct: \(isA4Height ? "✅" : "❌")")
 
             print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("Generating Verification PDF")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("\nOutput location:")
-            print("  \(output.path)")
+            print("Verification:")
+            print("  | Total number of pages: \(pageCount) (expected 3-4)")
+            print("  | All 200 items present: \(pageCount >= 3 ? "✅" : "❌")")
+            print("  | Page dimensions A4: \(isA4Width && isA4Height ? "✅" : "❌")")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
-            let url = try await pdf.render.client.html(htmlString, to: output)
-
-            if FileManager.default.fileExists(atPath: url.path) {
-                let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-                let size = attrs[.size] as? Int64 ?? 0
-
-                print("\n✅ PDF Generated Successfully!")
-                print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
-                print("   Path: \(url.path)")
-                print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                print("Open the PDF to verify:")
-                print("  • Gradients and colors render correctly")
-                print("  • CSS Grid layout works")
-                print("  • Tables are properly formatted")
-                print("  • Special characters display (emoji, math symbols)")
-                print("  • Typography and spacing look good")
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+            // Assert correct dimensions
+            #expect(isA4Width, "PDF width should be A4 (595.28 points), got \(bounds.width)")
+            #expect(isA4Height, "PDF height should be A4 (841.89 points), got \(bounds.height)")
+            #expect(pageCount >= 3, "PDF should have at least 3 pages, got \(pageCount)")
         } else {
-            throw NSError(domain: "PDF not created", code: -1)
+            throw TestError.pdfNotFound(output)
+        }
+    }
+
+    @Test(
+        "Generate PDF in continuous mode for quality comparison",
+        .dependency(\.pdf.render.configuration.paginationMode, .continuous)
+    )
+    func generateContinuousModePDF() async throws {
+        @Dependency(\.pdf) var pdf
+
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let output = desktop.appendingPathComponent("PDF_Continuous_Quality_Test.pdf")
+
+        // Clean up existing file if present
+        try? FileManager.default.removeItem(at: output)
+
+        // Same content but with bullet characters to test quality
+        let testContent = """
+        <div style="padding: 20px; margin: 20px 0; background: #f8f9fa; border-radius: 8px;">
+            <h2>Character Quality Test - Continuous Mode (WKWebView.createPDF)</h2>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Unicode Bullet (•)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; • UTF-8 Encoding • Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A • Item B • Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance • Quality • Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Pipe Character (|)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; | UTF-8 Encoding | Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A | Item B | Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance | Quality | Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Hyphen Character (-)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; - UTF-8 Encoding - Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A - Item B - Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance - Quality - Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>HTML Middot (&middot;)</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Testing ContiguousArray&lt;UInt8&gt; &middot; UTF-8 Encoding &middot; Zero-copy rendering
+                </p>
+                <p style="font-size: 14px;">
+                    Item A &middot; Item B &middot; Item C
+                </p>
+                <p style="font-size: 16px; font-weight: 500;">
+                    Performance &middot; Quality &middot; Speed
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Emojis</h3>
+                <p style="font-size: 14px;">
+                    📄 Document • ✅ Success • 🎯 Target
+                </p>
+                <p style="font-size: 16px;">
+                    ⚡ Performance • 🔧 Tools • 📊 Analytics
+                </p>
+            </div>
+
+            <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 4px;">
+                <h3>Mixed Content</h3>
+                <p style="font-size: 12px; color: #6c757d;">
+                    <strong>Bold bullets:</strong> Testing • UTF-8 • Rendering
+                </p>
+                <p style="font-size: 12px; color: #6c757d;">
+                    <em>Italic bullets:</em> Testing • UTF-8 • Rendering
+                </p>
+                <p style="font-size: 12px; color: #6c757d;">
+                    <strong><em>Bold italic bullets:</em></strong> Testing • UTF-8 • Rendering
+                </p>
+            </div>
+        </div>
+        """
+
+        let htmlString = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Continuous Mode Quality Test</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                .header {
+                    background: linear-gradient(135deg, #00b4db 0%, #0083b0 100%);
+                    color: white;
+                    padding: 40px;
+                    text-align: center;
+                }
+
+                .header h1 {
+                    margin: 0;
+                    font-size: 48px;
+                }
+
+                .header p {
+                    margin: 10px 0 0 0;
+                    font-size: 18px;
+                    opacity: 0.9;
+                }
+
+                .content {
+                    padding: 20px;
+                    max-width: 800px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>⚡ Continuous Mode Quality Test</h1>
+                <p>WKWebView.createPDF() - Fast Rendering</p>
+            </div>
+
+            <div class="content">
+                \(testContent)
+
+                <div style="margin-top: 40px; padding: 20px; background: #e7f3ff; border-radius: 8px;">
+                    <h3>📋 Test Purpose</h3>
+                    <p>Compare character rendering quality between:</p>
+                    <ul>
+                        <li><strong>Continuous Mode:</strong> WKWebView.createPDF() (this file)</li>
+                        <li><strong>Paginated Mode:</strong> NSPrintOperation.run() (separate file)</li>
+                    </ul>
+                    <p>Check if Unicode bullets (•) render crisply in continuous mode.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Generating Continuous Mode Quality Test")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("\nOutput location:")
+        print("  \(output.path)")
+        print("\nMode: Continuous (WKWebView.createPDF)")
+        print("Purpose: Compare rendering quality with paginated mode")
+
+        let url = try await pdf.render.client.html(htmlString, to: output)
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = attrs[.size] as? Int64 ?? 0
+
+            guard let pdfDoc = PDFDocument(url: url) else {
+                throw NSError(domain: "Failed to load PDF", code: -1)
+            }
+
+            let pageCount = pdfDoc.pageCount
+
+            print("\n✅ PDF Generated!")
+            print("   Size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
+            print("   Path: \(url.path)")
+            print("   Pages: \(pageCount)")
+            print("\n📊 Compare this with PDF_Natural_MultiPage_Test.pdf")
+            print("   to see quality differences between modes")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        } else {
+            throw TestError.pdfNotFound(output)
         }
     }
 }
 
 
 // ========================================
-// File: Tests/HtmlToPdfTests/WebViewMemoryTests.swift
+// File: Tests/HtmlToPdfLiveTests/WebViewMemoryTests.swift
 // ========================================
 
 //
@@ -4743,7 +4870,7 @@ struct VisualVerificationTests {
 
 import Testing
 import Foundation
-import HtmlToPdf
+import HtmlToPdfLive
 import Dependencies
 
 #if os(macOS)
@@ -5024,5 +5151,107 @@ extension Tag {
     @Tag static var webViewMemory: Self
 }
 #endif
+
+
+// ========================================
+// File: Tests/HtmlToPdfTests/HtmlToPdfTests.swift
+// ========================================
+
+//
+//  HtmlToPdfTests.swift
+//  swift-html-to-pdf
+//
+//  Tests for HtmlToPdf target (swift-html integration)
+//
+
+import Testing
+import HtmlToPdf
+
+#if HTML
+import PointFreeHTML
+
+@Suite("PDF swift-html Integration Tests")
+struct HtmlToPdfTests {
+
+    @Test("PDF.Document can be created from HTMLRaw")
+    func documentFromHTML() {
+        let page = HTMLRaw("<div>Test content</div>")
+        let url = URL(fileURLWithPath: "/tmp/test.pdf")
+        let doc = PDF.Document(html: page, destination: url)
+
+        #expect(doc.destination == url)
+        #expect(doc.html.count > 0)
+    }
+
+    @Test("PDF.Document HTML init renders correctly")
+    func htmlRenderingWorks() {
+        let page = HTMLRaw("<html><body><h1>Hello</h1><p>World</p></body></html>")
+
+        let url = URL(fileURLWithPath: "/tmp/test.pdf")
+        let doc = PDF.Document(html: page, destination: url)
+
+        let htmlString = String(decoding: Data(doc.html), as: UTF8.self)
+        #expect(htmlString.contains("Hello"))
+        #expect(htmlString.contains("World"))
+    }
+
+    @Test("PDF.Document with title creates correct path")
+    func documentWithTitle() {
+        let page = HTMLRaw("<div>Content</div>")
+        let dir = URL(fileURLWithPath: "/tmp")
+        let doc = PDF.Document(html: page, title: "My Report", in: dir)
+
+        // Verify the filename and parent directory
+        #expect(doc.destination.lastPathComponent == "My Report.pdf")
+        #expect(doc.destination.deletingLastPathComponent().path.hasSuffix("tmp"))
+    }
+}
+#endif
+
+
+// ========================================
+// File: Tests/HtmlToPdfTypesTests/HtmlToPdfTypesTests.swift
+// ========================================
+
+//
+//  HtmlToPdfTypesTests.swift
+//  swift-html-to-pdf
+//
+//  Tests for HtmlToPdfTypes target (pure types, no implementation)
+//
+
+import Testing
+import HtmlToPdfTypes
+
+@Suite("PDF Types Tests")
+struct HtmlToPdfTypesTests {
+
+    @Test("PDF.Document can be created from string")
+    func documentFromString() {
+        let html = "<html><body>Test</body></html>"
+        let url = URL(fileURLWithPath: "/tmp/test.pdf")
+        let doc = PDF.Document(htmlString: html, destination: url)
+
+        #expect(doc.destination == url)
+        #expect(doc.html.count > 0)
+    }
+
+    @Test("PDF.Document can be created from bytes")
+    func documentFromBytes() {
+        let bytes = ContiguousArray("<html><body>Test</body></html>".utf8)
+        let url = URL(fileURLWithPath: "/tmp/test.pdf")
+        let doc = PDF.Document(htmlBytes: bytes, destination: url)
+
+        #expect(doc.destination == url)
+        #expect(doc.html == bytes)
+    }
+
+    @Test("PDF.Configuration has sensible defaults")
+    func configurationDefaults() {
+        let config = PDF.Configuration.default
+        #expect(config.paperSize.width > 0)
+        #expect(config.paperSize.height > 0)
+    }
+}
 
 

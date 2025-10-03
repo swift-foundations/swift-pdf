@@ -598,12 +598,12 @@ struct PerformanceBenchmarks {
 
         let testCount = 5000  // Sample size for each concurrency level
 
-        // Filter concurrency levels based on platform capabilities
+        // Filter concurrency levels based on platform limits
         // macOS: [4, 8, 12, 16], iOS: [4, 8]
         #if os(macOS)
-        let platformMax = PDF.Capabilities.macOS.maxConcurrentOperations
+        let platformMax = PDF.PlatformConcurrencyLimit.macOS
         #else
-        let platformMax = PDF.Capabilities.iOS.maxConcurrentOperations
+        let platformMax = PDF.PlatformConcurrencyLimit.iOS
         #endif
         let concurrencyLevels = [4, 8, 12, 16].filter { $0 <= platformMax }
 
