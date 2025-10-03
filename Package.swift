@@ -9,6 +9,7 @@ extension String {
     static var dependenciesMacros: Self { "DependenciesMacros" }
     static var environmentVariables: Self { "EnvironmentVariables" }
     static var loggingExtras: Self { "LoggingExtras" }
+    static var metrics: Self { "Metrics" }
 }
 
 extension Target.Dependency {
@@ -17,6 +18,7 @@ extension Target.Dependency {
     static var dependenciesMacros: Self { .product(name: .dependenciesMacros, package: "swift-dependencies") }
     static var environmentVariables: Self { .product(name: "EnvironmentVariables", package: "swift-environment-variables") }
     static var loggingExtras: Self { .product(name: .loggingExtras, package: "swift-logging-extras") }
+    static var metrics: Self { .product(name: .metrics, package: "swift-metrics") }
     static var pointFreeHTML: Self { .product(name: "PointFreeHTML", package: "pointfree-html") }
 }
 
@@ -37,6 +39,7 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.8.0"),
         .package(url: "https://github.com/coenttb/swift-environment-variables", from: "0.1.3"),
         .package(url: "https://github.com/coenttb/swift-logging-extras", from: "0.0.1"),
+        .package(url: "https://github.com/apple/swift-metrics", from: "2.4.0"),
         .package(path: "../swift-resource-pool"),
         .package(path: "../pointfree-html"),
     ],
@@ -48,6 +51,7 @@ let package = Package(
                 .dependenciesMacros,
                 .environmentVariables,
                 .loggingExtras,
+                .metrics,
                 .product(name: "ResourcePool", package: "swift-resource-pool"),
                 .pointFreeHTML
             ]
@@ -56,7 +60,8 @@ let package = Package(
             name: "PDFTestSupport",
             dependencies: [
                 .htmlToPdf,
-                .dependencies
+                .dependencies,
+                .metrics
             ]
         ),
         .testTarget(

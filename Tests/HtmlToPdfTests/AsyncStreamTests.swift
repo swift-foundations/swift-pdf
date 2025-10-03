@@ -10,6 +10,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 @Suite(
@@ -25,32 +26,25 @@ struct AsyncStreamTests {
         .dependency(\.pdf.render.configuration.namingStrategy, .init { _ in UUID().uuidString })
     )
     func testAsyncStreamProgressive() async throws {
+        let metricsBackend = TestMetricsBackend.shared
+
         try await withTemporaryDirectory { output in
             let count = 20
 
-            actor CompletionTracker {
-                var completedCount = 0
-                var yieldedURLs: [URL] = []
-
-                func recordCompletion(url: URL) {
-                    completedCount += 1
-                    yieldedURLs.append(url)
-                }
-            }
-            let tracker = CompletionTracker()
+            // Track URLs separately, use metrics for counting
+            var yieldedURLs: [URL] = []
 
             let htmls = [String](repeating: TestHTML.simple, count: count)
             let stream = try await pdf.render.client.html(htmls, to: output)
 
             for try await result in stream {
-                await tracker.recordCompletion(url: result.url)
+                yieldedURLs.append(result.url)
                 #expect(FileManager.default.fileExists(atPath: result.url.path), "Yielded URL should exist")
             }
 
-            let completedCount = await tracker.completedCount
-            let yieldedURLs = await tracker.yieldedURLs
-
-            #expect(completedCount == count, "Should yield all \(count) results")
+            // Verify via metrics instead of manual tracking
+            let pdfsGenerated = metricsBackend.counter("htmltopdf_pdfs_generated_total")
+            #expect(pdfsGenerated?.value == Int64(count), "Should yield all \(count) results")
             #expect(yieldedURLs.count == count, "Should track all completions")
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)

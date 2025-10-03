@@ -236,6 +236,62 @@ public enum PrintingError: Error, LocalizedError, Sendable {
     }
 }
 
+// MARK: - Metrics Support
+
+extension PrintingError {
+    /// Label for metrics dimension tracking
+    ///
+    /// Provides a stable string representation for use in metrics dimensions.
+    /// This allows segmentation of failure metrics by error type.
+    var metricsReason: String {
+        switch self {
+        // Document Errors
+        case .invalidHTML:
+            return "invalid_html"
+        case .invalidFilePath:
+            return "invalid_file_path"
+        case .directoryCreationFailed:
+            return "directory_creation_failed"
+
+        // WebView Errors
+        case .webViewLoadingFailed:
+            return "webview_loading_failed"
+        case .webViewNavigationFailed:
+            return "webview_navigation_failed"
+        case .webViewRenderingTimeout:
+            return "webview_rendering_timeout"
+
+        // Pool Errors
+        case .webViewPoolExhausted:
+            return "webview_pool_exhausted"
+        case .webViewAcquisitionTimeout:
+            return "webview_acquisition_timeout"
+        case .webViewPoolInitializationFailed:
+            return "webview_pool_initialization_failed"
+
+        // PDF Generation Errors
+        case .pdfGenerationFailed:
+            return "pdf_generation_failed"
+        case .printOperationFailed:
+            return "print_operation_failed"
+        case .documentTimeout:
+            return "document_timeout"
+        case .batchTimeout:
+            return "batch_timeout"
+
+        // Cancellation
+        case .cancelled:
+            return "cancelled"
+        case .noResultProduced:
+            return "no_result_produced"
+
+        // Platform Capability Errors
+        case .capabilityUnavailable:
+            return "capability_unavailable"
+        }
+    }
+}
+
 // MARK: - Convenience Initializers
 
 //extension PrintingError {

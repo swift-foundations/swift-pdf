@@ -8,6 +8,8 @@
 import Foundation
 import HtmlToPdf
 import Testing
+import PDFTestSupport
+import Metrics
 
 extension URL {
 
@@ -118,32 +120,128 @@ extension String {
 
 // MARK: - Test Progress Tracking
 
+/// Legacy progress tracker - prefer using TestMetricsBackend + LiveMetricsDisplay for new tests
 actor ProgressTracker {
     var completed = 0
     var lastReportedAt = Date()
     var lastReportedCompleted = 0
     let reportInterval: TimeInterval
     let totalCount: Int
+    private let metricsBackend: TestMetricsBackend?
 
-    init(totalCount: Int, reportInterval: TimeInterval = 5.0) {
+    init(totalCount: Int, reportInterval: TimeInterval = 5.0, metricsBackend: TestMetricsBackend? = nil) {
         self.totalCount = totalCount
         self.reportInterval = reportInterval
+        self.metricsBackend = metricsBackend
     }
 
-    func recordCompletion() -> Int {
+    func recordCompletion() async -> Int {
         completed += 1
 
-        let now = Date()
-        if now.timeIntervalSince(lastReportedAt) >= reportInterval {
-            let interval = now.timeIntervalSince(lastReportedAt)
-            let delta = completed - lastReportedCompleted
-            let rate = Double(delta) / interval
-            print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
-            lastReportedAt = now
-            lastReportedCompleted = completed
+        // If metrics backend provided, use it for tracking
+        if let metricsBackend = metricsBackend {
+            let counter = metricsBackend.counter("htmltopdf_pdfs_generated_total")
+            let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? 0
+
+            let now = Date()
+            if now.timeIntervalSince(lastReportedAt) >= reportInterval {
+                let progress = Double(completed) / Double(totalCount) * 100
+                print("Progress: \(completed)/\(totalCount) (\(String(format: "%.1f", progress))%) - Throughput: \(String(format: "%.0f", throughput)) PDFs/sec - Total: \(counter?.value ?? 0)")
+                lastReportedAt = now
+                lastReportedCompleted = completed
+            }
+        } else {
+            // Fallback to manual calculation
+            let now = Date()
+            if now.timeIntervalSince(lastReportedAt) >= reportInterval {
+                let interval = now.timeIntervalSince(lastReportedAt)
+                let delta = completed - lastReportedCompleted
+                let rate = Double(delta) / interval
+                print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
+                lastReportedAt = now
+                lastReportedCompleted = completed
+            }
         }
 
         return completed
+    }
+}
+
+/// Metrics-based progress tracker - recommended for new tests
+///
+/// Example:
+/// ```swift
+/// let metricsBackend = TestMetricsBackend()
+/// MetricsSystem.bootstrap(metricsBackend)
+///
+/// let tracker = MetricsProgressTracker(
+///     totalCount: 10_000,
+///     metricsBackend: metricsBackend
+/// )
+/// await tracker.start()
+///
+/// // Your test code...
+/// for try await result in stream {
+///     // Metrics are automatically recorded by the library
+/// }
+///
+/// await tracker.stop()
+/// await tracker.printSummary()
+/// ```
+public actor MetricsProgressTracker {
+    private let totalCount: Int
+    private let metricsBackend: TestMetricsBackend
+    private let reportInterval: Duration
+    private var displayTask: Task<Void, Never>?
+    private let startTime: Date
+
+    public init(
+        totalCount: Int,
+        metricsBackend: TestMetricsBackend,
+        reportInterval: Duration = .seconds(5)
+    ) {
+        self.totalCount = totalCount
+        self.metricsBackend = metricsBackend
+        self.reportInterval = reportInterval
+        self.startTime = Date()
+    }
+
+    public func start() {
+        displayTask = Task {
+            while !Task.isCancelled {
+                await printProgress()
+                try? await Task.sleep(for: reportInterval)
+            }
+        }
+    }
+
+    public func stop() {
+        displayTask?.cancel()
+        displayTask = nil
+    }
+
+    private func printProgress() async {
+        let pdfsGenerated = metricsBackend.counter("htmltopdf_pdfs_generated_total")?.value ?? 0
+        let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? 0
+        let poolUtil = metricsBackend.gauge("htmltopdf_pool_utilization")?.value ?? 0
+        let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
+        let p95 = (timer?.p95 ?? 0) * 1000
+
+        let progress = Double(pdfsGenerated) / Double(totalCount) * 100
+        let elapsed = Date().timeIntervalSince(startTime)
+        let eta = Int64(pdfsGenerated) > 0 ? (elapsed / Double(pdfsGenerated)) * Double(totalCount - Int(pdfsGenerated)) : 0
+
+        print("Progress: \(pdfsGenerated)/\(totalCount) (\(String(format: "%.1f", progress))%) | " +
+              "Throughput: \(String(format: "%.0f", throughput))/sec | " +
+              "Pool: \(Int(poolUtil)) | " +
+              "p95: \(String(format: "%.1f", p95))ms | " +
+              "ETA: \(String(format: "%.0f", eta))s")
+    }
+
+    public func printSummary() async {
+        await printProgress()
+        let summary = await formatMetricsSummary(metricsBackend)
+        print("\n" + summary)
     }
 }
 

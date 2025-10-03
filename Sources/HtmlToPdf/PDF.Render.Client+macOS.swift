@@ -11,8 +11,9 @@ import DependenciesMacros
 import Foundation
 import WebKit
 import ResourcePool
-import AppKit
+@preconcurrency import AppKit
 import PDFKit
+import LoggingExtras
 
 extension PDF: DependencyKey {
     public static let liveValue = PDF(
@@ -23,7 +24,8 @@ extension PDF: DependencyKey {
 extension PDF.Render: DependencyKey {
     public static let liveValue = PDF.Render(
         client: .macOS,
-        configuration: .default
+        configuration: .default,
+        metrics: .liveValue
     )
 }
 
@@ -202,6 +204,11 @@ extension PDF.Document {
 
         let destination = self.destination
         let html = self.html
+
+        // Track pool utilization
+        await ActiveOperationsTracker.shared.increment()
+        defer { Task { await ActiveOperationsTracker.shared.decrement() } }
+
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
         ) { @Sendable resource in
@@ -286,16 +293,16 @@ private func renderDocumentsInternal(
 
     return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task {
+            var completedCount = 0
             do {
 
                 // Get the pool ONCE at the beginning, not for every document
                 // Pool access doesn't require main actor
                 @Dependency(\.webViewPool) var webViewPool
+                @Dependency(\.pdf.render.metrics) var metrics
                 let pool = try await webViewPool.pool
 
                 let maxConcurrent = config.concurrency.resolved
-
-                var completedCount = 0
 
                 try await withThrowingTaskGroup(of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self) { taskGroup in
                     for (index, document) in documentsArray.prefix(maxConcurrent).enumerated() {
@@ -321,6 +328,10 @@ private func renderDocumentsInternal(
                             pageCount: pageCount,
                             pageDimensions: dimensions
                         )
+
+                        // Record metrics for successful PDF generation
+                        metrics.recordSuccess(duration: duration, mode: mode)
+
                         continuation.yield(result)
 
                         // Record PDF generation for batch replacement tracking
@@ -346,6 +357,19 @@ private func renderDocumentsInternal(
                 // Clear directory cache after batch completes
                 directoryCache.clear()
             } catch {
+                @Dependency(\.logger) var logger
+                @Dependency(\.pdf.render.metrics) var metrics
+
+                // Record metrics for failed PDF generation
+                let printingError = error as? PrintingError
+                metrics.recordFailure(error: printingError)
+
+                logger.error("Batch rendering failed", metadata: [
+                    "completed_count": "\(completedCount)",
+                    "total_count": "\(documentsArray.count)",
+                    "error": "\(error)",
+                    "error_type": "\(type(of: error))"
+                ])
                 continuation.finish(throwing: error)
 
                 // Clear directory cache on error as well

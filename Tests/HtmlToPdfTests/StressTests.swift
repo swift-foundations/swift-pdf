@@ -9,6 +9,7 @@ import Testing
 import Foundation
 import Dependencies
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 extension Tag {
@@ -34,6 +35,8 @@ struct StressTests {
 //        .disabled { false }
     )
     func test1MPDFs() async throws {
+        let metricsBackend = TestMetricsBackend.forTest()
+
         try await withDependencies {
             $0.pdf.render.configuration.concurrency = 8
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
@@ -45,8 +48,15 @@ struct StressTests {
                 let count = 1_000_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
 
-                let tracker = ProgressTracker(totalCount: count, reportInterval: 10.0)
                 let startTime = Date()
+
+                // Setup live metrics display
+                let metricsTracker = MetricsProgressTracker(
+                    totalCount: count,
+                    metricsBackend: metricsBackend,
+                    reportInterval: .seconds(10)
+                )
+                await metricsTracker.start()
 
                 // Create subdirectories to avoid file system degradation
                 // 1M files split into 1000 directories of 1000 files each
@@ -81,11 +91,12 @@ struct StressTests {
                 let stream = try await pdf.render.client.documents(documents)
 
                 for try await _ in stream {
-                    _ = await tracker.recordCompletion()
+                    // Metrics automatically recorded, live display updates
                 }
 
+                await metricsTracker.stop()
+
                 let duration = Date().timeIntervalSince(startTime)
-                _ = await tracker.completed
 
                 // Verify all files were created by counting across all subdirectories
                 var totalFiles = 0
@@ -96,13 +107,16 @@ struct StressTests {
                 }
                 #expect(totalFiles == count, "Should create all \(count) PDFs")
 
-                // Calculate stats
-                let throughput = Double(count) / duration
-                let avgMs = duration * 1000 / Double(count)
+                // Get stats from metrics instead of manual calculation
+                let throughput = metricsBackend.gauge("htmltopdf_throughput_pdfs_per_sec")?.value ?? (Double(count) / duration)
+                let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
+                let avgMs = (timer?.average ?? 0) * 1000
                 let minutes = Int(duration / 60)
                 let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
 
-                // Print final statistics
+                // Print final statistics with metrics summary
+                await metricsTracker.printSummary()
+
                 print("\n╔═══════════════════════════════════════════════════════════╗")
                 print("║         1 MILLION PDF TEST - RESULTS                     ║")
                 print("╚═══════════════════════════════════════════════════════════╝")
@@ -110,6 +124,7 @@ struct StressTests {
                 print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
                 print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
                 print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
+                print("p95 per PDF:     \(String(format: "%.3f", (timer?.p95 ?? 0) * 1000))ms")
                 print("Files created:   \(totalFiles.formatted())")
                 print("Subdirectories:  \(subdirs.count)")
                 print("╚═══════════════════════════════════════════════════════════╝\n")

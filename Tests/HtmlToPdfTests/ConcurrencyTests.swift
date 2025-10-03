@@ -10,6 +10,7 @@ import Foundation
 import Dependencies
 import DependenciesTestSupport
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 @Suite("Concurrency & Pool Behavior", .dependency(\.pdf, .liveValue))
@@ -23,24 +24,21 @@ struct ConcurrencyTests {
         .dependency(\.pdf.render.configuration.webViewAcquisitionTimeout, .seconds(60))
     )
     func testLargeBatch() async throws {
+        let metricsBackend = TestMetricsBackend.shared
+
         try await withTemporaryDirectory { output in
             let count = 50
             let htmls = [String](repeating: TestHTML.simple, count: count)
 
-            actor ProgressTracker {
-                var completed = 0
-                func increment() { completed += 1 }
-            }
-            let tracker = ProgressTracker()
-
             let stream = try await pdf.render.client.html(htmls, to: output)
 
             for try await _ in stream {
-                await tracker.increment()
+                // Metrics automatically recorded
             }
 
-            let completedCount = await tracker.completed
-            #expect(completedCount == count, "Should track all completions")
+            // Verify via metrics instead of manual tracking
+            let pdfsGenerated = metricsBackend.counter("htmltopdf_pdfs_generated_total")
+            #expect(pdfsGenerated?.value == Int64(count), "Should generate all \(count) PDFs")
 
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "All \(count) documents should be created despite pool queueing")

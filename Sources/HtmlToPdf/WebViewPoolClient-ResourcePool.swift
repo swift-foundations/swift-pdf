@@ -57,6 +57,10 @@ private actor AdaptiveThroughputOptimizer {
                 absolutePeakThroughput = throughput
             }
 
+            // Update metrics gauge with current throughput
+            @Dependency(\.pdf.render.metrics) var metrics
+            metrics.updateThroughput(throughput)
+
             // Keep only recent windows
             if windows.count > maxWindows {
                 windows.removeFirst()
@@ -156,6 +160,8 @@ private actor WebViewPoolActor {
 
         let newPool = try await provider()
         sharedPool = newPool
+        @Dependency(\.logger) var logger
+        logger.info("WebView pool initialized")
         return newPool
     }
 
@@ -196,6 +202,8 @@ private actor WebViewPoolActor {
         let oldCount = totalPDFsGenerated
         let startTime = Date()
         @Dependency(\.logger) var logger
+        @Dependency(\.pdf.render.metrics) var metrics
+
         logger.info("Pool replacement started", metadata: [
             "pdf_count": "\(oldCount)",
             "reason": "\(reason)"
@@ -210,6 +218,9 @@ private actor WebViewPoolActor {
         sharedPool = newPool
         totalPDFsGenerated = 0
 
+        // Record pool replacement metric
+        metrics.recordPoolReplacement()
+
         // Reset adaptive optimizer to establish new baseline
         if let optimizer = adaptiveOptimizer {
             await optimizer.resetPeak()
@@ -222,6 +233,29 @@ private actor WebViewPoolActor {
             "duration_seconds": "\(String(format: "%.2f", duration))",
             "previous_pdf_count": "\(oldCount)"
         ])
+    }
+}
+
+// MARK: - Active Operations Tracker
+
+/// Tracks the number of currently active WebView operations for pool utilization metrics
+actor ActiveOperationsTracker {
+    private var activeCount: Int = 0
+    static let shared = ActiveOperationsTracker()
+
+    func increment() {
+        activeCount += 1
+        updateMetrics()
+    }
+
+    func decrement() {
+        activeCount -= 1
+        updateMetrics()
+    }
+
+    private func updateMetrics() {
+        @Dependency(\.pdf.render.metrics) var metrics
+        metrics.updatePoolUtilization(activeCount)
     }
 }
 

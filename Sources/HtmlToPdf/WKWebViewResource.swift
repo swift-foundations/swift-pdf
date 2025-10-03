@@ -9,6 +9,8 @@
 import Foundation
 import WebKit
 import ResourcePool
+import Dependencies
+import LoggingExtras
 
 /// Configuration for creating WKWebView resources
 public struct WKWebViewResourceConfig: Sendable {
@@ -93,6 +95,11 @@ public final class WKWebViewResource: PoolableResource {
             return true
         } catch {
             // WebView is unresponsive or in error state
+            @Dependency(\.logger) var logger
+            logger.warning("WebView validation failed, will be replaced", metadata: [
+                "error": "\(error)",
+                "error_type": "\(type(of: error))"
+            ])
             return false
         }
     }

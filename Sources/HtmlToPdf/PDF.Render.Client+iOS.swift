@@ -118,6 +118,11 @@ extension PDF.Document {
         @Dependency(\.webViewPool) var webViewPool
 
         let pool = try await webViewPool.pool
+
+        // Track pool utilization
+        await ActiveOperationsTracker.shared.increment()
+        defer { Task { await ActiveOperationsTracker.shared.decrement() } }
+
         return try await pool.withResource(
             timeout: .seconds(config.webViewAcquisitionTimeout.components.seconds)
         ) { resource in
@@ -143,6 +148,7 @@ private func renderDocumentsInternal(
     return AsyncThrowingStream<PDF.Result, Error> { continuation in
         Task { @MainActor in
             do {
+                @Dependency(\.pdf.render.metrics) var metrics
 
                 let maxConcurrent = config.concurrency ??
                     Swift.min(ProcessInfo.processInfo.activeProcessorCount, 4)
@@ -176,6 +182,10 @@ private func renderDocumentsInternal(
                             pageCount: pageCount,
                             pageDimensions: dimensions
                         )
+
+                        // Record metrics for successful PDF generation
+                        metrics.recordSuccess(duration: duration, mode: mode)
+
                         continuation.yield(result)
 
                         if nextIndex < documentsArray.count {
@@ -197,6 +207,19 @@ private func renderDocumentsInternal(
                 }
                 continuation.finish()
             } catch {
+                @Dependency(\.logger) var logger
+                @Dependency(\.pdf.render.metrics) var metrics
+
+                // Record metrics for failed PDF generation
+                let printingError = error as? PrintingError
+                metrics.recordFailure(error: printingError)
+
+                logger.error("Batch rendering failed", metadata: [
+                    "completed_count": "\(completedCount)",
+                    "total_count": "\(documentsArray.count)",
+                    "error": "\(error)",
+                    "error_type": "\(type(of: error))"
+                ])
                 continuation.finish(throwing: error)
             }
         }

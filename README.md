@@ -572,6 +572,90 @@ targets: [
 
 ---
 
+## Production Metrics
+
+swift-html-to-pdf exports production-ready metrics compatible with Prometheus, StatsD, and other monitoring systems via Apple's [swift-metrics](https://github.com/apple/swift-metrics).
+
+### Quick Start
+
+```swift
+import Metrics
+import Prometheus  // or other metrics backend
+
+// Bootstrap once at application startup
+MetricsSystem.bootstrap(PrometheusMetricsFactory())
+
+// Use library normally - metrics are automatically collected
+@Dependency(\.pdf) var pdf
+try await pdf.render(htmls: invoices, to: directory)
+```
+
+### Available Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `htmltopdf_pdfs_generated_total` | Counter | Total PDFs successfully generated |
+| `htmltopdf_pdfs_failed_total` | Counter | Total PDF generation failures (with `reason` dimension) |
+| `htmltopdf_render_duration_seconds` | Timer | PDF render duration (with `mode` dimension; provides p50/p95/p99) |
+| `htmltopdf_pool_replacements_total` | Counter | Resource pool replacement count |
+| `htmltopdf_pool_utilization` | Gauge | Active WebViews currently in use |
+| `htmltopdf_throughput_pdfs_per_sec` | Gauge | Current throughput |
+
+### Use Cases
+
+**Production Monitoring**
+```swift
+// Export to Prometheus → Grafana
+MetricsSystem.bootstrap(PrometheusMetricsFactory())
+
+// Set up alerts:
+// - PDF generation p95 > 100ms
+// - PDF failure rate > 1%
+// - Pool replacements increasing (memory issues)
+```
+
+**Performance Analysis**
+```swift
+// Track throughput degradation over time
+// Metric shows: "Throughput dropped from 2000/sec to 1500/sec"
+// Adaptive optimizer automatically triggers pool replacement
+```
+
+**Capacity Planning**
+```swift
+// Monitor pool utilization
+// Metric shows: "Pool at 23/24 WebViews during peak hours"
+// Decision: Scale to 32 WebViews or add instance
+```
+
+### Example Queries (Prometheus)
+
+```promql
+# Throughput over time
+rate(htmltopdf_pdfs_generated_total[5m])
+
+# P95 Latency
+histogram_quantile(0.95, rate(htmltopdf_render_duration_seconds_bucket[5m]))
+
+# Error Rate
+rate(htmltopdf_pdfs_failed_total[5m]) / rate(htmltopdf_pdfs_generated_total[5m])
+
+# Pool Utilization
+htmltopdf_pool_utilization
+```
+
+### Metrics Backends
+
+swift-metrics supports multiple backends:
+
+- **[swift-prometheus](https://github.com/MrLotU/SwiftPrometheus)** - Prometheus exposition
+- **[swift-statsd-client](https://github.com/apple/swift-statsd-client)** - StatsD protocol
+- **[opentelemetry-swift](https://github.com/open-telemetry/opentelemetry-swift)** - OpenTelemetry
+
+See [swift-metrics documentation](https://github.com/apple/swift-metrics) for more backends.
+
+---
+
 ## Architecture Highlights
 
 ### Why This Library is Different

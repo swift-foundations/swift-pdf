@@ -9,6 +9,7 @@ import Testing
 import Foundation
 import Dependencies
 import PDFTestSupport
+import Metrics
 @testable import HtmlToPdf
 
 extension Tag {
@@ -284,18 +285,66 @@ struct PerformanceBenchmarks {
 
         // Run benchmarks for PAGINATED mode (print-ready)
         let paginatedResults = [
-            try await runBenchmark(name: "100 Simple", count: 100, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: simpleHTML, maxConcurrent: 8, mode: .paginated),
-            try await runBenchmark(name: "100 Complex", count: 100, html: complexHTML, maxConcurrent: 6, mode: .paginated),
-            try await runBenchmark(name: "1,000 Complex", count: 1_000, html: complexHTML, maxConcurrent: 6, mode: .paginated),
+            try await runBenchmark(
+                name: "100 Simple",
+                count: 100,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "1,000 Simple",
+                count: 1_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "10,000 Simple",
+                count: 10_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "100 Complex",
+                count: 100,
+                html: complexHTML,
+                maxConcurrent: 6,
+                mode: .paginated
+            ),
+            try await runBenchmark(
+                name: "1,000 Complex",
+                count: 1_000,
+                html: complexHTML,
+                maxConcurrent: 6,
+                mode: .paginated
+            ),
         ]
 
         // Run benchmarks for CONTINUOUS mode (fast)
         let continuousResults = [
-            try await runBenchmark(name: "100 Simple", count: 100, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
-            try await runBenchmark(name: "1,000 Simple", count: 1_000, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
-            try await runBenchmark(name: "10,000 Simple", count: 10_000, html: simpleHTML, maxConcurrent: 8, mode: .continuous),
+            try await runBenchmark(
+                name: "100 Simple",
+                count: 100,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .continuous
+            ),
+            try await runBenchmark(
+                name: "1,000 Simple",
+                count: 1_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .continuous
+            ),
+            try await runBenchmark(
+                name: "10,000 Simple",
+                count: 10_000,
+                html: simpleHTML,
+                maxConcurrent: 8,
+                mode: .continuous
+            ),
         ]
 
         // Calculate dynamic comparisons
@@ -399,7 +448,10 @@ struct PerformanceBenchmarks {
         maxConcurrent: Int,
         mode: PDF.PaginationMode = .paginated
     ) async throws -> BenchmarkResult {
-        try await withDependencies {
+        // Get shared metrics backend and reset for this test
+        let metricsBackend = TestMetricsBackend.forTest()
+
+        let result = try await withDependencies {
             $0.pdf.render.configuration.paginationMode = mode
             $0.pdf.render.configuration.concurrency = .fixed(maxConcurrent)
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
@@ -416,7 +468,6 @@ struct PerformanceBenchmarks {
 
             let memoryBefore = MemorySnapshot.current()
             let peakMemoryActor = PeakMemoryTracker()
-            var durations: [TimeInterval] = []
 
             // Track memory during execution
             let memoryTask = Task {
@@ -429,11 +480,10 @@ struct PerformanceBenchmarks {
 
             let startTime = Date()
 
-            // Render with per-PDF timing
+            // Render - metrics are automatically collected
             let stream = try await pdf.render.client.html(htmls, to: output)
-            for try await result in stream {
-                durations.append(Double(result.duration.components.seconds) +
-                               Double(result.duration.components.attoseconds) / 1_000_000_000_000_000_000)
+            for try await _ in stream {
+                // Metrics automatically recorded
             }
 
             let totalDuration = Date().timeIntervalSince(startTime)
@@ -445,11 +495,8 @@ struct PerformanceBenchmarks {
             let files = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
             #expect(files.count == count, "All PDFs should be created")
 
-            // Calculate percentiles
-            let sortedDurations = durations.sorted()
-            let p50Index = sortedDurations.count / 2
-            let p95Index = sortedDurations.count * 95 / 100
-            let p99Index = sortedDurations.count * 99 / 100
+            // Get metrics from backend instead of manual calculation
+            let timer = metricsBackend.timer("htmltopdf_render_duration_seconds")
 
             return BenchmarkResult(
                 name: name,
@@ -462,13 +509,19 @@ struct PerformanceBenchmarks {
                 memoryBefore: memoryBefore,
                 memoryAfter: memoryAfter,
                 peakMemory: peakMemory,
-                minDuration: sortedDurations.first ?? 0,
-                maxDuration: sortedDurations.last ?? 0,
-                p50Duration: sortedDurations[p50Index],
-                p95Duration: sortedDurations[p95Index],
-                p99Duration: sortedDurations[p99Index]
+                minDuration: timer?.min ?? 0,
+                maxDuration: timer?.max ?? 0,
+                p50Duration: timer?.p50 ?? 0,
+                p95Duration: timer?.p95 ?? 0,
+                p99Duration: timer?.p99 ?? 0
             )
         }
+
+        // Note: Manual avgPerItem includes queueing/pooling overhead,
+        // while metrics timer only measures actual WebView render time.
+        // They will differ significantly, which is expected.
+
+        return result
     }
 
     private func printBenchmarkResult(_ result: BenchmarkResult) {

@@ -10,7 +10,8 @@ import Dependencies
 extension PDF.Render: TestDependencyKey {
     public static let testValue = PDF.Render(
         client: .testValue,
-        configuration: .testValue
+        configuration: .testValue,
+        metrics: .testValue
     )
 }
 
