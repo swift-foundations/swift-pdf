@@ -544,7 +544,8 @@ struct PerformanceBenchmarks {
         }
 
         let testCount = 5000  // Sample size for each concurrency level
-        let concurrencyLevels = [4, 8, 12, 16, 20, 24, 28, 32, 40, 48]
+        // Respect platform maximum (macOS: 16, iOS: 8)
+        let concurrencyLevels = [4, 8, 12, 16]
 
         print("\n╔════════════════════════════════════════════════════════════╗")
         print("║     ADAPTIVE THROUGHPUT OPTIMIZATION TEST                 ║")

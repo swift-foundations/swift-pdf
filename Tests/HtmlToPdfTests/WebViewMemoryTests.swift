@@ -106,7 +106,7 @@ struct WebViewMemoryTests {
         let documents = (1...4).map { i in
             PDF.Document(
                 htmlString: html,
-                destination: output.deletingLastPathComponent().appendingPathComponent("\(i).pdf")
+                destination: output.appendingPathComponent("\(i).pdf")
             )
         }
 
@@ -155,7 +155,7 @@ struct WebViewMemoryTests {
         let documents = (1...8).map { i in
             PDF.Document(
                 htmlString: html,
-                destination: output.deletingLastPathComponent().appendingPathComponent("\(i).pdf")
+                destination: output.appendingPathComponent("\(i).pdf")
             )
         }
 
@@ -204,7 +204,7 @@ struct WebViewMemoryTests {
         let documents = (1...16).map { i in
             PDF.Document(
                 htmlString: html,
-                destination: output.deletingLastPathComponent().appendingPathComponent("\(i).pdf")
+                destination: output.appendingPathComponent("\(i).pdf")
             )
         }
 
@@ -247,7 +247,7 @@ struct WebViewMemoryTests {
         let documents = (1...100).map { i in
             PDF.Document(
                 htmlString: html,
-                destination: output.deletingLastPathComponent().appendingPathComponent("\(i).pdf")
+                destination: output.appendingPathComponent("\(i).pdf")
             )
         }
 

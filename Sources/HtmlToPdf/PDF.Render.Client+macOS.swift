@@ -30,10 +30,11 @@ extension PDF.Render: DependencyKey {
 // MARK: - Directory Cache
 
 /// Thread-safe cache for validated directories to avoid redundant file system checks
-/// Uses NSLock for low-overhead synchronization instead of actor (avoids async overhead)
-private final class DirectoryCache: @unchecked Sendable {
-    private var validated: Set<String> = []
-    private let lock = NSLock()
+///
+/// Thread Safety: Uses `LockIsolated` to protect the validated set with an NSRecursiveLock.
+/// All mutations to the set are performed within `withLock` closures, ensuring exclusive access.
+private final class DirectoryCache: Sendable {
+    private let validated = LockIsolated(Set<String>())
 
     func ensureDirectory(
         at url: URL,
@@ -42,9 +43,7 @@ private final class DirectoryCache: @unchecked Sendable {
         let path = url.path
 
         // Fast path: check cache with lock
-        lock.lock()
-        let isValidated = validated.contains(path)
-        lock.unlock()
+        let isValidated = validated.withValue { $0.contains(path) }
 
         if isValidated {
             return
@@ -56,9 +55,7 @@ private final class DirectoryCache: @unchecked Sendable {
                 at: url,
                 withIntermediateDirectories: true
             )
-            lock.lock()
-            validated.insert(path)
-            lock.unlock()
+            _ = validated.withValue { $0.insert(path) }
         } else {
             // Validate directory exists when createDirectories is false
             var isDirectory: ObjCBool = false
@@ -72,16 +69,12 @@ private final class DirectoryCache: @unchecked Sendable {
                     )
                 )
             }
-            lock.lock()
-            validated.insert(path)
-            lock.unlock()
+            _ = validated.withValue { $0.insert(path) }
         }
     }
 
     func clear() {
-        lock.lock()
-        validated.removeAll()
-        lock.unlock()
+        validated.withValue { $0.removeAll() }
     }
 }
 
@@ -91,6 +84,11 @@ private let directoryCache = DirectoryCache()
 // MARK: - NSPrintInfo Cache
 
 /// Pre-configured NSPrintInfo cache to avoid repeated setup overhead
+///
+/// Thread Safety: This type is `@unchecked Sendable` because:
+/// - It is isolated to the MainActor, preventing concurrent access
+/// - The cache dictionary is only accessed from the main actor
+/// - NSPrintInfo copies are returned to prevent shared mutable state
 @MainActor
 private final class PrintInfoCache: @unchecked Sendable {
     private var cache: [String: NSPrintInfo] = [:]
@@ -141,16 +139,43 @@ extension PDF.Render.Client {
     public static let macOS = PDF.Render.Client(
         documents: { documents in
             @Dependency(\.pdf.render.configuration) var config
+
+            // Validate configuration against platform capabilities
+            try validateConfiguration(config, against: .macOS)
+
             return try await renderDocumentsInternal(documents, config: config)
-        },
-        documentsResilient: { documents in
-            @Dependency(\.pdf.render.configuration) var config
-            return await renderDocumentsResilient(documents, config: config)
         },
         capabilities: {
             .macOS
         }
     )
+}
+
+// MARK: - Configuration Validation
+
+/// Validate configuration against platform capabilities
+private func validateConfiguration(_ config: PDF.Configuration, against capabilities: PDF.Capabilities) throws {
+    let requestedConcurrency = config.concurrency.resolved
+
+    // Check if requested concurrency exceeds platform maximum
+    if requestedConcurrency > capabilities.maxConcurrentOperations {
+        throw PrintingError.capabilityUnavailable(
+            capability: "concurrency=\(requestedConcurrency)",
+            platform: platformName(for: capabilities),
+            reason: "Platform maximum is \(capabilities.maxConcurrentOperations). Requested \(requestedConcurrency) concurrent operations."
+        )
+    }
+}
+
+/// Get platform name from capabilities
+private func platformName(for capabilities: PDF.Capabilities) -> String {
+    #if os(macOS)
+    return "macOS"
+    #elseif os(iOS)
+    return "iOS"
+    #else
+    return "Unknown"
+    #endif
 }
 
 // MARK: - Internal Implementation
@@ -330,120 +355,6 @@ private func renderDocumentsInternal(
     }
 }
 
-/// Resilient batch rendering - continues on individual failures
-private func renderDocumentsResilient(
-    _ documents: some Sequence<PDF.Document>,
-    config: PDF.Configuration
-) async -> AsyncStream<PDF.Render.BatchResult> {
-    let documentsArray = Array(documents)
-    let (stream, continuation) = AsyncStream.makeStream(of: PDF.Render.BatchResult.self)
-
-    Task {
-        await populateResilientBatchStream(
-            documents: documentsArray,
-            config: config,
-            continuation: continuation
-        )
-    }
-
-    return stream
-}
-
-/// Result from a single document render task
-private struct RenderTaskResult: Sendable {
-    let index: Int
-    let renderResult: Swift.Result<(url: URL, pageCount: Int, dimensions: [CGSize], mode: PDF.PaginationMode), Error>
-    let duration: Duration
-}
-
-/// Populate the resilient batch stream with results
-private func populateResilientBatchStream(
-    documents: [PDF.Document],
-    config: PDF.Configuration,
-    continuation: AsyncStream<PDF.Render.BatchResult>.Continuation
-) async {
-    @Dependency(\.webViewPool) var webViewPool
-
-    guard let pool = try? await webViewPool.pool else {
-        for (index, document) in documents.enumerated() {
-            let failed = PDF.FailedDocument(
-                document: document,
-                index: index,
-                error: PrintingError.webViewPoolExhausted(pendingRequests: documents.count),
-                duration: .zero
-            )
-            continuation.yield(.failure(failed))
-        }
-        continuation.finish()
-        return
-    }
-
-    let maxConcurrent = config.concurrency.resolved
-
-    do {
-        try await withThrowingTaskGroup(of: RenderTaskResult.self) { taskGroup in
-            for (index, document) in documents.prefix(maxConcurrent).enumerated() {
-                taskGroup.addTask {
-                    let start = ContinuousClock.now
-                    let result = await Swift.Result {
-                        try await document.renderWithPool(pool, config: config)
-                    }
-                    let duration = ContinuousClock.now - start
-                    return RenderTaskResult(index: index, renderResult: result, duration: duration)
-                }
-            }
-
-            var nextIndex = maxConcurrent
-
-            for try await taskResult in taskGroup {
-                switch taskResult.renderResult {
-                case .success(let (url, pageCount, dimensions, mode)):
-                    let pdfResult = PDF.Result(
-                        url: url,
-                        index: taskResult.index,
-                        duration: taskResult.duration,
-                        paginationMode: mode,
-                        pageCount: pageCount,
-                        pageDimensions: dimensions
-                    )
-                    continuation.yield(.success(pdfResult))
-                    try? await webViewPool.recordPDFGenerated()
-
-                case .failure(let error):
-                    let failed = PDF.FailedDocument(
-                        document: documents[taskResult.index],
-                        index: taskResult.index,
-                        error: error,
-                        duration: taskResult.duration
-                    )
-                    continuation.yield(.failure(failed))
-                }
-
-                if nextIndex < documents.count {
-                    let document = documents[nextIndex]
-                    let capturedIndex = nextIndex
-                    nextIndex += 1
-
-                    taskGroup.addTask {
-                        let start = ContinuousClock.now
-                        let result = await Swift.Result {
-                            try await document.renderWithPool(pool, config: config)
-                        }
-                        let duration = ContinuousClock.now - start
-                        return RenderTaskResult(index: capturedIndex, renderResult: result, duration: duration)
-                    }
-                }
-            }
-        }
-    } catch {
-        // This should never happen since we catch all errors internally with Swift.Result
-        // But needed for withThrowingTaskGroup syntax
-    }
-
-    continuation.finish()
-    directoryCache.clear()
-}
-
 private func generateMarginCSS(_ config: PDF.Configuration) -> ContiguousArray<UInt8> {
     // Margin handling differs based on pagination mode:
     // - Paginated mode: Margins handled by NSPrintInfo
@@ -607,8 +518,17 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
                 // Move file I/O and page extraction off main actor to reduce contention
                 Task.detached(priority: .userInitiated) { [outputURL = self.outputURL, paginationMode = self.configuration.paginationMode] in
                     do {
-                        // File write on background thread
-                        try data.write(to: outputURL)
+                        // Atomic file write: write to temp file in same directory, then move
+                        // This prevents partial PDFs if the task is cancelled mid-write
+                        let parentDir = outputURL.deletingLastPathComponent()
+                        let tempURL = parentDir
+                            .appendingPathComponent(UUID().uuidString)
+                            .appendingPathExtension("pdf.tmp")
+
+                        try data.write(to: tempURL)
+
+                        // Atomic move (replaces existing file if present)
+                        try FileManager.default.moveItem(at: tempURL, to: outputURL)
 
                         // Extract page info (PDFDocument is thread-safe)
                         let (pageCount, dimensions) = extractPageInfoFromData(data)
@@ -688,6 +608,12 @@ private class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
     }
 }
 
+/// Delegate for handling print operation completion and errors
+///
+/// Thread Safety: This type is `@unchecked Sendable` because:
+/// - All stored properties are `@Sendable` closures
+/// - The closures are immutable after initialization
+/// - Callbacks are invoked from WebKit's navigation delegate which properly handles thread safety
 private class PrintDelegate: @unchecked Sendable {
     var onFinished: @Sendable (Int, [CGSize], PDF.PaginationMode) -> Void
     var onError: (@Sendable (Error) -> Void)?

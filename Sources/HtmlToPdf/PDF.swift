@@ -7,6 +7,7 @@
 
 import Dependencies
 import Foundation
+import PointFreeHTML
 
 /// PDF domain containing rendering capability
 ///
@@ -45,6 +46,19 @@ import Foundation
 ///
 /// // Access configuration directly
 /// let poolSize = config.concurrency
+/// ```
+///
+/// ## Convenience Methods for Configuration
+///
+/// ```swift
+/// @Dependency(\.pdf) var pdf
+///
+/// // Set baseURL for resolving relative resources
+/// try await pdf.withBaseURL(
+///     URL(fileURLWithPath: "/path/to/assets"),
+///     render: htmlWithRelativeImages,
+///     to: output
+/// )
 /// ```
 public struct PDF: Sendable {
     /// Rendering capability containing client and configuration

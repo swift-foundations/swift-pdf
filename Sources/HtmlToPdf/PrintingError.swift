@@ -65,6 +65,11 @@ public enum PrintingError: Error, LocalizedError, Sendable {
     /// No result was produced from rendering operation
     case noResultProduced
 
+    // MARK: - Platform Capability Errors
+
+    /// Platform lacks required capability for this operation
+    case capabilityUnavailable(capability: String, platform: String, reason: String)
+
     // MARK: - LocalizedError Implementation
 
     public var errorDescription: String? {
@@ -126,6 +131,9 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 
         case .noResultProduced:
             return "No result was produced from rendering operation"
+
+        case .capabilityUnavailable(let capability, let platform, let reason):
+            return "Platform '\(platform)' does not support '\(capability)': \(reason)"
         }
     }
 
@@ -172,6 +180,9 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 
         case .noResultProduced:
             return "The rendering operation completed but produced no output"
+
+        case .capabilityUnavailable:
+            return "This operation requires platform capabilities that are not available"
         }
     }
 
@@ -218,6 +229,9 @@ public enum PrintingError: Error, LocalizedError, Sendable {
 
         case .noResultProduced:
             return "Check that the document was properly configured and retry"
+
+        case .capabilityUnavailable(let capability, let platform, _):
+            return "Use a different platform or reduce '\(capability)' requirements to match '\(platform)' capabilities"
         }
     }
 }

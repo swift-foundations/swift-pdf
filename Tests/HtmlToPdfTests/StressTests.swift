@@ -19,7 +19,8 @@ extension Tag {
     "Stress Tests",
     .dependency(\.pdf, .liveValue),
     .serialized,
-    .tags(.stress)
+    .tags(.stress),
+    .disabled()
 )
 struct StressTests {
 

@@ -11,7 +11,7 @@ HtmlToPdf provides a powerful, type-safe API for generating PDF documents from H
 - **⚡ Exceptional Performance**: 2,016 PDFs/sec peak throughput
 - **🎯 Type-Safe**: Full Swift 6 strict concurrency support
 - **📄 Dual Modes**: Fast continuous or print-ready paginated output
-- **🔄 Resilient**: Batch processing with error recovery
+- **🔄 Streaming**: Process results as they complete
 - **💾 Memory Efficient**: Constant memory usage regardless of batch size
 
 ## Quick Start
@@ -42,7 +42,6 @@ try await pdf.html("<html><body><h1>Hello</h1></body></html>", to: fileURL)
 ### Rendering
 
 - ``PDF/Render/Client``
-- ``PDF/Render/BatchResult``
 - ``PDF/FailedDocument``
 
 ### Configuration

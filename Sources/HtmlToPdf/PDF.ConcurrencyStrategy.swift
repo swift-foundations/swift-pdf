@@ -81,11 +81,19 @@ extension PDF {
 
             #if canImport(UIKit)
             // iOS: Still cap at 4 due to mobile constraints (battery, thermal, app suspension)
-            return max(2, min(cpuCount, 4))
+            let calculated = max(2, min(cpuCount, 4))
+            // Cap at platform maximum
+            return min(calculated, PDF.Capabilities.iOS.maxConcurrentOperations)
             #else
             // macOS/Linux: Use 3x CPU count for optimal throughput
             // WebViews spend significant time in I/O, so oversubscription helps
-            return max(2, cpuCount * 3)
+            let calculated = max(2, cpuCount * 3)
+            // Cap at platform maximum
+            #if os(macOS)
+            return min(calculated, PDF.Capabilities.macOS.maxConcurrentOperations)
+            #else
+            return calculated
+            #endif
             #endif
         }
 

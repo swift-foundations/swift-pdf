@@ -5,6 +5,7 @@
 //  Top-level convenience methods for common operations
 //
 
+import Dependencies
 import Foundation
 import PointFreeHTML
 
@@ -184,6 +185,37 @@ extension PDF {
         documents: some Sequence<PDF.Document>
     ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
         try await render.documents(documents)
+    }
+
+    // MARK: - Base URL Configuration
+
+    /// Configure a base URL for resolving relative resources in HTML
+    ///
+    /// Returns a PDF instance that will use the specified base URL when rendering.
+    /// This allows chaining: `pdf.withBaseURL(...).render(...)`
+    ///
+    /// - Parameter baseURL: The base URL to use for resolving relative URLs
+    /// - Returns: A PDF instance configured with the base URL
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// @Dependency(\.pdf) var pdf
+    ///
+    /// let html = #"<img src="logo.png">"#
+    /// let assetsURL = URL(fileURLWithPath: "/path/to/assets")
+    ///
+    /// try await pdf
+    ///     .withBaseURL(assetsURL)
+    ///     .render(html: html, to: output)
+    /// // Image will load from /path/to/assets/logo.png
+    /// ```
+    public func withBaseURL(_ baseURL: URL?) -> PDF {
+        @Dependency(\.pdf) var currentPDF
+
+        var modified = currentPDF
+        modified.render.configuration.baseURL = baseURL
+        return modified
     }
 
 }

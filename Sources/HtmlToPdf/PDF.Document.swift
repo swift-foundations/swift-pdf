@@ -118,7 +118,16 @@ extension PDF {
 extension String {
     func replacingSlashesWithDivisionSlash() -> String {
         let divisionSlash = "\u{2215}" // Unicode for Division Slash (∕)
-        return self.replacingOccurrences(of: "/", with: divisionSlash)
+        return self
+            .replacingOccurrences(of: "/", with: divisionSlash)
+            .replacingOccurrences(of: ":", with: "-")      // Colon not allowed in filenames
+            .replacingOccurrences(of: "?", with: "")       // Question mark not allowed
+            .replacingOccurrences(of: "*", with: "-")      // Asterisk not allowed
+            .replacingOccurrences(of: "<", with: "")       // Less-than not allowed
+            .replacingOccurrences(of: ">", with: "")       // Greater-than not allowed
+            .replacingOccurrences(of: "|", with: "-")      // Pipe not allowed
+            .replacingOccurrences(of: "\"", with: "")      // Quote not allowed
+            .replacingOccurrences(of: "\\", with: divisionSlash)  // Backslash treated like forward slash
     }
 }
 
