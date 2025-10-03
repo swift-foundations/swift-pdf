@@ -282,42 +282,42 @@ struct PerformanceBenchmarks {
         print()
 
         let simpleHTML = "<html><body><p>{{ID}}</p></body></html>"
-
+        let maxConcurrent = 8
         // Run benchmarks for PAGINATED mode (print-ready)
         let paginatedResults = [
             try await runBenchmark(
                 name: "100 Simple",
                 count: 100,
                 html: simpleHTML,
-                maxConcurrent: 8,
+                maxConcurrent: maxConcurrent,
                 mode: .paginated
             ),
             try await runBenchmark(
                 name: "1,000 Simple",
                 count: 1_000,
                 html: simpleHTML,
-                maxConcurrent: 8,
+                maxConcurrent: maxConcurrent,
                 mode: .paginated
             ),
             try await runBenchmark(
                 name: "10,000 Simple",
                 count: 10_000,
                 html: simpleHTML,
-                maxConcurrent: 8,
+                maxConcurrent: maxConcurrent,
                 mode: .paginated
             ),
             try await runBenchmark(
                 name: "100 Complex",
                 count: 100,
                 html: complexHTML,
-                maxConcurrent: 6,
+                maxConcurrent: maxConcurrent,
                 mode: .paginated
             ),
             try await runBenchmark(
                 name: "1,000 Complex",
                 count: 1_000,
                 html: complexHTML,
-                maxConcurrent: 6,
+                maxConcurrent: maxConcurrent,
                 mode: .paginated
             ),
         ]
@@ -328,21 +328,21 @@ struct PerformanceBenchmarks {
                 name: "100 Simple",
                 count: 100,
                 html: simpleHTML,
-                maxConcurrent: 8,
+                maxConcurrent: maxConcurrent,
                 mode: .continuous
             ),
             try await runBenchmark(
                 name: "1,000 Simple",
                 count: 1_000,
                 html: simpleHTML,
-                maxConcurrent: 8,
+                maxConcurrent: maxConcurrent,
                 mode: .continuous
             ),
             try await runBenchmark(
                 name: "10,000 Simple",
                 count: 10_000,
                 html: simpleHTML,
-                maxConcurrent: 8,
+                maxConcurrent: maxConcurrent,
                 mode: .continuous
             ),
         ]
@@ -601,9 +601,9 @@ struct PerformanceBenchmarks {
         // Filter concurrency levels based on platform limits
         // macOS: [4, 8, 12, 16], iOS: [4, 8]
         #if os(macOS)
-        let platformMax = PDF.PlatformConcurrencyLimit.macOS
+        let platformMax = PDF.Render.ConcurrencyLimit.testedMacOS
         #else
-        let platformMax = PDF.PlatformConcurrencyLimit.iOS
+        let platformMax = PDF.Render.ConcurrencyLimit.testedIOS
         #endif
         let concurrencyLevels = [4, 8, 12, 16].filter { $0 <= platformMax }
 

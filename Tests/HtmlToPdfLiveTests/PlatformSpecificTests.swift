@@ -227,12 +227,12 @@ struct PlatformSpecificTests {
     #endif
 
     // Shared tests with platform-aware expectations
-    @Test("Platform concurrency limits are correctly defined")
+    @Test("Platform concurrency limits are correctly defined (reference values)")
     func platformConcurrencyLimits() {
         #if os(macOS)
-        #expect(PDF.PlatformConcurrencyLimit.macOS == 16, "macOS should support 16 concurrent operations")
+        #expect(PDF.Render.ConcurrencyLimit.testedMacOS == 32, "macOS tested maximum is 32")
         #else
-        #expect(PDF.PlatformConcurrencyLimit.iOS == 8, "iOS should support 8 concurrent operations")
+        #expect(PDF.Render.ConcurrencyLimit.testedIOS == 8, "iOS tested maximum is 8")
         #endif
     }
 

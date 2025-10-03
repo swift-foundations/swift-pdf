@@ -14,17 +14,105 @@ import Foundation
 extension PDF {
     /// Configuration for PDF rendering
     ///
-    /// Set configuration once via `withDependencies`:
+    /// Provides comprehensive control over PDF generation with sensible defaults optimized
+    /// for professional document output (invoices, reports, contracts).
+    ///
+    /// ## Default Behavior
+    ///
+    /// The default configuration produces print-ready PDFs without any setup:
+    /// - **A4 paper size** (595.28 × 841.89 pts) - International standard
+    /// - **Standard margins** (0.5 inch / 36pts) - Professional appearance
+    /// - **Continuous pagination** - Fast rendering (3x faster than paginated)
+    /// - **Light appearance** - White backgrounds regardless of system dark mode
+    /// - **Automatic concurrency** - Optimal throughput based on CPU count
+    ///
+    /// These defaults work well for 80% of use cases without any configuration.
+    ///
+    /// ## Common Configurations
+    ///
     /// ```swift
+    /// // Default - Professional documents (recommended, no config needed)
+    /// @Dependency(\.pdf) var pdf
+    /// try await pdf.render.client.documents(documents)
+    ///
+    /// // US Letter for American business documents
     /// try await withDependencies {
-    ///     $0.pdfConfiguration.paperSize = .letter
-    ///     $0.pdfConfiguration.margins = .wide
-    ///     $0.pdfConfiguration.concurrency = 16
+    ///     $0.pdf.render.configuration = .letter
     /// } operation: {
-    ///     @Dependency(\.pdf) var pdf
-    ///     try await pdf.render(html, to: url)
+    ///     try await pdf.render.client.documents(documents)
+    /// }
+    ///
+    /// // Large batch processing with custom settings
+    /// try await withDependencies {
+    ///     $0.pdf.render.configuration.concurrency = 24
+    ///     $0.pdf.render.configuration.adaptiveThroughputOptimization = true
+    ///     $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
+    /// } operation: {
+    ///     // Process thousands of PDFs
+    ///     for try await result in try await pdf.render.client.documents(documents) {
+    ///         print("Generated \(result.url)")
+    ///     }
     /// }
     /// ```
+    ///
+    /// ## Configuration Properties
+    ///
+    /// ### Document Configuration
+    /// - `paperSize`: Physical page dimensions (default: A4)
+    /// - `margins`: Space around content (default: 0.5 inch)
+    /// - `baseURL`: Root for resolving relative URLs in HTML
+    /// - `paginationMode`: How content flows into pages (default: continuous)
+    /// - `appearance`: Light/dark/auto color scheme (default: light for professional docs)
+    ///
+    /// ### Performance Configuration
+    /// - `concurrency`: Concurrent WebView limit (default: automatic based on CPU)
+    /// - `adaptiveThroughputOptimization`: Dynamic performance tuning (default: false)
+    /// - `poolReplacementThreshold`: WebView pool refresh interval (default: 30,000 PDFs)
+    ///
+    /// ### Timeout Configuration
+    /// - `documentTimeout`: Per-PDF time limit (default: nil - no limit)
+    /// - `batchTimeout`: Entire batch time limit (default: nil - no limit)
+    /// - `webViewAcquisitionTimeout`: Pool wait time (default: 60 seconds)
+    ///
+    /// ### File System Configuration
+    /// - `createDirectories`: Auto-create destination folders (default: true)
+    /// - `namingStrategy`: Batch file naming pattern (default: sequential)
+    ///
+    /// ## Advanced: Pool Management
+    ///
+    /// Long-running services should tune pool replacement settings to prevent memory accumulation:
+    ///
+    /// ```swift
+    /// // 24/7 server with PDF generation
+    /// $0.pdf.render.configuration.poolReplacementThreshold = 50_000
+    /// $0.pdf.render.configuration.adaptiveThroughputOptimization = true
+    ///
+    /// // Short-lived CLI tool (disable automatic pool replacement)
+    /// $0.pdf.render.configuration.poolReplacementThreshold = nil
+    /// ```
+    ///
+    /// The `poolReplacementThreshold` and `adaptiveThroughputOptimization` work together:
+    /// - **Threshold**: Provides periodic full pool replacement (mitigates WebKit memory leaks)
+    /// - **Adaptive optimization**: Triggers early replacement on performance degradation (>15% drop)
+    ///
+    /// ## Platform Differences & Concurrency
+    ///
+    /// No artificial limits are enforced. Pool capacity equals concurrency value, providing natural resource management.
+    ///
+    /// **Automatic defaults:**
+    /// - **macOS**: 3x CPU count (uncapped, e.g., 24 on 8-core Mac) - optimal for WebView I/O waiting
+    /// - **iOS**: min(CPU count, 4) - conservative for thermal/battery constraints
+    ///
+    /// **Tested values:**
+    /// - macOS: 24-32 concurrent works excellently (see empirical data in ``PDF/Render/ConcurrencyLimit``)
+    /// - iOS: 4-8 tested, varies by device
+    ///
+    /// **You can set higher:**
+    /// ```swift
+    /// config.concurrency = .fixed(32)  // ✅ No error - ResourcePool manages resources
+    /// ```
+    ///
+    /// ResourcePool capacity and OS resources are the only real limits.
     public struct Configuration: Sendable {
 
         // MARK: - Document Configuration
@@ -141,7 +229,14 @@ extension PDF {
         // MARK: - Computed Properties
 
         /// Pre-computed margin CSS bytes for performance
-        /// Generated on-demand and cached based on margins
+        ///
+        /// **Internal implementation detail** - Do not use directly.
+        ///
+        /// This property generates CSS that injects margins into HTML `<body>` tags.
+        /// The rendering system automatically applies these margins during PDF generation.
+        ///
+        /// The CSS is computed on-demand based on current margin values. For performance,
+        /// the configuration itself is typically cached by the dependency system.
         public var marginCSSBytes: ContiguousArray<UInt8> {
             let css = """
             <style>

@@ -102,54 +102,46 @@ struct BaseURLTests {
 struct ConcurrencyLimitTests {
     @Dependency(\.pdf) var pdf
 
-    @Test("Platform concurrency limits are correct")
+    @Test("Platform concurrency limits are reference values (not enforced)")
     func testPlatformLimits() {
         #if os(macOS)
-        #expect(PDF.PlatformConcurrencyLimit.macOS == 16)
+        #expect(PDF.Render.ConcurrencyLimit.testedMacOS == 32)
         #elseif os(iOS)
-        #expect(PDF.PlatformConcurrencyLimit.iOS == 8)
+        #expect(PDF.Render.ConcurrencyLimit.testedIOS == 8)
         #endif
     }
 
-    @Test("Exceeding platform concurrency throws capability error")
-    func testExceedingConcurrencyThrows() async throws {
+    @Test("High concurrency is allowed (no artificial limits)")
+    func testHighConcurrencyAllowed() async throws {
         await withTemporaryDirectory { dir in
             #if os(macOS)
-            let platformMax = PDF.PlatformConcurrencyLimit.macOS
+            let highConcurrency = 100  // Well above old limit of 16
             #else
-            let platformMax = PDF.PlatformConcurrencyLimit.iOS
+            let highConcurrency = 20   // Well above old limit of 8
             #endif
 
-            // Try to set concurrency above platform maximum
-            let excessiveConcurrency = platformMax + 10
-
+            // This should NOT throw - limits are removed
             await withDependencies {
-                $0.pdf.render.configuration.concurrency = .fixed(excessiveConcurrency)
+                $0.pdf.render.configuration.concurrency = .fixed(highConcurrency)
             } operation: {
                 @Dependency(\.pdf) var configuredPDF
 
                 let html = "<html><body>Test</body></html>"
                 let output = dir.appendingPathComponent("test.pdf")
 
+                // Should succeed without throwing
                 do {
                     _ = try await configuredPDF.render(html: html, to: output)
-                    Issue.record("Should have thrown capabilityUnavailable error")
-                } catch let error as PrintingError {
-                    if case .capabilityUnavailable(let capability, let platform, let reason) = error {
-                        #expect(capability.contains("concurrency"))
-                        #expect(platform.count > 0)
-                        #expect(reason.contains("maximum"))
-                    } else {
-                        Issue.record("Expected capabilityUnavailable, got \(error)")
-                    }
+                    // Success - no error thrown
+                    #expect(FileManager.default.fileExists(atPath: output.path))
                 } catch {
-                    Issue.record("Expected PrintingError.capabilityUnavailable, got \(error)")
+                    Issue.record("Should not throw error for high concurrency, got: \(error)")
                 }
             }
         }
     }
 
-    @Test("Automatic concurrency respects platform limits")
+    @Test("Automatic concurrency uses optimal defaults")
     func testAutomaticConcurrencyRespectsPlatform() async throws {
         try await withTemporaryPDF { output in
             // Use automatic concurrency

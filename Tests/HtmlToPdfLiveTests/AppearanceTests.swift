@@ -8,8 +8,7 @@
 import Testing
 import Foundation
 import Dependencies
-@testable import HtmlToPdf
-@testable import HtmlToPdfTypes
+@testable import HtmlToPdfLive
 
 @Suite("PDF Appearance Tests")
 struct AppearanceTests {

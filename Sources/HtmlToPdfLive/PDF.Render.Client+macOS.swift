@@ -33,7 +33,7 @@ extension PDF.Render: DependencyKey {
 /// Thread Safety: This type is `@unchecked Sendable` because:
 /// - It is isolated to the MainActor, preventing concurrent access
 /// - The cache dictionary is only accessed from the main actor
-/// - NSPrintInfo copies are returned to prevent shared mutable state
+/// - NSPrintOperation internally copies NSPrintInfo, so shared references are safe
 @MainActor
 private final class PrintInfoCache: @unchecked Sendable {
     private var cache: [String: NSPrintInfo] = [:]
@@ -42,8 +42,8 @@ private final class PrintInfoCache: @unchecked Sendable {
         let key = cacheKey(for: config)
 
         if let cached = cache[key] {
-            // Return a copy to avoid shared mutable state
-            return cached.copy() as! NSPrintInfo
+            // NSPrintOperation copies NSPrintInfo internally, so no need to copy here
+            return cached
         }
 
         // Create and cache new print info
@@ -56,7 +56,8 @@ private final class PrintInfoCache: @unchecked Sendable {
         printInfo.jobDisposition = .save
 
         cache[key] = printInfo
-        return printInfo.copy() as! NSPrintInfo
+        // NSPrintOperation copies NSPrintInfo internally, so no need to copy here
+        return printInfo
     }
 
     private func cacheKey(for config: PDF.Configuration) -> String {
@@ -84,29 +85,9 @@ extension PDF.Render.Client {
     public static let macOS = PDF.Render.Client(
         documents: { documents in
             @Dependency(\.pdf.render.configuration) var config
-
-            // Validate configuration against platform limits
-            try validateConfiguration(config)
-
             return try await renderDocumentsInternal(documents, config: config)
         }
     )
-}
-
-// MARK: - Configuration Validation
-
-/// Validate configuration against platform limits
-private func validateConfiguration(_ config: PDF.Configuration) throws {
-    let requestedConcurrency = config.concurrency.resolved
-
-    // Check if requested concurrency exceeds platform maximum
-    if requestedConcurrency > PDF.PlatformConcurrencyLimit.macOS {
-        throw PrintingError.capabilityUnavailable(
-            capability: "concurrency=\(requestedConcurrency)",
-            platform: "macOS",
-            reason: "Platform maximum is \(PDF.PlatformConcurrencyLimit.macOS). Requested \(requestedConcurrency) concurrent operations."
-        )
-    }
 }
 
 // MARK: - Internal Implementation

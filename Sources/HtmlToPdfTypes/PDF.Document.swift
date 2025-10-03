@@ -43,14 +43,59 @@ private let cssInjectionCache = CSSInjectionCache()
 extension PDF {
     /// A document to be rendered as a PDF
     ///
-    /// Examples:
-    /// ```swift
-    /// // Using String (simple)
-    /// let doc = PDF.Document(htmlString: "<html><body>Hello</body></html>", destination: fileURL)
+    /// Represents HTML content and its destination file path. Documents can be created
+    /// from String or raw bytes (for performance-critical batch operations).
     ///
-    /// // Using raw bytes (advanced)
-    /// let doc = PDF.Document(htmlBytes: bytes, destination: fileURL)
+    /// ## Creating Documents
+    ///
+    /// ```swift
+    /// // From HTML string (most common)
+    /// let doc = PDF.Document(
+    ///     htmlString: "<html><body>Hello</body></html>",
+    ///     destination: URL(fileURLWithPath: "/path/to/output.pdf")
+    /// )
+    ///
+    /// // Auto-generate filename from title
+    /// let doc = PDF.Document(
+    ///     htmlString: html,
+    ///     title: "Invoice #12345",
+    ///     in: URL(fileURLWithPath: "/invoices/")
+    /// )
+    /// // Results in: /invoices/Invoice #12345.pdf
+    ///
+    /// // From raw bytes (advanced - for batch operations)
+    /// let bytes = ContiguousArray(htmlString.utf8)
+    /// let doc = PDF.Document(htmlBytes: bytes, destination: url)
     /// ```
+    ///
+    /// ## Title-Based Naming
+    ///
+    /// When using `title:in:` initializers, titles are automatically sanitized for filesystem safety:
+    /// - Forward slashes (/) → Division slash (∕)
+    /// - Backslashes (\) → Division slash (∕)
+    /// - Colons (:) → Hyphens (-)
+    /// - Invalid characters (?, *, <, >, |, ") → Removed
+    ///
+    /// This ensures filenames are valid across all platforms (macOS, iOS, Linux, Windows).
+    ///
+    /// ## Performance: Bytes vs Strings
+    ///
+    /// For batch operations (>1000 PDFs), consider using raw bytes:
+    /// - **String-based**: Simple, readable API. Small allocation overhead per document.
+    /// - **Bytes-based**: Skip UTF-8 encoding step. Slightly faster in tight loops.
+    ///
+    /// In practice, the difference is negligible unless processing tens of thousands of PDFs.
+    /// Use strings for readability unless profiling shows a bottleneck.
+    ///
+    /// ## CSS Injection and Caching
+    ///
+    /// Documents support efficient CSS injection for appearance and margins:
+    /// - Uses internal actor-based cache to avoid redundant HTML processing
+    /// - Cache size capped at 100 entries with LRU eviction
+    /// - Thread-safe via actor isolation
+    /// - Automatically used by rendering system
+    ///
+    /// This optimization is handled automatically - no user action required.
     public struct Document: Sendable {
         let htmlBytes: ContiguousArray<UInt8>
         public let destination: URL

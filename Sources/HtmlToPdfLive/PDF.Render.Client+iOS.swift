@@ -31,29 +31,9 @@ extension PDF.Render.Client {
     public static let iOS = PDF.Render.Client(
         documents: { documents in
             @Dependency(\.pdf.render.configuration) var config
-
-            // Validate configuration against platform limits
-            try validateConfiguration(config)
-
             return try await renderDocumentsInternal(documents, config: config)
         }
     )
-}
-
-// MARK: - Configuration Validation
-
-/// Validate configuration against platform limits
-private func validateConfiguration(_ config: PDF.Configuration) throws {
-    let requestedConcurrency = config.concurrency.resolved
-
-    // Check if requested concurrency exceeds platform maximum
-    if requestedConcurrency > PDF.PlatformConcurrencyLimit.iOS {
-        throw PrintingError.capabilityUnavailable(
-            capability: "concurrency=\(requestedConcurrency)",
-            platform: "iOS",
-            reason: "Platform maximum is \(PDF.PlatformConcurrencyLimit.iOS). Requested \(requestedConcurrency) concurrent operations."
-        )
-    }
 }
 
 // MARK: - Internal Implementation

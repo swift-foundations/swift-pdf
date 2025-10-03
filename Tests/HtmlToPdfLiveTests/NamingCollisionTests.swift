@@ -159,9 +159,9 @@ struct NamingCollisionTests {
 
         // Use platform maximum concurrency (macOS: 16, iOS: 8)
         #if os(macOS)
-        let platformMax = PDF.PlatformConcurrencyLimit.macOS
+        let platformMax = PDF.Render.ConcurrencyLimit.testedMacOS
         #else
-        let platformMax = PDF.PlatformConcurrencyLimit.iOS
+        let platformMax = PDF.Render.ConcurrencyLimit.testedIOS
         #endif
 
         try await withTemporaryDirectory { dir in
