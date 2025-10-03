@@ -209,14 +209,32 @@ private actor WebViewPoolActor {
             "reason": "\(reason)"
         ])
 
-        // Create new pool (warmup will happen in background)
+        // STEP 1: Keep reference to old pool for graceful shutdown
+        let oldPool = sharedPool
+
+        // STEP 2: Create new pool (warmup will happen in background)
         let newPool = try await provider()
 
-        // Swap to new pool immediately
-        // The old pool will be released when all current operations complete
-        // Swift's ARC will handle cleanup automatically
+        // STEP 3: Swap to new pool immediately (new operations use new pool)
         sharedPool = newPool
         totalPDFsGenerated = 0
+
+        // STEP 4: Let old pool deallocate naturally via ARC
+        // We don't call drain() because:
+        // - Operations capture pool references at the start of rendering
+        // - Draining would fail those operations with PoolError.closed
+        // - We want in-flight operations to complete naturally
+        //
+        // Cleanup mechanism:
+        // - This local reference (`oldPool`) goes out of scope immediately
+        // - In-flight operations hold their own strong references
+        // - When each operation completes, it releases its reference
+        // - When the last reference is released, ARC deallocates the pool
+        //
+        // No sleep needed - operations hold references regardless of timing
+        if oldPool != nil {
+            logger.info("Old pool released for ARC deallocation")
+        }
 
         // Record pool replacement metric
         metrics.recordPoolReplacement()
@@ -303,13 +321,15 @@ extension WebViewPoolClient: DependencyKey {
                 @Dependency(\.pdf.render.configuration) var configuration
                 let poolSize = configuration.concurrency.resolved
 
-                // Create pool with warmup
-                // Batch replacement (every 30K PDFs) handles memory leaks at pool level
+                // Create pool with warmup and per-resource cycling
+                // - Per-resource cycling: Replaces individual WebViews every 1,000 uses
+                // - Batch replacement: Replaces entire pool every 30,000 PDFs
+                // These strategies work together to prevent resource accumulation
                 return try await ResourcePool<WKWebViewResource>(
                     capacity: poolSize,
                     resourceConfig: (),
                     warmup: true,
-                    maxUsesBeforeCycling: nil  // No per-resource cycling - using batch replacement
+                    maxUsesBeforeCycling: 1000  // Cycle WebViews every 1,000 uses
                 )
             }
         )

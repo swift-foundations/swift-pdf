@@ -29,8 +29,10 @@ public final class WKWebViewResource: PoolableResource {
     public static func create(config: Config) async throws -> WKWebViewResource {
         let webViewConfig = WKWebViewConfiguration()
 
-        // Note: processPool defaults to a shared instance, no need to set it explicitly
-        // (avoiding deprecated WKProcessPool APIs)
+        // Note: WKProcessPool is deprecated as of macOS 12.0+
+        // "Creating and using multiple instances of WKProcessPool no longer has any effect."
+        // WebKit now manages process pools internally, so we cannot force separate pools
+        // per ResourcePool generation. Must rely on other cleanup mechanisms.
 
         // Disable GPU acceleration features we don't need for PDF
         webViewConfig.suppressesIncrementalRendering = true

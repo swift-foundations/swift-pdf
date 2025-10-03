@@ -136,7 +136,7 @@ struct StressTests {
     
     @Test(
         "Generate 200,000 PDFs",
-        .disabled(),
+//        .disabled(),
         .timeLimit(.minutes(30))
     )
     func test100kPDFs() async throws {
