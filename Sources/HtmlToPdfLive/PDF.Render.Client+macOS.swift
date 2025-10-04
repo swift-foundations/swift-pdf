@@ -333,8 +333,8 @@ private func renderDocumentsInternal(
                 metrics.recordFailure(error: printingError)
 
                 logger.error("Batch rendering failed", metadata: [
-                    "completed_count": "\(completedCount)",
-                    "total_count": "\(documentsArray.count)",
+                    "completed": "\(completedCount)",
+                    "total": "\(documentsArray.count)",
                     "error": "\(error)",
                     "error_type": "\(type(of: error))"
                 ])

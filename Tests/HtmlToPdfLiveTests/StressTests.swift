@@ -10,6 +10,8 @@ import Foundation
 import Dependencies
 import PDFTestSupport
 import Metrics
+import LoggingExtras
+import struct LoggingExtras.FileLogHandler
 @testable import HtmlToPdfLive
 
 extension Tag {
@@ -32,9 +34,20 @@ struct StressTests {
         "Generate 1,000,000 PDFs",
 //        .disabled(),
         .timeLimit(.minutes(120)),
-        .dependencies {
-            $0.pdf.render.configuration.concurrency = 8
-            $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
+        .dependencies { dependencies in
+            dependencies.pdf.render.configuration.concurrency = 8
+            dependencies.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
+
+            // Setup file logging
+            let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            let logsDir = testsDir.appendingPathComponent("StressTestLogs")
+            let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            let logFile = logsDir.appendingPathComponent("1M_test_\(timestamp).log")
+
+            let fileHandler = try! FileLogHandler(label: "stress-test", logFileURL: logFile)
+            dependencies.logger = Logger(label: "stress-test") { _ in
+                dependencies.logger.handler + fileHandler
+            }
         }
         //        .disabled { false }
     )
@@ -46,9 +59,14 @@ struct StressTests {
             let count = 1_000_000
             let filesPerDirectory = 1_000 // Keep directories manageable
 
-            let tracker = ProgressTracker(totalCount: count, reportInterval: 10.0)
+            @Dependency(\.logger) var logger
+            let tracker = ProgressTracker(
+                totalCount: count,
+                reportInterval: 10.0,
+                logHandler: { @Sendable message, metadata in logger.info("\(message)", metadata: metadata) }
+            )
             let startTime = Date()
-            
+
             // Create subdirectories to avoid file system degradation
             // 1M files split into 1000 directories of 1000 files each
             let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
@@ -56,7 +74,7 @@ struct StressTests {
                 let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
                 try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
             }
-            
+
             // Create minimal HTML documents with subdirectory paths
             let documents = (1...count).map { i in
                 let dirIndex = (i - 1) / filesPerDirectory
@@ -67,17 +85,29 @@ struct StressTests {
                     in: subdirUrl
                 )
             }
-            
+
             @Dependency(\.pdf) var pdf
             let poolSize = pdf.render.configuration.concurrency.resolved
-            
-            print("\n╔═══════════════════════════════════════════════════════════╗")
-            print("║           1 MILLION PDF GENERATION TEST                  ║")
-            print("╚═══════════════════════════════════════════════════════════╝")
-            print("Total documents: \(count.formatted())")
-            print("Subdirectories:  \(numDirectories) (\(filesPerDirectory) files each)")
-            print("Pool size: \(poolSize) WebViews")
-            print("Starting generation...\n")
+
+            logger.info("╔═══════════════════════════════════════════════════════════╗")
+            logger.info("║           1 MILLION PDF GENERATION TEST                  ║")
+            logger.info("╚═══════════════════════════════════════════════════════════╝")
+            logger.info("Test started: \(Date())")
+            logger.info("")
+            logger.info("CONFIGURATION:")
+            logger.info("  Pool size: \(poolSize) WebViews")
+            logger.info("  maxUsesBeforeRecreate: 2000")
+            logger.info("  clearCachesEvery: 100")
+            logger.info("  Pagination mode: \(pdf.render.configuration.paginationMode)")
+            logger.info("  Paper size: \(pdf.render.configuration.paperSize)")
+            logger.info("  WebView timeout: \(pdf.render.configuration.webViewAcquisitionTimeout)")
+            logger.info("")
+            logger.info("TEST PARAMETERS:")
+            logger.info("  Total documents: \(count.formatted())")
+            logger.info("  Subdirectories: \(numDirectories) (\(filesPerDirectory) files each)")
+            logger.info("  HTML template: <html><body><p>{{INDEX}}</p></body></html>")
+            logger.info("")
+            logger.info("Starting generation...")
             
             let stream = try await pdf.render.client.documents(documents)
 
@@ -103,17 +133,18 @@ struct StressTests {
             let minutes = Int(duration / 60)
             let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
 
-            // Print final statistics
-            print("\n╔═══════════════════════════════════════════════════════════╗")
-            print("║         1 MILLION PDF TEST - RESULTS                     ║")
-            print("╚═══════════════════════════════════════════════════════════╝")
-            print("Total PDFs:      \(count.formatted())")
-            print("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
-            print("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
-            print("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
-            print("Files created:   \(totalFiles.formatted())")
-            print("Subdirectories:  \(subdirs.count)")
-            print("╚═══════════════════════════════════════════════════════════╝\n")
+            // Log final statistics
+            logger.info("")
+            logger.info("╔═══════════════════════════════════════════════════════════╗")
+            logger.info("║         1 MILLION PDF TEST - RESULTS                     ║")
+            logger.info("╚═══════════════════════════════════════════════════════════╝")
+            logger.info("Total PDFs:      \(count.formatted())")
+            logger.info("Duration:        \(minutes)m \(seconds)s (\(String(format: "%.2f", duration))s)")
+            logger.info("Throughput:      \(String(format: "%.0f", throughput)) PDFs/sec")
+            logger.info("Avg per PDF:     \(String(format: "%.3f", avgMs))ms")
+            logger.info("Files created:   \(totalFiles.formatted())")
+            logger.info("Subdirectories:  \(subdirs.count)")
+            logger.info("╚═══════════════════════════════════════════════════════════╝")
 
             // Verify reasonable throughput (at least 100 PDFs/sec)
             #expect(throughput > 100, "Should maintain reasonable throughput")

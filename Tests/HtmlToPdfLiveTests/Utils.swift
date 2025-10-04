@@ -62,11 +62,18 @@ actor ProgressTracker {
     let reportInterval: TimeInterval
     let totalCount: Int
     private let metricsBackend: TestMetricsBackend?
+    private let logHandler: (@Sendable (String, Logger.Metadata) -> Void)?
 
-    init(totalCount: Int, reportInterval: TimeInterval = 5.0, metricsBackend: TestMetricsBackend? = nil) {
+    init(
+        totalCount: Int,
+        reportInterval: TimeInterval = 5.0,
+        metricsBackend: TestMetricsBackend? = nil,
+        logHandler: (@Sendable (String, Logger.Metadata) -> Void)? = nil
+    ) {
         self.totalCount = totalCount
         self.reportInterval = reportInterval
         self.metricsBackend = metricsBackend
+        self.logHandler = logHandler
     }
 
     func recordCompletion() async -> Int {
@@ -80,7 +87,18 @@ actor ProgressTracker {
             let now = Date()
             if now.timeIntervalSince(lastReportedAt) >= reportInterval {
                 let progress = Double(completed) / Double(totalCount) * 100
-                print("Progress: \(completed)/\(totalCount) (\(String(format: "%.1f", progress))%) - Throughput: \(String(format: "%.0f", throughput)) PDFs/sec - Total: \(counter?.value ?? 0)")
+                let metadata: Logger.Metadata = [
+                    "completed": "\(completed)",
+                    "total": "\(totalCount)",
+                    "progress_pct": "\(String(format: "%.1f", progress))",
+                    "throughput": "\(String(format: "%.0f", throughput))",  // PDFs per second
+                    "counter_total": "\(counter?.value ?? 0)"
+                ]
+                if let logHandler = logHandler {
+                    logHandler("PDF generation progress", metadata)
+                } else {
+                    print("Progress: \(completed)/\(totalCount) (\(String(format: "%.1f", progress))%) - Throughput: \(String(format: "%.0f", throughput)) PDFs/sec - Total: \(counter?.value ?? 0)")
+                }
                 lastReportedAt = now
                 lastReportedCompleted = completed
             }
@@ -91,7 +109,16 @@ actor ProgressTracker {
                 let interval = now.timeIntervalSince(lastReportedAt)
                 let delta = completed - lastReportedCompleted
                 let rate = Double(delta) / interval
-                print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
+                let metadata: Logger.Metadata = [
+                    "completed": "\(completed)",
+                    "total": "\(totalCount)",
+                    "throughput": "\(String(format: "%.0f", rate))"  // PDFs per second
+                ]
+                if let logHandler = logHandler {
+                    logHandler("PDF generation progress", metadata)
+                } else {
+                    print("Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec")
+                }
                 lastReportedAt = now
                 lastReportedCompleted = completed
             }
