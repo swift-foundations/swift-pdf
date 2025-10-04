@@ -11,7 +11,10 @@ import Dependencies
 import DependenciesTestSupport
 @testable import HtmlToPdfLive
 
-@Suite("Convenience API Levels", .dependency(\.pdf, .liveValue), .serialized)
+@Suite(
+    "Convenience API Levels",
+    .serialized
+)
 struct ConvenienceTests {
     @Dependency(\.pdf) var pdf
     

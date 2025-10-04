@@ -37,7 +37,10 @@ func formatBytes(_ bytes: UInt64) -> String {
     return String(format: "%.1f MB", mb)
 }
 
-@Suite("WebView Memory Usage Analysis", .tags(.webViewMemory), .dependency(\.pdf, .liveValue))
+@Suite(
+    "WebView Memory Usage Analysis",
+    .tags(.webViewMemory)
+)
 struct WebViewMemoryTests {
 
     @Test("Baseline: Memory before any PDFs")

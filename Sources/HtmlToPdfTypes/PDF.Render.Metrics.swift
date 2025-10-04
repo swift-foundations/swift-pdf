@@ -133,5 +133,19 @@ extension PDF.Render {
         public func recordPoolReplacement() {
             incrementPoolReplacements()
         }
+
+        // MARK: - Query Operations
+
+        /// Get current PDF generation count
+        public var getCurrentPDFCount: @Sendable () -> Int = { 0 }
+
+        /// Get current throughput in PDFs per second
+        public var getCurrentThroughput: @Sendable () -> Double = { 0 }
+
+        /// Get current pool utilization
+        public var getCurrentPoolUtilization: @Sendable () -> Int = { 0 }
+
+        /// Get p95 render time in seconds
+        public var getP95RenderTime: @Sendable () -> Double = { 0 }
     }
 }

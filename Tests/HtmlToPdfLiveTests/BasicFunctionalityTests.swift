@@ -12,7 +12,10 @@ import DependenciesTestSupport
 import PDFTestSupport
 @testable import HtmlToPdfLive
 
-@Suite("Basic Functionality", .dependency(\.pdf, .liveValue), .serialized)
+@Suite(
+    "Basic Functionality",
+    .serialized
+)
 struct BasicFunctionalityTests {
     @Dependency(\.pdf) var pdf
     // MARK: - Single Document Tests

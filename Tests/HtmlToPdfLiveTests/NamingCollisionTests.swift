@@ -12,7 +12,9 @@ import DependenciesTestSupport
 import PDFTestSupport
 @testable import HtmlToPdfLive
 
-@Suite("Naming Collision Tests", .dependency(\.pdf, .liveValue))
+@Suite(
+    "Naming Collision Tests"
+)
 struct NamingCollisionTests {
     @Dependency(\.pdf) var pdf
     

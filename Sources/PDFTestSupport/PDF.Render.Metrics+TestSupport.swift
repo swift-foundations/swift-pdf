@@ -25,7 +25,14 @@ public func makeTestMetrics() -> (metrics: PDF.Render.Metrics, storage: TestMetr
         recordPoolAcquisitionTime: { _ in },
         recordWebViewRenderTime: { _ in },
         recordCSSInjectionTime: { _ in },
-        recordDataConversionTime: { _ in }
+        recordDataConversionTime: { _ in },
+        getCurrentPDFCount: { Int(storage.pdfsGenerated) },
+        getCurrentThroughput: { storage.currentThroughput },
+        getCurrentPoolUtilization: { storage.poolUtilization },
+        getP95RenderTime: {
+            guard let p95 = storage.p95Duration else { return 0 }
+            return Double(p95.components.seconds) + Double(p95.components.attoseconds) / 1_000_000_000_000_000_000
+        }
     )
 
     return (metrics, storage)

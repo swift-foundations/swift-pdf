@@ -13,7 +13,6 @@ import DependenciesTestSupport
 
 @Suite(
     "Print Quality Experiments",
-    .dependency(\.pdf, .liveValue),
     .disabled("Run manually: swift test --filter PrintQualityExperiments")
 )
 struct PrintQualityExperiments {

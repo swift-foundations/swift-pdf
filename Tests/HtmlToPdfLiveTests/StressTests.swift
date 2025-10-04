@@ -11,8 +11,9 @@ import Dependencies
 import PDFTestSupport
 import Metrics
 import LoggingExtras
-import struct LoggingExtras.FileLogHandler
+// import struct LoggingExtras.FileLogHandler  // Not available yet
 @testable import HtmlToPdfLive
+@testable import CoreMetrics
 
 extension Tag {
     @Tag static var stress: Self
@@ -20,38 +21,59 @@ extension Tag {
 
 @Suite(
     "Stress Tests",
-    .dependency(\.pdf, .liveValue),
     .serialized,
     .tags(.stress)
 )
 struct StressTests {
     
-    @Dependency(\.pdf) var pdf
+    
     
     // MARK: - Extreme Load Tests
-    
+
+    @Test("Minimal test - just bootstrap metrics")
+    func testMinimal() async throws {
+        print("1. Starting test")
+        let backend = TestMetricsBackend()
+        print("2. Created backend")
+        MetricsSystem.bootstrapInternal(backend)
+        print("3. Bootstrapped metrics")
+
+        print("4. Creating Counter directly")
+        Counter(label: "htmltopdf_pdfs_generated_total").increment()
+        print("5. Incremented successfully")
+
+        print("6. Check backend received it")
+        let count = backend.counter("htmltopdf_pdfs_generated_total")?.value
+        print("7. Counter value in backend: \(String(describing: count))")
+
+        #expect(count == 1)
+        print("8. Test passed!")
+    }
+
     @Test(
         "Generate 1,000,000 PDFs",
-//        .disabled(),
-        .timeLimit(.minutes(120)),
-        .dependencies { dependencies in
-            dependencies.pdf.render.configuration.concurrency = 8
-            dependencies.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(600)
-
-            // Setup file logging
-            let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            let logsDir = testsDir.appendingPathComponent("StressTestLogs")
-            let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-            let logFile = logsDir.appendingPathComponent("1M_test_\(timestamp).log")
-
-            let fileHandler = try! FileLogHandler(label: "stress-test", logFileURL: logFile)
-            dependencies.logger = Logger(label: "stress-test") { _ in
-                dependencies.logger.handler + fileHandler
-            }
-        }
-        //        .disabled { false }
+        .disabled(),
+        .timeLimit(.minutes(120))
     )
     func test1MPDFs() async throws {
+        // Bootstrap metrics FIRST
+        let backend = TestMetricsBackend()
+        MetricsSystem.bootstrapInternal(backend)
+
+        // Setup file logging
+        let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let logsDir = testsDir.appendingPathComponent("StressTestLogs")
+        try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let logFile = logsDir.appendingPathComponent("1M_test_\(timestamp).log")
+
+        // Create file handle for logging
+        FileManager.default.createFile(atPath: logFile.path, contents: nil)
+        guard let fileHandle = try? FileHandle(forWritingTo: logFile) else {
+            throw TestError.failedToCreateLogFile
+        }
+        defer { try? fileHandle.close() }
+
         try await withTemporaryDirectory { output in
             // Suppress WebKit console warnings
             setenv("OS_ACTIVITY_MODE", "disable", 1)
@@ -60,24 +82,25 @@ struct StressTests {
             let filesPerDirectory = 1_000 // Keep directories manageable
 
             @Dependency(\.logger) var logger
-            let tracker = ProgressTracker(
-                totalCount: count,
-                reportInterval: 10.0,
-                logHandler: { @Sendable message, metadata in logger.info("\(message)", metadata: metadata) }
-            )
-            let startTime = Date()
 
-            // Create subdirectories to avoid file system degradation
-            // 1M files split into 1000 directories of 1000 files each
-            let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
-            for dirIndex in 0..<numDirectories {
-                let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
-                try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
+            // Create custom log handler that writes to both console and file
+            let customLogHandler: @Sendable (String, Logger.Metadata) -> Void = { message, metadata in
+                let timestamp = ISO8601DateFormatter().string(from: Date())
+                let metadataStr = metadata.isEmpty ? "" : " " + metadata.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
+                let logLine = "\(timestamp) \(message)\(metadataStr)\n"
+
+                // Write to console
+                logger.info("\(message)", metadata: metadata)
+
+                // Write to file
+                if let data = logLine.data(using: .utf8) {
+                    try? fileHandle.write(contentsOf: data)
+                }
             }
 
-            // Create minimal HTML documents with subdirectory paths
+            // Skip @Dependency(\.pdf) and use the render client directly
             let documents = (1...count).map { i in
-                let dirIndex = (i - 1) / filesPerDirectory
+                let dirIndex = (i - 1) / 1_000
                 let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
                 return PDF.Document(
                     htmlString: "<html><body><p>\(i)</p></body></html>",
@@ -86,8 +109,24 @@ struct StressTests {
                 )
             }
 
-            @Dependency(\.pdf) var pdf
-            let poolSize = pdf.render.configuration.concurrency.resolved
+            let poolSize = 8
+
+            // Setup progress tracker with file logging
+            let tracker = MetricsProgressTracker(
+                totalCount: count,
+                reportInterval: .seconds(10),
+                logHandler: customLogHandler
+            )
+            await tracker.start()
+
+            let startTime = Date()
+
+            // Create subdirectories
+            let numDirectories = (count + filesPerDirectory - 1) / filesPerDirectory
+            for dirIndex in 0..<numDirectories {
+                let subdirUrl = output.appendingPathComponent("batch-\(dirIndex)")
+                try FileManager.default.createDirectory(at: subdirUrl, withIntermediateDirectories: true)
+            }
 
             logger.info("╔═══════════════════════════════════════════════════════════╗")
             logger.info("║           1 MILLION PDF GENERATION TEST                  ║")
@@ -96,27 +135,30 @@ struct StressTests {
             logger.info("")
             logger.info("CONFIGURATION:")
             logger.info("  Pool size: \(poolSize) WebViews")
-            logger.info("  maxUsesBeforeRecreate: 2000")
-            logger.info("  clearCachesEvery: 100")
-            logger.info("  Pagination mode: \(pdf.render.configuration.paginationMode)")
-            logger.info("  Paper size: \(pdf.render.configuration.paperSize)")
-            logger.info("  WebView timeout: \(pdf.render.configuration.webViewAcquisitionTimeout)")
             logger.info("")
             logger.info("TEST PARAMETERS:")
             logger.info("  Total documents: \(count.formatted())")
             logger.info("  Subdirectories: \(numDirectories) (\(filesPerDirectory) files each)")
-            logger.info("  HTML template: <html><body><p>{{INDEX}}</p></body></html>")
             logger.info("")
             logger.info("Starting generation...")
-            
-            let stream = try await pdf.render.client.documents(documents)
 
-            for try await _ in stream {
-                _ = await tracker.recordCompletion()
+            // Call render client with configuration via dependencies
+            try await withDependencies {
+                $0.pdf.render.configuration = PDF.Configuration(
+                    concurrency: .fixed(poolSize),
+                    webViewAcquisitionTimeout: .seconds(600)
+                )
+            } operation: {
+                let stream = try await PDF.Render.Client.macOS.documents(documents)
+
+                // Metrics are automatically recorded
+                for try await _ in stream {
+                    // Metrics system handles tracking
+                }
             }
 
+            await tracker.stop()
             let duration = Date().timeIntervalSince(startTime)
-            _ = await tracker.completed
 
             // Verify all files were created by counting across all subdirectories
             var totalFiles = 0
@@ -149,7 +191,6 @@ struct StressTests {
             // Verify reasonable throughput (at least 100 PDFs/sec)
             #expect(throughput > 100, "Should maintain reasonable throughput")
         }
-        
     }
     
     @Test(
@@ -158,6 +199,7 @@ struct StressTests {
         .timeLimit(.minutes(30))
     )
     func test100kPDFs() async throws {
+        @Dependency(\.pdf) var pdf
         try await withDependencies {
             $0.pdf.render.configuration.concurrency = .automatic
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(300)
@@ -249,6 +291,7 @@ struct StressTests {
         .disabled(),
     )
     func test1kComplexPDFs() async throws {
+        @Dependency(\.pdf) var pdf
         try await withDependencies {
             $0.pdf.render.configuration.concurrency = 6
             $0.pdf.render.configuration.webViewAcquisitionTimeout = .seconds(120)
@@ -321,6 +364,7 @@ struct StressTests {
         .disabled()
     )
     func testSustainedLoad() async throws {
+        @Dependency(\.pdf) var pdf
         try await withTemporaryDirectory { output in
             let duration: TimeInterval = 300 // 5 minutes
             

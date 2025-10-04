@@ -22,7 +22,11 @@ extension Tag {
 ///
 /// These tests generate consistent performance metrics for documentation.
 /// Run multiple times and report the median results.
-@Suite("Performance Benchmarks", .dependency(\.pdf, .liveValue), .serialized, .tags(.benchmark))
+@Suite(
+    "Performance Benchmarks",
+    .serialized,
+    .tags(.benchmark)
+)
 struct PerformanceBenchmarks {
     @Dependency(\.pdf) var pdf
     // MARK: - Helper Types
@@ -679,7 +683,10 @@ struct PerformanceBenchmarks {
 
 // MARK: - Performance Analysis
 
-@Suite("Performance Analysis", .dependency(\.pdf, .liveValue), .serialized)
+@Suite(
+    "Performance Analysis",
+    .serialized
+)
 struct PerformanceAnalysisTests {
     @Dependency(\.pdf) var pdf
 
@@ -724,7 +731,11 @@ struct PerformanceAnalysisTests {
             recordPoolAcquisitionTime: { storage.addPool($0) },
             recordWebViewRenderTime: { storage.addRender($0) },
             recordCSSInjectionTime: { storage.addCSS($0) },
-            recordDataConversionTime: { storage.addData($0) }
+            recordDataConversionTime: { storage.addData($0) },
+            getCurrentPDFCount: { 0 },
+            getCurrentThroughput: { 0 },
+            getCurrentPoolUtilization: { 0 },
+            getP95RenderTime: { 0 }
         )
 
         try await withDependencies {

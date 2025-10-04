@@ -13,7 +13,9 @@ import PDFKit
 import PDFTestSupport
 @testable import HtmlToPdfLive
 
-@Suite("Platform-Specific Behavior", .dependency(\.pdf, .liveValue))
+@Suite(
+    "Platform-Specific Behavior"
+)
 struct PlatformSpecificTests {
     @Dependency(\.pdf) var pdf
 

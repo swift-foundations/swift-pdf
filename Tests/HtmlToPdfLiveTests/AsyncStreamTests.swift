@@ -15,7 +15,6 @@ import Metrics
 
 @Suite(
     "AsyncStream Results",
-    .dependency(\.pdf, .liveValue),
     .serialized
 )
 struct AsyncStreamTests {

@@ -12,7 +12,9 @@ import Dependencies
 import DependenciesTestSupport
 import PDFKit
 
-@Suite("Pagination Mode Tests", .dependency(\.pdf, .liveValue))
+@Suite(
+    "Pagination Mode Tests"
+)
 struct PaginationModeTests {
     @Dependency(\.pdf) var pdf
     

@@ -12,7 +12,10 @@ import DependenciesTestSupport
 import PDFTestSupport
 @testable import HtmlToPdfLive
 
-@Suite("Cancellation Tests", .dependency(\.pdf, .liveValue), .serialized)
+@Suite(
+    "Cancellation Tests",
+    .serialized
+)
 struct CancellationTests {
     @Dependency(\.pdf) var pdf
 

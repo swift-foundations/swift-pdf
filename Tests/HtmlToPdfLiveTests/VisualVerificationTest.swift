@@ -15,7 +15,6 @@ import PDFKit
 
 @Suite(
     "Visual Verification (Manual)",
-    .dependency(\.pdf, .liveValue),
     .disabled("Run manually: swift test --filter VisualVerificationTests")
 )
 struct VisualVerificationTests {

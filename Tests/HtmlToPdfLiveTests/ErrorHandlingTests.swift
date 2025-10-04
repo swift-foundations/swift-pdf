@@ -12,7 +12,10 @@ import DependenciesTestSupport
 import PDFTestSupport
 @testable import HtmlToPdfLive
 
-@Suite("Error Handling Tests", .dependency(\.pdf, .liveValue), .serialized)
+@Suite(
+    "Error Handling Tests",
+    .serialized
+)
 struct ErrorHandlingTests {
     @Dependency(\.pdf) var pdf
     // MARK: - Invalid HTML Tests
@@ -228,7 +231,9 @@ struct ErrorHandlingTests {
 
 // MARK: - Typed Error Tests
 
-@Suite("PrintingError Tests", .dependency(\.pdf, .liveValue))
+@Suite(
+    "PrintingError Tests"
+)
 struct PrintingErrorTests {
     @Dependency(\.pdf) var pdf
     

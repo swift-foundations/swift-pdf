@@ -13,7 +13,9 @@ import PDFTestSupport
 import Metrics
 @testable import HtmlToPdfLive
 
-@Suite("Concurrency & Pool Behavior", .dependency(\.pdf, .liveValue))
+@Suite(
+    "Concurrency & Pool Behavior"
+)
 struct ConcurrencyTests {
     @Dependency(\.pdf) var pdf
     // MARK: - Pool Efficiency Tests
