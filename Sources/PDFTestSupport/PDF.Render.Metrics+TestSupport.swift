@@ -2,7 +2,20 @@
 //  PDF.Render.Metrics+TestSupport.swift
 //  PDFTestSupport
 //
-//  Test implementation with in-memory storage
+//  Test implementation with in-memory storage for parallel test execution
+//
+//  ## Architecture
+//
+//  This module provides metrics testing infrastructure that works with Swift Testing's
+//  parallel execution model. Unlike swift-metrics' TestMetricsBackend (which uses
+//  global `MetricsSystem.bootstrap()` that can only be called once per process),
+//  this uses the dependency system for per-test isolation.
+//
+//  ## Pattern
+//
+//  - **Write interface**: `PDF.Render.Metrics` (write-only, follows swift-metrics philosophy)
+//  - **Read interface**: `\.metricsStorage` dependency (test observation point)
+//  - **Isolation**: Each test gets its own storage via dependency system
 //
 
 import Dependencies
@@ -14,7 +27,10 @@ import Foundation
 extension DependencyValues {
     /// Test metrics storage for verifying recorded metrics
     ///
-    /// Used with `PDF.Render.Metrics.recording` to capture metrics during tests.
+    /// This provides the read interface for metrics testing. Metrics are written
+    /// via `PDF.Render.Metrics.recording` and read via this storage.
+    ///
+    /// Each test gets an isolated storage instance through `testValue`'s computed property.
     public var metricsStorage: TestMetricsStorage {
         get { self[MetricsStorageKey.self] }
         set { self[MetricsStorageKey.self] = newValue }
@@ -23,19 +39,26 @@ extension DependencyValues {
 
 private enum MetricsStorageKey: DependencyKey {
     static let liveValue = TestMetricsStorage()
-    // Create new instance per test to ensure isolation
+    // Create new instance per test to ensure isolation in parallel execution
     static var testValue: TestMetricsStorage { TestMetricsStorage() }
 }
 
-// MARK: - Recording Metrics
+// MARK: - Recording Metrics Client
 
 extension PDF.Render.Metrics {
-    /// Recording metrics client for testing
+    /// Recording metrics client for testing with parallel execution support
     ///
-    /// Writes all metrics calls to the `\.metricsStorage` dependency, allowing
-    /// tests to verify metrics behavior.
+    /// This Spy intercepts metrics calls and stores them in `\.metricsStorage` for verification.
+    /// Unlike `TestMetricsBackend` (which requires global `MetricsSystem.bootstrap()`), this
+    /// uses the dependency system for proper test isolation in parallel execution.
     ///
-    /// ## Recommended Usage (Test-Level Isolation)
+    /// ## Why Not TestMetricsBackend?
+    ///
+    /// swift-metrics' `TestMetricsBackend` requires calling `MetricsSystem.bootstrap()` once
+    /// per process. With Swift Testing's parallel execution, this creates race conditions and
+    /// bootstrap errors. Our dependency-based approach gives each test isolated storage.
+    ///
+    /// ## Recommended Usage (Per-Test Isolation)
     ///
     /// Use `withDependencies` to ensure each test has isolated storage:
     ///
@@ -45,8 +68,8 @@ extension PDF.Render.Metrics {
     ///     await withDependencies {
     ///         $0.pdf.render.metrics = .recording
     ///     } operation: {
-    ///         @Dependency(\.pdf.render.metrics) var metrics
-    ///         @Dependency(\.metricsStorage) var storage
+    ///         @Dependency(\.pdf.render.metrics) var metrics  // Write interface
+    ///         @Dependency(\.metricsStorage) var storage      // Read interface
     ///
     ///         metrics.recordSuccess(duration: .seconds(1))
     ///         #expect(storage.pdfsGenerated == 1)
@@ -54,26 +77,13 @@ extension PDF.Render.Metrics {
     /// }
     /// ```
     ///
-    /// ## Suite-Level Configuration
+    /// ## Architecture: CQRS Separation
     ///
-    /// For shared metrics across all tests in a suite:
+    /// - **Command (Write)**: `\.pdf.render.metrics` - What your code uses to emit metrics
+    /// - **Query (Read)**: `\.metricsStorage` - What your test uses to verify metrics
     ///
-    /// ```swift
-    /// @Suite(.dependency(\.pdf.render.metrics, .recording))
-    /// struct MyTests {
-    ///     @Test
-    ///     func myTest() async {
-    ///         @Dependency(\.pdf.render.metrics) var metrics
-    ///         @Dependency(\.metricsStorage) var storage
-    ///
-    ///         metrics.incrementPDFsGenerated()
-    ///         #expect(storage.pdfsGenerated >= 1)  // May see other tests' metrics
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// **Note**: When using suite-level traits with concurrent tests, storage may
-    /// be shared. Use `withDependencies` in each test for complete isolation.
+    /// This separation follows CQRS and swift-metrics philosophy (metrics are write-only,
+    /// querying happens in separate infrastructure).
     public static var recording: Self {
         Self(
             incrementPDFsGenerated: {
@@ -108,45 +118,12 @@ extension PDF.Render.Metrics {
     }
 }
 
-/// Create test metrics with storage for assertions
-///
-/// **Deprecated**: Use `PDF.Render.Metrics.recording` with `\.metricsStorage` dependency instead.
-///
-/// ```swift
-/// // Old:
-/// let (metrics, storage) = makeTestMetrics()
-///
-/// // New:
-/// @Dependency(\.metricsStorage) var storage
-/// await withDependencies {
-///     $0.pdf.render.metrics = .recording
-/// } operation: {
-///     // test code
-/// }
-/// ```
-@available(*, deprecated, message: "Use PDF.Render.Metrics.recording with \\.metricsStorage dependency")
-public func makeTestMetrics() -> (metrics: PDF.Render.Metrics, storage: TestMetricsStorage) {
-    let storage = TestMetricsStorage()
-
-    let metrics = PDF.Render.Metrics(
-        incrementPDFsGenerated: { storage.pdfsGenerated += 1 },
-        incrementPDFsFailed: { storage.pdfsFailed += 1 },
-        incrementPoolReplacements: { storage.poolReplacements += 1 },
-        recordRenderDuration: { duration, mode in
-            storage.renderDurations.append((duration, mode))
-        },
-        updatePoolUtilization: { count in storage.poolUtilization = count },
-        updateThroughput: { throughput in storage.currentThroughput = throughput },
-        recordPoolAcquisitionTime: { _ in },
-        recordWebViewRenderTime: { _ in },
-        recordCSSInjectionTime: { _ in },
-        recordDataConversionTime: { _ in }
-    )
-
-    return (metrics, storage)
-}
+// MARK: - Test Storage
 
 /// In-memory storage for test metrics
+///
+/// Access via `\.metricsStorage` dependency when using `PDF.Render.Metrics.recording`.
+/// Each test gets an isolated storage instance through the dependency system.
 public final class TestMetricsStorage: @unchecked Sendable {
     private let lock = NSLock()
 
