@@ -86,8 +86,8 @@ try await pdf.render(html: "<h1>Invoice #1234</h1>", to: fileURL)
 let pdfData = try await pdf.render(html: "<h1>Receipt</h1>")
 
 // Batch processing
-let htmls = invoices.map { "<html><body>\($0.html)</body></html>" }
-for try await result in try await pdf.render(htmls: htmls, to: directory) {
+let html = invoices.map { "<html><body>\($0.html)</body></html>" }
+for try await result in try await pdf.render(html: html, to: directory) {
     print("Generated \(result.url)")
 }
 ```
@@ -142,7 +142,7 @@ try await pdf.render(html: Invoice(number: 1234, total: 99.99), to: fileURL)
 Process PDFs as they're generated. Don't wait for the batch to finish.
 
 ```swift
-for try await result in try await pdf.render(htmls: htmls, to: directory) {
+for try await result in try await pdf.render(html: html, to: directory) {
     // This PDF is ready NOW
     try await uploadToS3(result.url)        // Upload immediately
     try await db.markComplete(result.index) // Update database
@@ -156,7 +156,7 @@ for try await result in try await pdf.render(htmls: htmls, to: directory) {
 - Pre-warmed WKWebView instances (instant availability)
 - Automatic lifecycle management
 - FIFO fairness under load
-- Optimal concurrency: 3x CPU count (24 WebViews on 8-core Mac)
+- Optimal concurrency: 1x CPU count (8 WebViews on 8-core Mac)
 
 ### 3. Swift 6 Strict Concurrency
 
@@ -221,7 +221,7 @@ try await withDependencies {
     $0.pdf.render.configuration.paperSize = .letter
     $0.pdf.render.configuration.margins = .wide
     $0.pdf.render.configuration.paginationMode = .paginated
-    $0.pdf.render.configuration.concurrency = 24
+    $0.pdf.render.configuration.concurrency = .automatic
 } operation: {
     try await pdf.render(html: html, to: fileURL)
 }
@@ -232,7 +232,7 @@ try await withDependencies {
 - **Paper sizes:** `.a4`, `.letter`, `.legal`, `.a3`, `.a5`, or custom `CGSize`
 - **Margins:** `.none`, `.minimal`, `.standard`, `.comfortable`, `.wide`, or custom `EdgeInsets`
 - **Pagination:** `.continuous` (fast), `.paginated` (print-ready), `.automatic`
-- **Concurrency:** `.automatic` (3x CPU), `.fixed(n)`, or specific count
+- **Concurrency:** `.automatic` (1x CPU), `.fixed(n)`, or specific count
 
 See [Configuration Guide](Sources/HtmlToPdf/Documentation.docc/ConfigurationGuide.md) for all options.
 
@@ -251,7 +251,7 @@ MetricsSystem.bootstrap(PrometheusMetricsFactory())
 
 // Use library normally - metrics automatically collected
 @Dependency(\.pdf) var pdf
-try await pdf.render(htmls: invoices, to: directory)
+try await pdf.render(html: invoices, to: directory)
 ```
 
 **Available Metrics:**
@@ -302,7 +302,7 @@ swift test --filter StressTests
 
 | Platform    | Status           | Notes                                      |
 |-------------|------------------|--------------------------------------------|
-| **macOS**   | ✅ Full support  | Optimal performance, 24 concurrent workers |
+| **macOS**   | ✅ Full support  | Optimal performance, 8 concurrent workers (8-core) |
 | **iOS**     | ✅ Full support  | 8 concurrent workers, mobile-optimized     |
 | **Linux**   | 🚧 Coming soon   | Architecture ready, needs WebKit renderer  |
 | **Windows** | 🚧 Possible      | Pending WebKit integration                 |
@@ -327,9 +327,9 @@ Contributions welcome! Please:
 
 ## Related Projects
 
-Part of the [coenttb Swift ecosystem](https://github.com/coenttb), and optionally integrates with [swift-html](https://github.com/coenttb/swift-html)** - Type-safe HTML & CSS DSL.
+Part of the [coenttb Swift ecosystem](https://github.com/coenttb), and optionally integrates with [swift-html](https://github.com/coenttb/swift-html) - Type-safe HTML & CSS DSL.
 
-Built on [Point-Free](https://www.pointfree.co)'s' [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), and integrates with [swift-metrics](https://github.com/apple/swift-metrics). 
+Built on [Point-Free](https://www.pointfree.co)'s [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), and integrates with [swift-metrics](https://github.com/apple/swift-metrics). 
 ---
 
 ## License

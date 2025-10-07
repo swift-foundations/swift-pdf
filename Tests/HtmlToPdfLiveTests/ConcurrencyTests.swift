@@ -28,9 +28,9 @@ struct ConcurrencyTests {
     func testLargeBatch() async throws {
         try await withTemporaryDirectory { output in
             let count = 50
-            let htmls = [String](repeating: TestHTML.simple, count: count)
+            let html = [String](repeating: TestHTML.simple, count: count)
 
-            let stream = try await pdf.render.client.html(htmls, to: output)
+            let stream = try await pdf.render.client.html(html, to: output)
 
             var completedCount = 0
             for try await _ in stream {
@@ -60,9 +60,9 @@ struct ConcurrencyTests {
                             $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                         } operation: {
                             @Dependency(\.pdf) var batchPdf
-                            let htmls = [String](repeating: TestHTML.simple, count: 10)
+                            let html = [String](repeating: TestHTML.simple, count: 10)
                             var urls: [URL] = []
-                            for try await result in try await batchPdf.render.client.html(htmls, to: outputDir) {
+                            for try await result in try await batchPdf.render.client.html(html, to: outputDir) {
                                 urls.append(result.url)
                             }
                         }
@@ -100,10 +100,10 @@ struct ConcurrencyTests {
     func testConcurrencyLimit() async throws {
         try await withTemporaryDirectory { output in
             let count = 10
-            let htmls = [String](repeating: TestHTML.simple, count: count)
+            let html = [String](repeating: TestHTML.simple, count: count)
 
             var urls: [URL] = []
-            for try await result in try await pdf.render.client.html(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(html, to: output) {
                 urls.append(result.url)
             }
 
@@ -167,9 +167,9 @@ struct ConcurrencyTests {
                 try await withDependencies {
                     $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-\(i)" }
                 } operation: {
-                    let htmls = [String](repeating: TestHTML.simple, count: 10)
+                    let html = [String](repeating: TestHTML.simple, count: 10)
                     var urls: [URL] = []
-                    for try await result in try await pdf.render.client.html(htmls, to: output) {
+                    for try await result in try await pdf.render.client.html(html, to: output) {
                         urls.append(result.url)
                     }
                 }

@@ -59,7 +59,7 @@ actor ActiveOperationsTracker {
 }
 
 /// Client for managing WebView pool using ResourcePool
-public struct WebViewPoolClient: Sendable {
+package struct WebViewPoolClient: Sendable {
     /// Lazy-initialized resource pool provider
     private let poolProvider: @Sendable () async throws -> ResourcePool<WKWebViewResource>
 
@@ -75,7 +75,7 @@ public struct WebViewPoolClient: Sendable {
     }
 
     /// The underlying resource pool (for direct access)
-    public var pool: ResourcePool<WKWebViewResource> {
+    package var pool: ResourcePool<WKWebViewResource> {
         get async throws {
             try await getPool()
         }
@@ -120,7 +120,7 @@ extension WebViewPoolClient: DependencyKey {
 }
 
 extension DependencyValues {
-    public var webViewPool: WebViewPoolClient {
+    package var webViewPool: WebViewPoolClient {
         get { self[WebViewPoolClient.self] }
         set { self[WebViewPoolClient.self] = newValue }
     }

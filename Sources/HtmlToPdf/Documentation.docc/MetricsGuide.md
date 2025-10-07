@@ -21,7 +21,7 @@ MetricsSystem.bootstrap(PrometheusMetricsFactory())
 
 // 2. Use library normally - metrics auto-collected
 @Dependency(\.pdf) var pdf
-try await pdf.render(htmls: documents, to: directory)
+try await pdf.render(html: documents, to: directory)
 
 // 3. Expose metrics endpoint
 app.get("metrics") { _ in try MetricsSystem.prometheus().collect() }
@@ -147,7 +147,7 @@ Metrics are collected automatically - no code changes needed:
 @Dependency(\.pdf) var pdf
 
 // Generate PDFs - metrics auto-recorded
-for try await result in try await pdf.render(htmls: invoices, to: directory) {
+for try await result in try await pdf.render(html: invoices, to: directory) {
     // ✅ htmltopdf_pdfs_generated_total incremented
     // ✅ htmltopdf_render_duration_seconds recorded
     // ✅ htmltopdf_pool_utilization updated
@@ -246,7 +246,7 @@ struct App {
             let html = try await request.body.collect(upTo: .max)
             let htmlString = String(buffer: html)
 
-            let pdfData = try await pdf.render(html: htmlString)
+            let pdfData = try await pdf.render(html: htmltring)
 
             return Response(
                 status: .ok,
@@ -279,7 +279,7 @@ MetricsSystem.bootstrap(StatsdMetricsFactory(client: statsd))
 
 // Use library normally - metrics forwarded to Datadog
 @Dependency(\.pdf) var pdf
-try await pdf.render(htmls: documents, to: directory)
+try await pdf.render(html: documents, to: directory)
 ```
 
 ## Grafana Dashboards
@@ -694,7 +694,7 @@ counter.increment()
 ```swift
 // Automatic metrics tracking - no code changes needed!
 @Dependency(\.pdf) var pdf
-try await pdf.render(htmls: documents, to: directory)
+try await pdf.render(html: documents, to: directory)
 // Metrics automatically recorded
 ```
 

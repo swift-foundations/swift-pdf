@@ -14,12 +14,6 @@ extension PDF: DependencyKey {
     )
 }
 
-extension PDF: TestDependencyKey {
-    public static let testValue = PDF(
-        render: .testValue
-    )
-}
-
 extension DependencyValues {
     public var pdf: PDF {
         get { self[PDF.self] }

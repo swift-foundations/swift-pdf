@@ -131,11 +131,11 @@ extension PDF.Document {
 private func renderDocumentsInternal(
     _ documents: some Sequence<PDF.Document>,
     config: PDF.Configuration
-) async throws -> AsyncThrowingStream<PDF.Result, Error> {
+) async throws -> AsyncThrowingStream<PDF.Render.Result, Error> {
     // Materialize sequence for indexing and count operations (before Task to avoid Sendable issues)
     let documentsArray = Array(documents)
 
-    return AsyncThrowingStream<PDF.Result, Error> { continuation in
+    return AsyncThrowingStream<PDF.Render.Result, Error> { continuation in
         Task {
             var completedCount = 0
             do {
@@ -162,7 +162,7 @@ private func renderDocumentsInternal(
                     for try await (index, url, pageCount, dimensions, mode, duration) in taskGroup {
                         completedCount += 1
 
-                        let result = PDF.Result(
+                        let result = PDF.Render.Result(
                             url: url,
                             index: index,
                             duration: duration,

@@ -44,7 +44,7 @@ struct DeprecatedAPITest {
 
     @Test("Sequence.print works with deprecation warning")
     func sequencePrint() async throws {
-        let htmls = [
+        let html = [
             "<html><body><h1>Page 1</h1></body></html>",
             "<html><body><h1>Page 2</h1></body></html>"
         ]
@@ -53,7 +53,7 @@ struct DeprecatedAPITest {
             .appendingPathComponent("deprecated-batch-\(UUID())")
 
         // This should compile with a deprecation warning but still work
-        try await htmls.print(to: tempDir)
+        try await html.print(to: tempDir)
 
         // Check files exist
         let file1 = tempDir.appendingPathComponent("1.pdf")

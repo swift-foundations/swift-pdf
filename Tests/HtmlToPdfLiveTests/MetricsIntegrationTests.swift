@@ -48,10 +48,10 @@ struct MetricsIntegrationTests {
 
         try await withTemporaryDirectory { output in
             let count = 10
-            let htmls = (1...count).map { "<html><body><p>Document \($0)</p></body></html>" }
+            let html = (1...count).map { "<html><body><p>Document \($0)</p></body></html>" }
 
             var resultCount = 0
-            for try await _ in try await pdf.render.client.html(htmls, to: output) {
+            for try await _ in try await pdf.render.client.html(html, to: output) {
                 resultCount += 1
             }
 

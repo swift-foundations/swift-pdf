@@ -1,23 +1,29 @@
 # Getting Started
 
-Generate your first PDF in seconds, then discover the full power of HtmlToPdf.
+Generate your first PDF in 30 seconds, then master advanced features at your own pace.
 
 ## Overview
 
-HtmlToPdf uses **progressive disclosure**: start with a one-liner, then unlock advanced features as you need them.
+HtmlToPdf is designed for **progressive disclosure**: start with one line of code, then add sophistication as needed.
 
-This guide follows the learning path:
-1. **Level 1:** One-line PDF generation (30 seconds)
-2. **Level 2:** Type-safe HTML and batch processing (5 minutes)
-3. **Level 3:** Custom configuration and advanced batches (15 minutes)
+**What you'll learn:**
+1. Generate PDFs from HTML strings (30 seconds)
+2. Use type-safe HTML for compile-time safety (5 minutes)
+3. Process batches with streaming results (10 minutes)
+4. Configure for your specific use case (15 minutes)
+
+**Prerequisites:**
+- Swift 6.0+
+- macOS 14.0+ or iOS 17.0+
+- Xcode 16.0+
 
 ---
 
-## Level 1: The Absolute Simplest Example
+## Installation
 
-### Installation
+### Add Package Dependency
 
-Add HtmlToPdf to your `Package.swift`:
+Add to your `Package.swift`:
 
 ```swift
 dependencies: [
@@ -25,7 +31,7 @@ dependencies: [
 ]
 ```
 
-Add to your target dependencies:
+Add to your target:
 
 ```swift
 targets: [
@@ -38,43 +44,86 @@ targets: [
 ]
 ```
 
-### Your First PDF (HTML String)
+### Optional: Enable Type-Safe HTML
+
+To use the HTML DSL trait, add `traits: ["HTML"]` to your package dependency:
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/coenttb/swift-html-to-pdf.git",
+        from: "1.0.0",
+        traits: ["HTML"]
+    )
+]
+```
+
+---
+
+## Your First PDF
+
+### HTML String to File
 
 ```swift
 import HtmlToPdf
-import Dependencies
 
 @Dependency(\.pdf) var pdf
 
-// HTML string → PDF file
 let html = "<html><body><h1>Hello, World!</h1></body></html>"
 try await pdf.render(html: html, to: fileURL)
 ```
 
-**That's it.** One line creates a PDF.
+**That's it.** One line creates a PDF with sensible defaults.
 
-### Your First PDF (In-Memory)
+### HTML String to Data
 
 Need PDF data instead of a file?
 
 ```swift
-// HTML string → PDF data (in-memory)
 let pdfData = try await pdf.render(html: "<h1>Invoice #1234</h1>")
-
-// Use the data however you want
-try await uploadToS3(pdfData)
-try await emailToCustomer(pdfData)
 ```
 
-**Perfect for:** API responses, email attachments, immediate uploads
+**Use cases:** API responses, email attachments, in-memory processing
 
 ---
 
-## Level 2: Type-Safe HTML
+## Understanding the Dependency Pattern
 
-### Why Type Safety Matters
+HtmlToPdf uses [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) for dependency injection.
 
-String-based HTML has problems:
+### In Functions
+
+```swift
+func generateInvoice(invoice: Invoice) async throws {
+    @Dependency(\.pdf) var pdf
+    let html = "<html><body>\(invoice.html)</body></html>"
+    try await pdf.render(html: html, to: fileURL)
+}
+```
+
+### In Types
+
+```swift
+struct InvoiceService {
+    @Dependency(\.pdf) var pdf
+
+    func generateInvoice(_ invoice: Invoice) async throws {
+        try await pdf.render(html: invoice.html, to: invoice.fileURL)
+    }
+}
+```
+
+### Benefits
+
+- **Testable:** Replace with mock implementation in tests
+- **Configurable:** Override configuration per-operation
+- **Type-safe:** Compiler-enforced dependencies
+
+---
+
+## Type-Safe HTML (Recommended)
+
+String-based HTML is error-prone:
 
 ```swift
 // ❌ Typo in closing tag - runtime error
@@ -83,13 +132,13 @@ let html = "<html><body><h1>Hello</h2></body></html>"
 // ❌ Unclosed tag - malformed PDF
 let html = "<html><body><h1>Hello</body></html>"
 
-// ❌ Invalid nesting - browser guesses what you meant
+// ❌ Invalid nesting - unpredictable results
 let html = "<p><h1>Title</h1></p>"
 ```
 
-**Type-safe HTML:** Invalid HTML won't compile.
+**Solution:** Type-safe HTML DSL
 
-### Using the HTML DSL
+### Simple Example
 
 ```swift
 import HTML
@@ -100,16 +149,10 @@ struct Invoice: HTMLDocument {
 
     var head: some HTML {
         title { "Invoice #\(number)" }
-        style { """
-            body { font-family: system-ui; padding: 20px; }
-            h1 { color: #333; }
-            """
-        }
     }
 
     var body: some HTML {
         h1 { "Invoice #\(number)" }
-        p { "Thank you for your business!" }
         p { "Total: $\(total)" }
     }
 }
@@ -119,144 +162,188 @@ try await pdf.render(html: Invoice(number: 1234, total: 99.99), to: fileURL)
 ```
 
 **Benefits:**
-- **Compile-time safety:** Invalid HTML won't compile
-- **Autocomplete:** Xcode suggests valid tags
-- **Refactoring:** Rename variables safely
-- **Type checking:** Pass wrong type? Compiler error
+- Invalid HTML won't compile
+- Autocomplete for valid tags
+- Refactoring safety
+- Type checking for dynamic content
 
-### Complex HTML with Swift
-
-Use all of Swift's features:
-
-```swift
-struct Report: HTMLDocument {
-    let items: [LineItem]
-
-    var head: some HTML {
-        title { "Sales Report" }
-    }
-
-    var body: some HTML {
-        h1 { "Sales Report" }
-
-        // For loops
-        for item in items {
-            div {
-                p { item.name }
-                p { "$\(item.price)" }
-            }
-        }
-
-        // Conditionals
-        if items.isEmpty {
-            p { "No items to display" }
-        }
-
-        // Computed properties
-        p { "Total: $\(totalPrice)" }
-    }
-
-    var totalPrice: Decimal {
-        items.reduce(0) { $0 + $1.price }
-    }
-}
-```
-
-**This is just Swift.** All language features work.
+**This is just Swift.** All language features work naturally.
 
 ---
 
-## Level 3: Batch Processing
+## Batch Processing
 
-### Simple Batch (Fail-Fast)
+### Streaming Results
 
-Generate multiple PDFs:
+Process PDFs as they're generated:
 
 ```swift
 @Dependency(\.pdf) var pdf
 
-let htmls = [
+let html = [
     "<html><body><h1>Document 1</h1></body></html>",
     "<html><body><h1>Document 2</h1></body></html>",
     "<html><body><h1>Document 3</h1></body></html>"
 ]
 
-for try await result in try await pdf.render(htmls: htmls, to: directory) {
-    print("[\(result.index + 1)/\(htmls.count)] \(result.url.lastPathComponent)")
-    print("  Duration: \(result.duration)")
-    print("  Pages: \(result.pageCount)")
+for try await result in try await pdf.render(html: html, to: directory) {
+    print("✅ [\(result.index + 1)/\(html.count)] \(result.url.lastPathComponent)")
+    print("   Duration: \(result.duration)")
+    print("   Pages: \(result.pageCount)")
 }
 ```
 
-**Behavior:** Throws on first error, stops processing
+**Behavior:**
+- Throws on first error
+- Stops processing immediately
+- Returns streaming results as PDFs complete
 
-**When to use:**
-- When you want fail-fast behavior
-- When errors should stop processing immediately
-- When you'll handle errors yourself
+### Progress Tracking
+
+```swift
+let total = html.count
+var completed = 0
+
+for try await result in try await pdf.render(html: html, to: directory) {
+    completed += 1
+    let progress = Double(completed) / Double(total)
+    print("Progress: \(Int(progress * 100))%")
+
+    // Update UI on main actor
+    await MainActor.run {
+        progressView.progress = progress
+    }
+}
+```
+
+### Error Handling
+
+```swift
+var completed = 0
+
+do {
+    for try await result in try await pdf.render(html: html, to: directory) {
+        completed += 1
+        try await uploadToS3(result.url)
+    }
+    print("✅ Completed \(completed)/\(html.count)")
+} catch {
+    print("❌ Failed at \(completed)/\(html.count): \(error.localizedDescription)")
+    // Handle partial completion
+}
+```
+
+**Note:** Current implementation uses fail-fast semantics. Resilient batch processing (continue on error) is planned for future release.
 
 ---
 
-## Level 4: Configuration
+## Configuration
+
+### Default Behavior
+
+Sensible defaults work for 90% of use cases:
+
+```swift
+@Dependency(\.pdf) var pdf
+try await pdf.render(html: html, to: fileURL)
+```
+
+**Defaults:**
+- Paper: A4 (210 × 297 mm)
+- Margins: Standard (0.5 inch / 36pt)
+- Mode: Continuous (maximum speed)
+- Concurrency: Automatic (1x CPU count)
+- Appearance: Light (white background)
 
 ### Using Presets
 
-Quick configuration for common scenarios:
-
-```swift
-// Default (good for 90% of use cases)
-$0.pdf.render.configuration = .default
-
-// Maximum speed
-$0.pdf.render.configuration = .continuous
-
-// Print-ready documents
-$0.pdf.render.configuration = .multiPage
-
-// Smart auto-detection
-$0.pdf.render.configuration = .smart
-
-// High-volume batch processing
-$0.pdf.render.configuration = .largeBatch
-```
-
-### Custom Configuration
+Quick configurations for common scenarios:
 
 ```swift
 try await withDependencies {
-    $0.pdf.render.configuration.paperSize = .letter
-    $0.pdf.render.configuration.margins = .wide
-    $0.pdf.render.configuration.paginationMode = .paginated
-    $0.pdf.render.configuration.concurrency = 24
+    // Maximum speed (1,939 PDFs/sec)
+    $0.pdf.render.configuration = .continuous
+
+    // Print-ready documents (677 PDFs/sec)
+    $0.pdf.render.configuration = .multiPage
+
+    // Smart auto-detection
+    $0.pdf.render.configuration = .smart
+
+    // Large batch processing
+    $0.pdf.render.configuration = .largeBatch
 } operation: {
     @Dependency(\.pdf) var pdf
     try await pdf.render(html: html, to: fileURL)
 }
 ```
 
-### Full Control
+### Custom Configuration
+
+Fine-tune individual settings:
+
+```swift
+try await withDependencies {
+    $0.pdf.render.configuration.paperSize = .letter        // US Letter
+    $0.pdf.render.configuration.margins = .wide            // 1 inch margins
+    $0.pdf.render.configuration.paginationMode = .paginated // Print-ready
+    $0.pdf.render.configuration.concurrency = .automatic   // Optimal
+} operation: {
+    @Dependency(\.pdf) var pdf
+    try await pdf.render(html: html, to: fileURL)
+}
+```
+
+### Full Configuration
+
+Complete control over all options:
 
 ```swift
 try await withDependencies {
     $0.pdf.render.configuration = PDF.Configuration(
-        // Document
-        paperSize: .letter,                    // 8.5" × 11"
-        margins: .wide,                        // 1 inch margins
-        paginationMode: .paginated,            // Multi-page layout
+        // Document appearance
+        paperSize: .letter,                          // 8.5 × 11 inches
+        margins: .wide,                              // 1 inch all sides
+        baseURL: URL(string: "https://example.com"), // Resolve relative URLs
+        appearance: .light,                          // Force light mode
+
+        // Pagination
+        paginationMode: .paginated,                  // Multi-page layout
 
         // Performance
-        concurrency: 24,                       // Max throughput
+        concurrency: .automatic,                     // 1x CPU count
 
         // Timeouts
-        documentTimeout: .seconds(30),         // Per-document
-        batchTimeout: .seconds(3600),          // Total batch
+        documentTimeout: .seconds(30),               // Per-document
+        batchTimeout: .seconds(3600),                // Entire batch
+        webViewAcquisitionTimeout: .seconds(300),    // Pool acquisition
 
         // File system
-        createDirectories: true,               // Auto-create dirs
-        namingStrategy: .sequential            // 1.pdf, 2.pdf, ...
+        createDirectories: true,                     // Auto-create
+        namingStrategy: .sequential                  // 1.pdf, 2.pdf, ...
     )
 } operation: {
-    // Your rendering code
+    @Dependency(\.pdf) var pdf
+    try await pdf.render(html: html, to: fileURL)
+}
+```
+
+### Per-Operation Configuration
+
+Override settings for specific operations:
+
+```swift
+@Dependency(\.pdf) var pdf
+
+// Use defaults for most documents
+try await pdf.render(html: receipt, to: receiptURL)
+
+// Override for special documents
+try await withDependencies {
+    $0.pdf.render.configuration.paginationMode = .paginated
+    $0.pdf.render.configuration.margins = .wide
+} operation: {
+    try await pdf.render(html: contract, to: contractURL)
 }
 ```
 
@@ -264,12 +351,11 @@ try await withDependencies {
 
 ## Real-World Example: Invoice System
 
-Here's a complete, production-ready invoice system:
+Complete production-ready invoice generator:
 
 ```swift
 import HtmlToPdf
 import HTML
-import Dependencies
 
 // Type-safe invoice model
 struct Invoice: HTMLDocument {
@@ -286,86 +372,135 @@ struct Invoice: HTMLDocument {
     var body: some HTML {
         div(.class("header")) {
             h1 { "INVOICE" }
-            p { "Invoice #\(number)" }
-            p { "Date: \(formattedDate)" }
+            p(.class("invoice-number")) { "Invoice #\(number)" }
+            p(.class("invoice-date")) { "Date: \(date.formatted(date: .long, time: .omitted))" }
         }
 
         div(.class("customer")) {
             h2 { "Bill To:" }
             p { customer.name }
             p { customer.address }
+            p { "\(customer.city), \(customer.state) \(customer.zip)" }
         }
 
         table(.class("items")) {
             thead {
                 tr {
-                    th { "Item" }
-                    th { "Quantity" }
-                    th { "Price" }
-                    th { "Total" }
+                    th { "Description" }
+                    th(.class("right")) { "Quantity" }
+                    th(.class("right")) { "Price" }
+                    th(.class("right")) { "Total" }
                 }
             }
             tbody {
                 for item in items {
                     tr {
-                        td { item.name }
-                        td { "\(item.quantity)" }
-                        td { "$\(item.price)" }
-                        td { "$\(item.total)" }
+                        td { item.description }
+                        td(.class("right")) { "\(item.quantity)" }
+                        td(.class("right")) { "$\(item.price, format: .currency)" }
+                        td(.class("right")) { "$\(item.total, format: .currency)" }
                     }
+                }
+            }
+            tfoot {
+                tr {
+                    td(.colspan(3), .class("right")) { "Subtotal:" }
+                    td(.class("right")) { "$\(subtotal, format: .currency)" }
+                }
+                tr {
+                    td(.colspan(3), .class("right")) { "Tax (\(taxRate)%):" }
+                    td(.class("right")) { "$\(tax, format: .currency)" }
+                }
+                tr(.class("total")) {
+                    td(.colspan(3), .class("right")) { "Total:" }
+                    td(.class("right")) { "$\(total, format: .currency)" }
                 }
             }
         }
 
-        div(.class("total")) {
-            p { "Subtotal: $\(subtotal)" }
-            p { "Tax: $\(tax)" }
-            p { "Total: $\(total)" }
+        div(.class("footer")) {
+            p { "Thank you for your business!" }
+            p(.class("small")) { "Payment due within 30 days" }
         }
     }
 
     var invoiceCSS: String {
         """
-        body { font-family: system-ui; padding: 40px; }
-        .header { text-align: center; margin-bottom: 30px; }
+        body { font-family: -apple-system, system-ui; padding: 40px; color: #333; }
+        .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+        .invoice-number { font-size: 1.2em; font-weight: bold; }
+        .invoice-date { color: #666; }
         .customer { margin-bottom: 30px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
-        .total { text-align: right; margin-top: 30px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin: 30px 0; }
+        th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid #333; }
+        td { padding: 10px; border-bottom: 1px solid #ddd; }
+        .right { text-align: right; }
+        tfoot td { font-weight: bold; border-bottom: none; padding-top: 20px; }
+        tfoot .total { font-size: 1.2em; background: #f5f5f5; }
+        .footer { text-align: center; margin-top: 40px; color: #666; }
+        .small { font-size: 0.9em; }
+        @media print {
+            body { padding: 20px; }
+            @page { margin: 0.5in; }
+        }
         """
     }
 
-    var formattedDate: String {
-        // Date formatting logic
-    }
-
-    var subtotal: Decimal { /* calculation */ }
-    var tax: Decimal { /* calculation */ }
-    var total: Decimal { /* calculation */ }
+    var subtotal: Decimal { items.reduce(0) { $0 + $1.total } }
+    var taxRate: Decimal { 0.0825 } // 8.25%
+    var tax: Decimal { subtotal * taxRate }
+    var total: Decimal { subtotal + tax }
 }
 
-// Generate invoices
-func generateInvoices() async throws {
+struct Customer {
+    let name: String
+    let address: String
+    let city: String
+    let state: String
+    let zip: String
+}
+
+struct LineItem {
+    let description: String
+    let quantity: Int
+    let price: Decimal
+
+    var total: Decimal { Decimal(quantity) * price }
+}
+
+// Invoice generation service
+struct InvoiceService {
     @Dependency(\.pdf) var pdf
+    @Dependency(\.database) var database
 
-    let invoices = try await database.fetchPendingInvoices()
+    func generateInvoices() async throws {
+        let pendingInvoices = try await database.fetchPendingInvoices()
 
-    try await withDependencies {
-        $0.pdf.render.configuration.paginationMode = .paginated
-        $0.pdf.render.configuration.concurrency = 24
-    } operation: {
-        let documents = invoices.map { invoice in
-            PDF.Document(
-                html: invoice,
-                destination: outputDirectory
-                    .appendingPathComponent("invoice-\(invoice.number).pdf")
-            )
-        }
+        try await withDependencies {
+            // Print-ready configuration
+            $0.pdf.render.configuration.paperSize = .letter
+            $0.pdf.render.configuration.margins = .standard
+            $0.pdf.render.configuration.paginationMode = .paginated
+            $0.pdf.render.configuration.concurrency = .automatic
+        } operation: {
+            for try await result in try await pdf.render(
+                html: pendingInvoices.map(\.htmlDocument),
+                to: invoiceDirectory
+            ) {
+                let invoice = pendingInvoices[result.index]
 
-        for try await result in try await pdf.render.client.documents(documents) {
-            try await database.markInvoiceGenerated(invoice: result.index)
-            try await emailInvoice(result.url)
-            print("✅ Invoice #\(result.index) sent in \(result.duration)")
+                // Mark as generated
+                try await database.markInvoiceGenerated(invoice.id)
+
+                // Email to customer
+                try await emailService.send(
+                    to: invoice.customer.email,
+                    subject: "Invoice #\(invoice.number)",
+                    attachment: result.url
+                )
+
+                print("✅ Invoice #\(invoice.number) sent (\(result.duration))")
+            }
         }
     }
 }
@@ -373,47 +508,13 @@ func generateInvoices() async throws {
 
 **This example demonstrates:**
 - ✅ Type-safe HTML with Swift models
-- ✅ Custom CSS styling
-- ✅ Computed properties for totals
+- ✅ Professional CSS styling
+- ✅ Computed properties for calculations
+- ✅ Print-optimized layout with `@media print`
 - ✅ Batch processing with streaming
 - ✅ Database integration
 - ✅ Real-time progress tracking
-
----
-
-## Performance Tips
-
-### Start Simple, Then Optimize
-
-**Level 1:** Just use defaults
-```swift
-try await pdf.render(html: html, to: fileURL)
-```
-
-**Level 2:** Pick the right mode
-```swift
-$0.pdf.render.configuration.paginationMode = .continuous  // 1,939 PDFs/sec
-// or
-$0.pdf.render.configuration.paginationMode = .paginated   // 696 PDFs/sec
-```
-
-**Level 3:** Tune concurrency
-```swift
-$0.pdf.render.configuration.concurrency = 24  // 3x CPU count = optimal
-```
-
-### When to Use Each Pagination Mode
-
-| Mode | Speed | Best For | Page Layout |
-|------|-------|----------|-------------|
-| **Continuous** | ⚡⚡⚡⚡⚡ 1,939/sec | Receipts, web captures | Single tall page |
-| **Paginated** | ⚡⚡⚡ 696/sec | Invoices, contracts | Multiple pages |
-| **Automatic** | ⚡⚡⚡⚡ Adaptive | Mixed content | Smart detection |
-
-**Rule of thumb:**
-- Need **speed**? Use continuous
-- Need **print-ready**? Use paginated
-- Not sure? Use automatic
+- ✅ Email delivery
 
 ---
 
@@ -422,8 +523,8 @@ $0.pdf.render.configuration.concurrency = 24  // 3x CPU count = optimal
 ### Pattern 1: Generate and Upload
 
 ```swift
-for try await result in try await pdf.render(htmls: htmls, to: directory) {
-    // Upload immediately after generation
+for try await result in try await pdf.render(html: html, to: directory) {
+    // Upload immediately
     try await uploadToS3(result.url)
 
     // Delete local file to save disk space
@@ -431,100 +532,216 @@ for try await result in try await pdf.render(htmls: htmls, to: directory) {
 }
 ```
 
-### Pattern 2: Progress Reporting
+**Benefit:** Constant memory usage, no disk accumulation
+
+### Pattern 2: Progress with UI Updates
 
 ```swift
-let total = htmls.count
+let total = documents.count
 var completed = 0
 
-for try await result in try await pdf.render(htmls: htmls, to: directory) {
+for try await result in try await pdf.render(html: documents, to: directory) {
     completed += 1
-    let progress = Double(completed) / Double(total)
-    print("Progress: \(Int(progress * 100))%")
 
-    // Update UI or send progress events
     await MainActor.run {
-        progressView.progress = progress
+        progressView.progress = Double(completed) / Double(total)
+        statusLabel.text = "Generated \(completed) of \(total)"
     }
 }
 ```
 
-### Pattern 3: Custom Error Handling
+### Pattern 3: API Endpoint
 
 ```swift
-var completed = 0
-var failed = 0
+import Vapor
 
-do {
-    for try await result in try await pdf.render(htmls: htmls, to: directory) {
-        completed += 1
-        try await uploadToS3(result.url)
-        print("✅ \(completed) complete")
+app.post("generate-pdf") { req async throws -> Response in
+    struct Request: Content {
+        let html: String
     }
-} catch {
-    failed = htmls.count - completed
-    print("❌ Processing stopped at \(completed)/\(htmls.count)")
-    print("   Error: \(error.localizedDescription)")
-    // Handle the error as needed
+
+    let requestData = try req.content.decode(Request.self)
+
+    @Dependency(\.pdf) var pdf
+    let pdfData = try await pdf.render(html: requestData.html)
+
+    return Response(
+        status: .ok,
+        headers: ["Content-Type": "application/pdf"],
+        body: .init(data: pdfData)
+    )
+}
+```
+
+### Pattern 4: Temporary Files
+
+```swift
+let temporaryDirectory = FileManager.default.temporaryDirectory
+    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+defer {
+    try? FileManager.default.removeItem(at: temporaryDirectory)
 }
 
-print("Summary: \(completed) successful, \(failed) failed")
+for try await result in try await pdf.render(html: html, to: temporaryDirectory) {
+    try await processAndUpload(result.url)
+}
+```
+
+---
+
+## Performance Tips
+
+### Choose the Right Pagination Mode
+
+| Mode | Throughput | Best For | Trade-off |
+|------|-----------|----------|-----------|
+| **Continuous** | 1,939 PDFs/sec | Receipts, web captures, speed-critical | Single tall page (not print-ready) |
+| **Paginated** | 677 PDFs/sec | Invoices, contracts, printing | 2.9x slower but proper page breaks |
+| **Automatic** | Adaptive | Mixed content, unsure | Smart detection based on content |
+
+**Rule of thumb:**
+- Need **maximum speed**? Use `.continuous`
+- Need **print-ready**? Use `.paginated`
+- **Not sure**? Use `.automatic()`
+
+### Concurrency Guidelines
+
+The default `.automatic` is optimal for most cases:
+
+```swift
+$0.pdf.render.configuration.concurrency = .automatic
+```
+
+**How it works:**
+- **macOS**: 1x CPU count (e.g., 8 WebViews on 8-core Mac)
+- **iOS**: Capped at 4 for thermal/battery constraints
+
+**Custom concurrency:**
+
+```swift
+// Explicit value
+$0.pdf.render.configuration.concurrency = .fixed(8)
+
+// Integer literal (syntactic sugar)
+$0.pdf.render.configuration.concurrency = 8
+```
+
+**When to customize:**
+- Memory-constrained: Use lower value (2-4)
+- High-throughput server: Use higher value (12-16)
+- Testing: Use specific value for reproducibility
+
+### Memory Optimization
+
+**The library uses constant memory** regardless of batch size:
+
+```swift
+// 100 PDFs: ~146 MB
+// 10,000 PDFs: ~148 MB
+// Memory is constant!
+```
+
+**Additional tips:**
+
+```swift
+// Process and release immediately
+for try await result in try await pdf.render(html: html, to: directory) {
+    try await uploadToS3(result.url)
+    try FileManager.default.removeItem(at: result.url)
+    // Result is released - memory stays constant
+}
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue: "Cannot find 'pdf' in scope"**
+
+Solution: Add `@Dependency(\.pdf) var pdf` to access the PDF client.
+
+**Issue: PDFs have dark backgrounds**
+
+Solution: The library defaults to `.light` appearance. Check your HTML doesn't override this.
+
+**Issue: Slow performance**
+
+Solution: Use `.continuous` mode for maximum speed, or increase concurrency.
+
+**Issue: Memory growing**
+
+Solution: Ensure you're not accumulating results. Use streaming and release PDFs after processing.
+
+**Issue: Timeout errors**
+
+Solution: Increase `documentTimeout` for complex documents:
+
+```swift
+$0.pdf.render.configuration.documentTimeout = .seconds(60)
+```
 
 ---
 
 ## Next Steps
 
-You've learned the essentials. Now dive deeper:
+You've learned the essentials. Dive deeper:
 
-- **[Performance Guide](PerformanceGuide)** - Optimize for your use case, understand the "3x CPU count" discovery
-- **[Configuration Guide](ConfigurationGuide)** - Master all configuration options
-- **API Reference** - Explore ``PDF/Render``, ``PDF/Configuration``, and ``PDF/PaginationMode``
+- **<doc:PerformanceGuide>** - Optimize for your workload (1,939 PDFs/sec explained)
+- **<doc:ConfigurationGuide>** - Master all configuration options
+- **<doc:MetricsGuide>** - Production monitoring with swift-metrics
+- **API Reference** - Explore ``PDF``, ``PDF/Configuration``, ``PDF/Render``
 
 ---
 
 ## Quick Reference
 
-### One-Liners
+### Basic Operations
 
 ```swift
 // HTML string → PDF file
+@Dependency(\.pdf) var pdf
 try await pdf.render(html: html, to: fileURL)
 
 // HTML string → PDF data
 let data = try await pdf.render(html: html)
 
-// Type-safe HTML → PDF file
-try await pdf.render(html: MyPage(), to: fileURL)
+// Type-safe HTML → PDF
+try await pdf.render(html: MyDocument(), to: fileURL)
 
-// Batch HTML → PDF files (streaming)
-for try await result in try await pdf.render(htmls: htmls, to: directory) { ... }
-
-// Direct primitive access
-for try await result in try await pdf.render.client.documents(documents) { ... }
+// Batch with streaming
+for try await result in try await pdf.render(html: html, to: directory) {
+    print("Generated: \(result.url)")
+}
 ```
 
-### Common Configurations
+### Configuration Presets
 
 ```swift
-// Fast (continuous mode)
+// Maximum speed
 $0.pdf.render.configuration = .continuous
 
-// Print-ready (paginated mode)
+// Print-ready
 $0.pdf.render.configuration = .multiPage
 
-// High-volume (adaptive optimization)
+// Large batches
 $0.pdf.render.configuration = .largeBatch
 
-// Custom paper size
-$0.pdf.render.configuration.paperSize = .letter
+// Platform-optimized
+$0.pdf.render.configuration = .platformOptimized
+```
 
-// Custom margins
-$0.pdf.render.configuration.margins = .wide
+### Common Settings
 
-// Max concurrency
-$0.pdf.render.configuration.concurrency = 24
+```swift
+$0.pdf.render.configuration.paperSize = .letter           // or .a4
+$0.pdf.render.configuration.margins = .wide               // or .standard
+$0.pdf.render.configuration.paginationMode = .paginated   // or .continuous
+$0.pdf.render.configuration.concurrency = .automatic      // or .fixed(8)
 ```
 
 ---
 
-**Ready to build?** The API is simple, but the performance is exceptional. Start with one line, scale to millions of PDFs.
+**Ready to build?** Start with one line, scale to millions of PDFs. The API is simple, the performance is exceptional.

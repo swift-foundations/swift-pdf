@@ -14,12 +14,12 @@ import LoggingExtras
 
 /// WKWebView wrapper that conforms to PoolableResource
 @MainActor
-public final class WKWebViewResource: PoolableResource {
-    public struct Config: Sendable {
-        public var maxUsesBeforeRecreate: Int
-        public var clearCachesEvery: Int  // 0 = disabled
+package final class WKWebViewResource: PoolableResource {
+    package struct Config: Sendable {
+        package var maxUsesBeforeRecreate: Int
+        package var clearCachesEvery: Int  // 0 = disabled
 
-        public init(
+        package init(
             maxUsesBeforeRecreate: Int = 2000,
             clearCachesEvery: Int = 0  // Disabled by default - rely on TTL recycling
         ) {
@@ -29,7 +29,7 @@ public final class WKWebViewResource: PoolableResource {
     }
 
     /// The underlying WKWebView
-    public let webView: WKWebView
+    package let webView: WKWebView
     private let config: Config
     private var uses: Int = 0
 
@@ -40,7 +40,7 @@ public final class WKWebViewResource: PoolableResource {
 
     /// Create a new WKWebView resource
     @MainActor
-    public static func create(config: Config) async throws -> WKWebViewResource {
+    package static func create(config: Config) async throws -> WKWebViewResource {
         let webViewConfig = WKWebViewConfiguration()
 
         // Note: WKProcessPool is deprecated as of macOS 12.0+
@@ -98,7 +98,7 @@ public final class WKWebViewResource: PoolableResource {
 
     /// Validate that the resource is still usable
     @MainActor
-    public func validate() async -> Bool {
+    package func validate() async -> Bool {
         // Check if we've exceeded max uses - proactive recycling
         if uses >= config.maxUsesBeforeRecreate {
             return false
@@ -123,7 +123,7 @@ public final class WKWebViewResource: PoolableResource {
 
     /// Reset the resource for reuse
     @MainActor
-    public func reset() async throws {
+    package func reset() async throws {
         uses += 1
 
         // Stop any ongoing loads

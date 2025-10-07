@@ -19,7 +19,7 @@ import Dependencies
 /// MetricsSystem.bootstrap(metricsBackend)
 ///
 /// // Run your test code that generates metrics
-/// try await pdf.render.client.html(htmls, to: output)
+/// try await pdf.render.client.html(html, to: output)
 ///
 /// // Assert on captured metrics
 /// #expect(metricsBackend.counters["htmltopdf_pdfs_generated_total"]?.value == 100)
@@ -35,19 +35,19 @@ public final class TestMetricsBackend: MetricsFactory, @unchecked Sendable {
     private var _timers: [String: TestTimer] = [:]
     private var _recorders: [String: TestRecorder] = [:]
 
-    public var counters: [String: TestCounter] {
+    package var counters: [String: TestCounter] {
         lock.withLock { _counters }
     }
 
-    public var meters: [String: TestMeter] {
+    package var meters: [String: TestMeter] {
         lock.withLock { _meters }
     }
 
-    public var timers: [String: TestTimer] {
+    package var timers: [String: TestTimer] {
         lock.withLock { _timers }
     }
 
-    public var recorders: [String: TestRecorder] {
+    package var recorders: [String: TestRecorder] {
         lock.withLock { _recorders }
     }
 
@@ -266,7 +266,7 @@ public final class TestCounter: CounterHandler, FloatingPointCounterHandler, @un
     private let lock = NSLock()
     private var _value: Int64 = 0
 
-    public var value: Int64 {
+    package var value: Int64 {
         lock.withLock { _value }
     }
 
@@ -304,7 +304,7 @@ public final class TestMeter: MeterHandler, @unchecked Sendable {
     private let lock = NSLock()
     private var _value: Double = 0
 
-    public var value: Double {
+    package var value: Double {
         lock.withLock { _value }
     }
 
@@ -348,12 +348,12 @@ public final class TestTimer: TimerHandler, @unchecked Sendable {
     private let lock = NSLock()
     private var _values: [Int64] = []
 
-    public var values: [Int64] {
+    package var values: [Int64] {
         lock.withLock { _values }
     }
 
     /// Average duration in seconds
-    public var average: TimeInterval {
+    package var average: TimeInterval {
         let vals = values
         guard !vals.isEmpty else { return 0 }
         let sum = vals.reduce(0, +)
@@ -361,29 +361,29 @@ public final class TestTimer: TimerHandler, @unchecked Sendable {
     }
 
     /// Minimum duration in seconds
-    public var min: TimeInterval {
+    package var min: TimeInterval {
         guard let minVal = values.min() else { return 0 }
         return TimeInterval(minVal) / 1_000_000_000
     }
 
     /// Maximum duration in seconds
-    public var max: TimeInterval {
+    package var max: TimeInterval {
         guard let maxVal = values.max() else { return 0 }
         return TimeInterval(maxVal) / 1_000_000_000
     }
 
     /// 50th percentile (median) in seconds
-    public var p50: TimeInterval {
+    package var p50: TimeInterval {
         percentile(0.50)
     }
 
     /// 95th percentile in seconds
-    public var p95: TimeInterval {
+    package var p95: TimeInterval {
         percentile(0.95)
     }
 
     /// 99th percentile in seconds
-    public var p99: TimeInterval {
+    package var p99: TimeInterval {
         percentile(0.99)
     }
 
@@ -417,12 +417,12 @@ public final class TestRecorder: RecorderHandler, @unchecked Sendable {
     private let lock = NSLock()
     private var _values: [Double] = []
 
-    public var values: [Double] {
+    package var values: [Double] {
         lock.withLock { _values }
     }
 
     /// Current value (for gauge-like usage, returns last recorded value)
-    public var value: Double {
+    package var value: Double {
         lock.withLock { _values.last ?? 0 }
     }
 

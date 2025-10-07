@@ -66,9 +66,9 @@ struct BasicFunctionalityTests {
             let count = 5
 
             // Test batch from strings
-            let htmls = [String](repeating: TestHTML.simple, count: count)
+            let html = [String](repeating: TestHTML.simple, count: count)
             var urls: [URL] = []
-            for try await result in try await pdf.render.client.html(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(html, to: output) {
                 urls.append(result.url)
             }
 

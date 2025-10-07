@@ -1,5 +1,5 @@
 //
-//  PDF.ConcurrencyStrategy.swift
+//  PDF.Render.ConcurrencyStrategy.swift
 //  swift-html-to-pdf
 //
 //  Strategy for determining concurrency during PDF rendering
@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Concurrency Strategy
 
-extension PDF {
+extension PDF.Render {
     /// Strategy for determining concurrency during PDF rendering
     ///
     /// Controls how many PDFs render simultaneously. Supports both explicit integer values
@@ -37,17 +37,14 @@ extension PDF {
     ///
     /// ### Platform-Specific Defaults
     ///
-    /// **macOS**: `3x CPU count` (optimal for WebView I/O waiting)
-    /// - WebViews spend significant time in I/O operations
-    /// - Oversubscription (3x) keeps CPU busy during I/O waits
-    /// - Capped at platform maximum (16 concurrent WebViews)
-    /// - Example: 8-core Mac = 24 concurrent (capped at 16)
+    /// **macOS**: `1x CPU count` (optimal throughput)
+    /// - WebViews are I/O bound but context switching overhead dominates beyond CPU count
+    /// - Example: 8-core Mac = 8 concurrent WebViews
     ///
     /// **iOS**: `min(CPU count, 4)` (conservative for mobile)
     /// - Thermal management constraints
     /// - Battery life considerations
     /// - App suspension policies
-    /// - Capped at platform maximum (8 concurrent WebViews)
     /// - Example: 6-core iPhone = 4 concurrent
     ///
     /// ## Performance Characteristics
@@ -56,13 +53,13 @@ extension PDF {
     ///
     /// | Concurrency | Throughput | Notes |
     /// |------------|-----------|-------|
-    /// | 4 WebViews | 860 PDFs/sec | Below optimal |
-    /// | 8 WebViews | 928 PDFs/sec | 1x CPU count |
-    /// | 16 WebViews | 771 PDFs/sec | 2x CPU count |
-    /// | 24 WebViews | 1113 PDFs/sec | **3x CPU count - OPTIMAL** |
-    /// | 32 WebViews | 1057 PDFs/sec | 4x CPU count (diminishing returns) |
+    /// | 4 WebViews | 1,645 PDFs/sec | Below optimal |
+    /// | 8 WebViews | 1,737 PDFs/sec | **1x CPU count - OPTIMAL** |
+    /// | 12 WebViews | 1,608 PDFs/sec | Diminishing returns |
+    /// | 16 WebViews | 1,590 PDFs/sec | 2x CPU count (too many) |
     ///
-    /// Peak throughput occurs at 3x CPU count due to WebView I/O waiting patterns.
+    /// Peak throughput occurs at 1x CPU count.
+    /// Performance degrades beyond CPU count due to context switching overhead.
     ///
     /// ## Memory Usage
     ///

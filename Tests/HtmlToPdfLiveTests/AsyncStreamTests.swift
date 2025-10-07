@@ -2,7 +2,7 @@
 //  AsyncStreamTests.swift
 //  swift-html-to-pdf
 //
-//  Tests for AsyncThrowingStream<PDF.Result, Error> return values
+//  Tests for AsyncThrowingStream<PDF.Render.Result, Error> return values
 //
 
 import Testing
@@ -31,8 +31,8 @@ struct AsyncStreamTests {
             // Track URLs as stream yields them
             var yieldedURLs: [URL] = []
 
-            let htmls = [String](repeating: TestHTML.simple, count: count)
-            let stream = try await pdf.render.client.html(htmls, to: output)
+            let html = [String](repeating: TestHTML.simple, count: count)
+            let stream = try await pdf.render.client.html(html, to: output)
 
             for try await result in stream {
                 yieldedURLs.append(result.url)

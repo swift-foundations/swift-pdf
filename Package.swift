@@ -127,31 +127,33 @@ let package = Package(
         ),
 
         .testTarget(
-            name: .htmlToPdfTypes + "Tests",
+            name: .htmlToPdfTypes.tests,
             dependencies: [
                 .htmlToPdfTypes,
                 .dependenciesTestSupport
-            ]
+            ],
+            exclude: ["HtmlToPdfTypes.xctestplan"],
         ),
 
         .testTarget(
-            name: .htmlToPdfLive + "Tests",
+            name: .htmlToPdfLive.tests,
             dependencies: [
                 .htmlToPdfLive,
                 .pdfTestSupport,
                 .dependenciesTestSupport
             ],
-            exclude: ["HtmlToPdf.xctestplan"],
+            exclude: ["HtmlToPdfLive.xctestplan"],
             resources: [.process("Resources")]
         ),
 
         .testTarget(
-            name: .htmlToPdf + "Tests",
+            name: .htmlToPdf.tests,
             dependencies: [
                 .htmlToPdf,
                 .pdfTestSupport,
                 .dependenciesTestSupport
             ],
+            exclude: ["HtmlToPdf.xctestplan"],
             swiftSettings: [
                 .define("HTML", .when(traits: ["HTML"]))
             ]
@@ -159,3 +161,5 @@ let package = Package(
     ],
     swiftLanguageModes: [.v6]
 )
+
+extension String { var tests: Self { self + "Tests" } }

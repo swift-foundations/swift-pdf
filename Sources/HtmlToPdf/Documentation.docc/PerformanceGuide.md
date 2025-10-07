@@ -7,7 +7,7 @@ Understand what makes HtmlToPdf fast, then optimize for your specific use case.
 HtmlToPdf achieves **1,939 PDFs/sec** peak throughput—faster than most commercial solutions. This guide explains how, and shows you how to tune performance for your workload.
 
 **You'll learn:**
-1. The counter-intuitive discoveries (memory efficiency paradox, 3x CPU count)
+1. The counter-intuitive discoveries (memory efficiency paradox, concurrency optimization)
 2. When to use which pagination mode
 3. How to tune concurrency for your hardware
 4. When adaptive optimization helps
@@ -70,42 +70,33 @@ Here's something weird that defies expectation:
 3. **Aggressive GC:** More activity = more frequent garbage collection
 4. **WebKit design:** Optimized for concurrent usage
 
-**Result:** 24 WebViews use ~147 MB total. Running 1 WebView 24 times would use 2,400 MB.
+**Result:** 8 WebViews use ~35 MB total. Running 1 WebView 8 times would use ~800 MB.
 
 **This is the power of resource pooling.**
 
-### Discovery #2: 3x CPU Count = Optimal Concurrency
+### Discovery #2: CPU Count = Optimal Concurrency
 
 Conventional wisdom says: **concurrency = CPU count**
 
-But WebViews aren't CPU-bound—they're **I/O-bound**.
-
-We tested every configuration on an 8-core Mac:
+Empirical testing on an 8-core M-series Mac reveals the optimal point:
 
 | WebViews | Multiplier | Throughput | Notes |
 |----------|------------|------------|-------|
-| 4        | 0.5x       | 860/sec    | Under-utilized |
-| 8        | 1.0x       | 928/sec    | Conventional wisdom |
-| 12       | 1.5x       | 686/sec    | Over-subscribed? |
-| 16       | 2.0x       | 771/sec    | Still searching... |
-| 20       | 2.5x       | 946/sec    | Getting warmer |
-| **24**   | **3.0x**   | **1,113/sec** | **← PEAK** |
-| 28       | 3.5x       | 1,086/sec  | Diminishing returns |
-| 32       | 4.0x       | 1,057/sec  | Too many |
+| 4        | 0.5x       | 1,645/sec  | Below optimal |
+| **8**    | **1.0x**   | **1,737/sec** | **← PEAK** |
+| 12       | 1.5x       | 1,608/sec  | Diminishing returns |
+| 16       | 2.0x       | 1,590/sec  | Context switching overhead |
 
-**Result:** 3x CPU count = **20% faster** than conventional 1x
+**Result:** 1x CPU count delivers peak throughput
 
-**Why does this work?**
+**Why does 1x work best?**
 
-WebViews spend significant time in I/O:
-- Loading fonts from disk
-- Decoding images
-- Fetching network resources (if any)
-- Communicating with WindowServer
+WebViews are partially I/O-bound but context switching has overhead:
+- WebViews spend time in layout, painting, font loading (I/O)
+- Swift concurrency efficiently utilizes cores at 1x CPU count
+- Beyond CPU count, context switching costs exceed I/O waiting benefits
 
-During this I/O wait time, the CPU is idle. By having **3x as many workers**, we keep CPUs busy while other WebViews are waiting.
-
-**This is oversubscription done right.**
+**This represents the sweet spot** between parallelism and overhead.
 
 ### Discovery #3: Batch Replacement Prevents Degradation
 
@@ -235,7 +226,7 @@ The default `.automatic` strategy is optimal for most use cases:
 $0.pdf.render.configuration.concurrency = .automatic
 ```
 
-**On macOS with 8 cores:** Uses **24 WebViews** (3x CPU count)
+**On macOS with 8 cores:** Uses **8 WebViews** (1x CPU count)
 **On iOS with 4 cores:** Uses **4 WebViews** (capped for mobile)
 
 **When to use:**
@@ -296,7 +287,7 @@ One of the most remarkable characteristics:
 - **No memory leaks**, **no unbounded growth**
 
 **How it works:**
-1. **Resource pooling:** Fixed-size pool (e.g., 24 WebViews)
+1. **Resource pooling:** Fixed-size pool (e.g., 8 WebViews on 8-core Mac)
 2. **Streaming results:** Results processed and released immediately
 3. **Batch replacement:** Fresh pool every 50K prevents accumulation
 4. **Automatic GC:** Aggressive garbage collection between renders
@@ -305,7 +296,7 @@ One of the most remarkable characteristics:
 
 **Tip 1:** Use streaming to process results immediately
 ```swift
-for try await result in try await pdf.render(htmls: htmls, to: directory) {
+for try await result in try await pdf.render(html: html, to: directory) {
     // Upload immediately
     try await uploadToS3(result.url)
 
@@ -359,10 +350,10 @@ Group documents by complexity:
 
 ```swift
 // Render simple documents first (fast pool warmup)
-let simpleResults = try await pdf.render(htmls: simpleHTMLs, to: directory)
+let simpleResults = try await pdf.render(html: simpleHTMLs, to: directory)
 
 // Then complex documents (pool is already optimized)
-let complexResults = try await pdf.render(htmls: complexHTMLs, to: directory)
+let complexResults = try await pdf.render(html: complexHTMLs, to: directory)
 ```
 
 **Why:** Pool optimizations (font caching, layout strategies) benefit similar documents
@@ -390,7 +381,7 @@ try await withDependencies {
 Don't wait for the batch to finish:
 
 ```swift
-for try await result in try await pdf.render(htmls: htmls, to: directory) {
+for try await result in try await pdf.render(html: html, to: directory) {
     // This PDF is ready NOW
     // Others are still rendering in parallel
 
@@ -433,7 +424,7 @@ import Dependencies
 let start = ContinuousClock.now
 var count = 0
 
-for try await result in try await pdf.render(htmls: yourHTMLs, to: directory) {
+for try await result in try await pdf.render(html: yourHTMLs, to: directory) {
     count += 1
     let elapsed = ContinuousClock.now - start
     let throughput = Double(count) / elapsed.components.seconds
@@ -488,7 +479,7 @@ $0.pdf.render.configuration.concurrency = .automatic
 **Check #1:** Are you releasing results?
 ```swift
 // ❌ Bad: Storing all results
-var allResults: [PDF.Result] = []
+var allResults: [PDF.Render.Result] = []
 for try await result in try await pdf.render(...) {
     allResults.append(result)  // Retains all PDFs in memory
 }
@@ -538,7 +529,7 @@ for try await result in try await pdf.render(...) {
 
 1. **Native WebKit:** Direct access to WKWebView (no IPC overhead)
 2. **Resource pooling:** Pre-warmed WebViews (zero init cost)
-3. **3x oversubscription:** Keeps CPUs busy during I/O
+3. **Optimal concurrency:** 1x CPU count balances parallelism with context switching
 4. **Batch replacement:** Prevents performance degradation
 5. **Swift 6 concurrency:** Zero-cost async/await
 6. **Memory efficiency:** Shared resources, aggressive GC

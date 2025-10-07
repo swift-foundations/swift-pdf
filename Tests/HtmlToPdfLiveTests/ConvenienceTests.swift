@@ -72,7 +72,7 @@ struct ConvenienceTests {
     @Test("HTML batch convenience levels")
     func testHTMLBatchConvenienceLevels() async throws {
 
-        let htmls = [
+        let html = [
             "<html><body><h1>Doc 1</h1></body></html>",
             "<html><body><h1>Doc 2</h1></body></html>",
             "<html><body><h1>Doc 3</h1></body></html>"
@@ -86,7 +86,7 @@ struct ConvenienceTests {
 
         // Level 2: Capability-level
         var urls2: [URL] = []
-        for try await result in try await pdf.render(htmls: htmls, to: output) {
+        for try await result in try await pdf.render(html: html, to: output) {
             urls2.append(result.url)
         }
         #expect(urls2.count == 3, "Capability-level htmls should work")
@@ -96,7 +96,7 @@ struct ConvenienceTests {
 
         // Level 3: Explicit client
         var urls3: [URL] = []
-        for try await result in try await pdf.render.client.html(htmls, to: output) {
+        for try await result in try await pdf.render.client.html(html, to: output) {
             urls3.append(result.url)
         }
         #expect(urls3.count == 3, "Explicit client htmls should work")

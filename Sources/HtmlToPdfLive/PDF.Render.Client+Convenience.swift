@@ -57,17 +57,17 @@ extension PDF.Render.Client {
     /// Files are named using the configured `namingStrategy`.
     ///
     /// - Parameters:
-    ///   - htmls: HTML strings to render (any sequence)
+    ///   - html: HTML strings to render (any sequence)
     ///   - directory: Directory to save PDFs in
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
     public func html(
-        _ htmls: some Sequence<String>,
+        _ html: some Sequence<String>,
         to directory: URL
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
+    ) async throws -> AsyncThrowingStream<PDF.Render.Result, Error> {
         @Dependency(\.pdf.render.configuration) var config
 
-        let documents = htmls.enumerated().map { index, html in
+        let documents = html.enumerated().map { index, html in
             let filename = config.namingStrategy.filename(for: index)
             return PDF.Document(htmlString: html, title: filename, in: directory)
         }

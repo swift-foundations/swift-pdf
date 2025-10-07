@@ -201,11 +201,11 @@ struct PerformanceBenchmarks {
                         $0.pdf.render.configuration.namingStrategy = .init { i in "batch\(batch)-doc\(i)" }
                     } operation: {
                         @Dependency(\.pdf) var batchPdf
-                        let htmls = (1...100).map { i in
+                        let html = (1...100).map { i in
                             "<html><body><p>Batch \(batch) - Doc \(i)</p></body></html>"
                         }
                         var urls: [URL] = []
-                        for try await result in try await batchPdf.render.client.html(htmls, to: outputDir) {
+                        for try await result in try await batchPdf.render.client.html(html, to: outputDir) {
                             urls.append(result.url)
                         }
                     }
@@ -466,7 +466,7 @@ struct PerformanceBenchmarks {
                 try? FileManager.default.removeItem(at: output)
             }
 
-            let htmls = (1...count).map { i in
+            let html = (1...count).map { i in
                 html.replacingOccurrences(of: "{{ID}}", with: "\(i)")
             }
 
@@ -485,7 +485,7 @@ struct PerformanceBenchmarks {
             let startTime = Date()
 
             // Render - metrics are automatically collected
-            let stream = try await pdf.render.client.html(htmls, to: output)
+            let stream = try await pdf.render.client.html(html, to: output)
             for try await _ in stream {
                 // Metrics automatically recorded
             }

@@ -80,7 +80,7 @@ extension PDF {
     /// No artificial limits are enforced. Pool capacity equals concurrency value, providing natural resource management.
     ///
     /// **Automatic defaults:**
-    /// - **macOS**: 3x CPU count (uncapped, e.g., 24 on 8-core Mac) - optimal for WebView I/O waiting
+    /// - **macOS**: 1x CPU count (e.g., 8 on 8-core Mac) - optimal throughput
     /// - **iOS**: min(CPU count, 4) - conservative for thermal/battery constraints
     ///
     /// **Tested values:**
@@ -107,7 +107,7 @@ extension PDF {
         public var baseURL: URL?
 
         /// How content should be paginated in the PDF
-        public var paginationMode: PaginationMode
+        public var paginationMode: PDF.PaginationMode
 
         /// Color scheme appearance for PDF rendering
         ///
@@ -150,7 +150,7 @@ extension PDF {
         /// - Automatic: `concurrency = .automatic`
         ///
         /// Default is `.automatic`, which calculates optimal concurrency based on CPU count and available memory.
-        public var concurrency: ConcurrencyStrategy = .automatic
+        public var concurrency: PDF.Render.ConcurrencyStrategy = .automatic
 
         /// Timeout per document (nil = no timeout)
         public var documentTimeout: Duration?
@@ -211,7 +211,7 @@ extension PDF {
             baseURL: URL? = nil,
             paginationMode: PaginationMode = .continuous,
             appearance: Appearance = .light,
-            concurrency: ConcurrencyStrategy = .automatic,
+            concurrency: PDF.Render.ConcurrencyStrategy = .automatic,
             documentTimeout: Duration? = nil,
             batchTimeout: Duration? = nil,
             webViewAcquisitionTimeout: Duration = .seconds(60),

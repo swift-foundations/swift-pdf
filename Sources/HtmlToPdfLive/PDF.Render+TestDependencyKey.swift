@@ -17,21 +17,21 @@ extension PDF.Render: TestDependencyKey {
     ///
     /// This provides realistic testing while ensuring perfect metrics isolation.
     public static var testValue: Self {
-        PDF.Render(
-            client: liveClient,
+        var testClient: PDF.Render.Client {
+            #if os(macOS)
+            return .macOS
+            #elseif os(iOS)
+            return .iOS
+            #else
+            return .testValue
+            #endif
+        }
+        
+        return PDF.Render(
+            client: testClient,
             configuration: .default,
             metrics: .testValue
         )
-    }
-
-    private static var liveClient: PDF.Render.Client {
-        #if os(macOS)
-        return .macOS
-        #elseif os(iOS)
-        return .iOS
-        #else
-        return .testValue
-        #endif
     }
 }
 

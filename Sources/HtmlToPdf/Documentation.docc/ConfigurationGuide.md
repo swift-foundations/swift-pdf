@@ -164,7 +164,7 @@ See <doc:PerformanceGuide> for detailed mode comparison.
 Control how many PDFs render simultaneously:
 
 ```swift
-// Automatic (recommended) - 3x CPU count on macOS
+// Automatic (recommended) - 1x CPU count on macOS
 $0.pdf.render.configuration.concurrency = .automatic
 
 // Fixed value
@@ -177,7 +177,7 @@ $0.pdf.render.configuration.concurrency = 8
 **Performance characteristics:**
 - **1-4 WebViews**: Conservative, minimal memory
 - **4-8 WebViews**: Balanced (typical iOS constraint)
-- **12-24 WebViews**: High throughput (macOS optimal)
+- **8 WebViews**: High throughput (macOS optimal on 8-core)
 
 ### Timeouts
 

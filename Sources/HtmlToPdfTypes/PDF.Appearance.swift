@@ -105,7 +105,7 @@ extension PDF {
         ///
         /// Returns the CSS bytes that should be injected into the HTML `<head>`
         /// to enforce the appearance, or `nil` for `.auto` mode.
-        public var cssInjection: ContiguousArray<UInt8>? {
+        package var cssInjection: ContiguousArray<UInt8>? {
             switch self {
             case .light:
                 let css = """

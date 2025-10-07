@@ -84,13 +84,13 @@ struct CancellationTests {
     @Test("Multiple concurrent tasks can be cancelled independently")
     func testMultipleCancellationsIndependent() async throws {
         await withTemporaryDirectory { dir in
-            let htmls = (1...10).map { i in
+            let html = (1...10).map { i in
                 "<html><body><h1>Document \(i)</h1></body></html>"
             }
 
             var tasks: [Task<URL, Error>] = []
 
-            for (index, html) in htmls.enumerated() {
+            for (index, html) in html.enumerated() {
                 let output = dir.appendingPathComponent("doc-\(index).pdf")
                 let task = Task {
                     try await pdf.render(html: html, to: output)
@@ -175,11 +175,11 @@ struct CancellationTests {
     @Test("Batch stream stops when task is cancelled")
     func testBatchStreamCancellation() async throws {
         await withTemporaryDirectory { dir in
-            let htmls = (1...20).map { i in
+            let html = (1...20).map { i in
                 "<html><body><h1>Document \(i)</h1></body></html>"
             }
 
-            let documents = htmls.enumerated().map { (index, html) in
+            let documents = html.enumerated().map { (index, html) in
                 PDF.Document(htmlString: html, title: "doc-\(index)", in: dir)
             }
 

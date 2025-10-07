@@ -20,7 +20,7 @@ extension PDF.Render {
     /// - Throws: Rendering errors
     public func documents(
         _ documents: some Sequence<PDF.Document>
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
+    ) async throws -> AsyncThrowingStream<PDF.Render.Result, Error> {
         try await client.documents(documents)
     }
 
@@ -61,15 +61,15 @@ extension PDF.Render {
     /// Returns results as a stream for progressive processing.
     ///
     /// - Parameters:
-    ///   - htmls: HTML strings to render (any sequence)
+    ///   - html: HTML strings to render (any sequence)
     ///   - directory: Directory to save PDFs in
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
     public func html(
-        _ htmls: some Sequence<String>,
+        _ html: some Sequence<String>,
         to directory: URL
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await client.html(htmls, to: directory)
+    ) async throws -> AsyncThrowingStream<PDF.Render.Result, Error> {
+        try await client.html(html, to: directory)
     }
 
     // MARK: - Data Operations

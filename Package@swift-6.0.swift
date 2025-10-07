@@ -77,7 +77,9 @@ let package = Package(
                 .pdfTestSupport,
                 .dependenciesTestSupport
             ],
-            exclude: ["HtmlToPdf.xctestplan"],
+            exclude: [
+                "HtmlToPdfLive.xctestplan"
+            ],
             resources: [.process("Resources")]
         )
     ],

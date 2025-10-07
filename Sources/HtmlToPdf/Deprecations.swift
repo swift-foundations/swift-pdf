@@ -152,14 +152,14 @@ extension Sequence<String> {
     /// **Migration:**
     /// ```swift
     /// // Old (v0.5.x)
-    /// try await htmls.print(to: directory)
+    /// try await html.print(to: directory)
     ///
     /// // New (v0.6.0+)
     /// @Dependency(\\.pdf) var pdf
-    /// try await pdf.render(htmls: htmls, to: directory)
+    /// try await pdf.render(html: html, to: directory)
     /// ```
     @available(*, deprecated, message: """
-        Use @Dependency(\\.pdf) var pdf; try await pdf.render(htmls:to:)
+        Use @Dependency(\\.pdf) var pdf; try await pdf.render(html:to:)
 
         See MIGRATION.md for detailed migration guide.
         """)
@@ -182,7 +182,7 @@ extension Sequence<String> {
             $0.pdf.render.configuration.namingStrategy = namingStrategy
         } operation: {
             // Consume the stream to completion (old API was fire-and-forget)
-            for try await _ in try await pdf.render(htmls: Array(self), to: directory) {
+            for try await _ in try await pdf.render(html: Array(self), to: directory) {
                 // Just consume results
             }
         }

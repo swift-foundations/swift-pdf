@@ -84,26 +84,26 @@ extension PDF {
     /// ```swift
     /// @Dependency(\.pdf) var pdf
     ///
-    /// let htmls = [
+    /// let html = [
     ///     "<html><body><h1>Doc 1</h1></body></html>",
     ///     "<html><body><h1>Doc 2</h1></body></html>"
     /// ]
     ///
-    /// for try await result in try await pdf.render(htmls: htmls, to: directory) {
+    /// for try await result in try await pdf.render(html: html, to: directory) {
     ///     print("Generated \(result.url.lastPathComponent)")
     /// }
     /// ```
     ///
     /// - Parameters:
-    ///   - htmls: HTML strings to render
+    ///   - html: HTML strings to render
     ///   - directory: Directory to save PDFs in
     /// - Returns: Stream of results as PDFs are generated
     /// - Throws: Rendering errors
     public func render(
-        htmls: some Sequence<String>,
+        html: some Sequence<String>,
         to directory: URL
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
-        try await render.html(htmls, to: directory)
+    ) async throws -> AsyncThrowingStream<PDF.Render.Result, Error> {
+        try await render.html(html, to: directory)
     }
 
     /// Render multiple documents to PDFs
@@ -128,7 +128,7 @@ extension PDF {
     /// - Throws: Rendering errors
     public func render(
         documents: some Sequence<PDF.Document>
-    ) async throws -> AsyncThrowingStream<PDF.Result, Error> {
+    ) async throws -> AsyncThrowingStream<PDF.Render.Result, Error> {
         try await render.documents(documents)
     }
 

@@ -112,6 +112,6 @@ extension PDF.Render {
         @DependencyEndpoint
         public var documents: @Sendable (
             _ documents: any Sequence<PDF.Document>
-        ) async throws -> AsyncThrowingStream<PDF.Result, Error>
+        ) async throws -> AsyncThrowingStream<PDF.Render.Result, Error>
     }
 }

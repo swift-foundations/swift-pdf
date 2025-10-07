@@ -325,14 +325,14 @@ struct StressTests {
                 </html>
                 """
                 
-                let htmls = (1...count).map { i in
+                let html = (1...count).map { i in
                     complexHTML.replacingOccurrences(of: "{{ID}}", with: "\(i)")
                 }
                 
                 print("Starting 1k complex PDF generation test...")
                 
                 var urls: [URL] = []
-                for try await result in try await pdf.render.client.html(htmls, to: output) {
+                for try await result in try await pdf.render.client.html(html, to: output) {
                     urls.append(result.url)
                 }
                 

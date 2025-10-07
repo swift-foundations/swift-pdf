@@ -14,12 +14,12 @@ extension PDF {
     ///
     /// - `.paginated`: Content is split into multiple pages (e.g., 3 pages of A4)
     ///   - Best for: Invoices, reports, documents for printing
-    ///   - Performance: Slower (538 PDFs/sec on M1)
+    ///   - Performance: 677 PDFs/sec (batch size 1,000 on M1)
     ///   - Implementation: Uses NSPrintOperation (macOS) or UIPrintPageRenderer (iOS)
     ///
     /// - `.continuous`: Single tall page containing all content
     ///   - Best for: Articles, web captures, infographics for screen viewing
-    ///   - Performance: Fast (1796 PDFs/sec on M1)
+    ///   - Performance: 1,939 PDFs/sec (batch size 1,000 on M1)
     ///   - Implementation: Uses WKWebView.createPDF
     ///
     /// - `.automatic`: Chooses based on content analysis
@@ -32,20 +32,23 @@ extension PDF {
         /// CSS page breaks are respected.
         /// Margins are applied via print settings.
         case paginated
-
+        
         /// Single continuous page
         ///
         /// Width matches `paperSize.width`, height matches content height.
         /// CSS page breaks are ignored.
         /// Margins are applied via CSS padding.
         case continuous
-
+        
         /// Automatically choose based on content analysis
         ///
         /// Uses the provided heuristic to determine whether to use
         /// paginated or continuous mode.
         case automatic(heuristic: AutomaticHeuristic = .contentLength())
     }
+}
+
+extension PDF.PaginationMode {
 
     /// Strategy for automatic pagination detection
     public enum AutomaticHeuristic: Sendable, Equatable {
@@ -86,7 +89,7 @@ extension PDF.PaginationMode {
     ///
     /// Provides a stable string representation for use in metrics dimensions.
     /// This allows segmentation of render duration metrics by pagination mode.
-    public var metricsLabel: String {
+    package var metricsLabel: String {
         switch self {
         case .continuous:
             return "continuous"
@@ -108,13 +111,12 @@ extension PDF.PaginationMode {
 }
 
 // MARK: - Internal Rendering Method
-
 extension PDF {
     /// Internal rendering method (not exposed in public API)
     ///
     /// This is the actual implementation strategy chosen after
     /// analyzing the pagination mode and content.
-    public enum InternalRenderingMethod {
+    package enum InternalRenderingMethod {
         case webView
         case printOperation
     }

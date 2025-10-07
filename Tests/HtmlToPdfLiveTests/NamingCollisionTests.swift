@@ -32,7 +32,7 @@ struct NamingCollisionTests {
                 )
             }
             
-            var results: [PDF.Result] = []
+            var results: [PDF.Render.Result] = []
             
             for try await result in try await pdf.render.client.documents(documents) {
                 results.append(result)
@@ -67,13 +67,13 @@ struct NamingCollisionTests {
             @Dependency(\.pdf) var configuredPDF
             
             // Use convenience method that respects naming strategy
-            let htmls = (1...10).map { i in
+            let html = (1...10).map { i in
                 "<html><body>Doc \(i)</body></html>"
             }
             
-            var results: [PDF.Result] = []
+            var results: [PDF.Render.Result] = []
             
-            for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
+            for try await result in try await configuredPDF.render.client.html(html, to: dir) {
                 results.append(result)
             }
             
@@ -97,13 +97,13 @@ struct NamingCollisionTests {
             @Dependency(\.pdf) var configuredPDF
             
             // Use convenience method that respects naming strategy
-            let htmls = (1...50).map { i in
+            let html = (1...50).map { i in
                 "<html><body>Doc \(i)</body></html>"
             }
             
-            var results: [PDF.Result] = []
+            var results: [PDF.Render.Result] = []
             
-            for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
+            for try await result in try await configuredPDF.render.client.html(html, to: dir) {
                 results.append(result)
             }
             
@@ -136,13 +136,13 @@ struct NamingCollisionTests {
             @Dependency(\.pdf) var configuredPDF
             
             // Use convenience method that respects naming strategy
-            let htmls = (1...10).map { i in
+            let html = (1...10).map { i in
                 "<html><body>Invoice \(i)</body></html>"
             }
             
-            var results: [PDF.Result] = []
+            var results: [PDF.Render.Result] = []
             
-            for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
+            for try await result in try await configuredPDF.render.client.html(html, to: dir) {
                 results.append(result)
             }
             
@@ -176,13 +176,13 @@ struct NamingCollisionTests {
                 let documentCount = 200
 
                 // Use convenience method that respects naming strategy
-                let htmls = (1...documentCount).map { i in
+                let html = (1...documentCount).map { i in
                     "<html><body>Document \(i)</body></html>"
                 }
 
-                var results: [PDF.Result] = []
+                var results: [PDF.Render.Result] = []
 
-                for try await result in try await configuredPDF.render.client.html(htmls, to: dir) {
+                for try await result in try await configuredPDF.render.client.html(html, to: dir) {
                     results.append(result)
                 }
 

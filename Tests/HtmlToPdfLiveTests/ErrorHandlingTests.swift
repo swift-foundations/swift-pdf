@@ -148,12 +148,12 @@ struct ErrorHandlingTests {
             let count = 20
 
             // Launch more concurrent operations than the pool size
-            let htmls = (1...count).map { i in
+            let html = (1...count).map { i in
                 "<html><body><h1>Document \(i)</h1></body></html>"
             }
 
             var urls: [URL] = []
-            for try await result in try await pdf.render.client.html(htmls, to: output) {
+            for try await result in try await pdf.render.client.html(html, to: output) {
                 urls.append(result.url)
             }
 
