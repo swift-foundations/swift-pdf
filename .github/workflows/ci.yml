@@ -36,8 +36,8 @@ jobs:
       - name: Run tests
         run: |
           export WEBVIEW_POOL_SILENT=1
-          # Skip slow tests for faster CI feedback
-          swift test -c ${{ matrix.config }} --skip tag:benchmark --skip tag:stress --skip tag:webViewMemory
+          # Skip slow tests for faster CI feedback (matches suite names with regex)
+          swift test -c ${{ matrix.config }} --skip "Performance Benchmarks|Stress Tests|WebView Memory"
 
   ios:
     name: iOS (Mac Catalyst)
