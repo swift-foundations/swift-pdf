@@ -351,7 +351,7 @@ try await withDependencies {
 
 ## Real-World Example: Invoice System
 
-Complete production-ready invoice generator:
+Production invoice generator using real patterns:
 
 ```swift
 import HtmlToPdf
@@ -359,113 +359,149 @@ import HTML
 
 // Type-safe invoice model
 struct Invoice: HTMLDocument {
-    let number: Int
-    let date: Date
-    let customer: Customer
-    let items: [LineItem]
+    let invoiceNumber: String
+    let invoiceDate: Date
+    let client: Client
+    let rows: [Row]
 
     var head: some HTML {
-        title { "Invoice #\(number)" }
+        title { "Invoice #\(invoiceNumber)" }
         style { invoiceCSS }
     }
 
     var body: some HTML {
-        div(.class("header")) {
-            h1 { "INVOICE" }
-            p(.class("invoice-number")) { "Invoice #\(number)" }
-            p(.class("invoice-date")) { "Date: \(date.formatted(date: .long, time: .omitted))" }
-        }
-
-        div(.class("customer")) {
-            h2 { "Bill To:" }
-            p { customer.name }
-            p { customer.address }
-            p { "\(customer.city), \(customer.state) \(customer.zip)" }
-        }
-
-        table(.class("items")) {
-            thead {
-                tr {
-                    th { "Description" }
-                    th(.class("right")) { "Quantity" }
-                    th(.class("right")) { "Price" }
-                    th(.class("right")) { "Total" }
+        // Header with invoice details
+        table {
+            tr {
+                td {
+                    h1 { "Invoice" }
+                        .margin(top: 0)
+                        .margin(bottom: 0)
                 }
-            }
-            tbody {
-                for item in items {
-                    tr {
-                        td { item.description }
-                        td(.class("right")) { "\(item.quantity)" }
-                        td(.class("right")) { "$\(item.price)" }
-                        td(.class("right")) { "$\(item.total)" }
+                .verticalAlign(.top)
+                .width(.percent(100))
+
+                td {
+                    table {
+                        tr {
+                            td { b { "Invoice Number" } }
+                                .padding(right: .px(15))
+                            td { invoiceNumber }
+                        }
+                        tr {
+                            td { b { "Invoice Date" } }
+                                .padding(right: .px(15))
+                            td { invoiceDate.formatted(date: .long, time: .omitted) }
+                        }
                     }
                 }
             }
-            tfoot {
+        }
+        .borderCollapse(.collapse)
+
+        br()()
+        br()()
+
+        // Items table
+        table {
+            thead {
                 tr {
-                    td(.colspan(3), .class("right")) { "Subtotal:" }
-                    td(.class("right")) { "$\(subtotal)" }
+                    td { b { "Description" } }
+                        .width(.percent(100))
+                        .padding(right: .px(15))
+                    td { b { "Quantity" } }
+                        .padding(right: .px(15))
+                    td { b { "Unit" } }
+                        .padding(right: .px(15))
+                    td { b { "Rate" } }
+                        .padding(right: .px(15))
+                    td { b { "VAT %" } }
+                        .padding(right: .px(15))
                 }
+                .inlineStyle("border-bottom", "1px solid #000")
+            }
+
+            HTMLForEach(rows) { row in
                 tr {
-                    td(.colspan(3), .class("right")) { "Tax (\(taxRate * 100)%):" }
-                    td(.class("right")) { "$\(tax)" }
-                }
-                tr(.class("total")) {
-                    td(.colspan(3), .class("right")) { "Total:" }
-                    td(.class("right")) { "$\(total)" }
+                    td { row.description }
+                        .padding(right: .px(15))
+                    td { "\(row.hours)" }
+                        .padding(right: .px(15))
+                    td { row.hours == 1 ? "Hour" : "Hours" }
+                        .padding(right: .px(15))
+                    td { row.rate.formatted(.currency(code: "USD")) }
+                        .padding(right: .px(15))
+                    td { "\(Int(row.vatPercentage * 100))%" }
+                        .padding(right: .px(15))
                 }
             }
         }
+        .borderCollapse(.separate)
 
-        div(.class("footer")) {
-            p { "Thank you for your business!" }
-            p(.class("small")) { "Payment due within 30 days" }
+        hr().body
+
+        // Totals
+        table {
+            tr {
+                td { HTMLEmpty() }
+                    .width(.percent(100))
+                td {
+                    table {
+                        tr {
+                            td { "Amount excl. VAT" }
+                                .whiteSpace(.nowrap)
+                                .padding(right: .px(15))
+                            td { totalExcludingVAT.formatted(.currency(code: "USD")) }
+                        }
+                        tr {
+                            td { "VAT" }
+                            td { totalVAT.formatted(.currency(code: "USD")) }
+                                .inlineStyle("border-bottom", "3px double #000")
+                        }
+                        tr {
+                            td { b { "Total Amount" } }
+                            td { b { totalIncludingVAT.formatted(.currency(code: "USD")) } }
+                        }
+                    }
+                }
+            }
         }
+        .borderCollapse(.collapse)
     }
 
     var invoiceCSS: String {
         """
-        body { font-family: -apple-system, system-ui; padding: 40px; color: #333; }
-        .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-        .invoice-number { font-size: 1.2em; font-weight: bold; }
-        .invoice-date { color: #666; }
-        .customer { margin-bottom: 30px; }
-        table { width: 100%; border-collapse: collapse; margin: 30px 0; }
-        th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid #333; }
-        td { padding: 10px; border-bottom: 1px solid #ddd; }
-        .right { text-align: right; }
-        tfoot td { font-weight: bold; border-bottom: none; padding-top: 20px; }
-        tfoot .total { font-size: 1.2em; background: #f5f5f5; }
-        .footer { text-align: center; margin-top: 40px; color: #666; }
-        .small { font-size: 0.9em; }
-        @media print {
-            body { padding: 20px; }
-            @page { margin: 0.5in; }
-        }
+        body { font-family: -apple-system, system-ui; color: #333; }
+        @media print { @page { margin: 0.5in; } }
         """
     }
 
-    var subtotal: Decimal { items.reduce(0) { $0 + $1.total } }
-    var taxRate: Decimal { 0.0825 } // 8.25%
-    var tax: Decimal { subtotal * taxRate }
-    var total: Decimal { subtotal + tax }
+    var totalExcludingVAT: Decimal {
+        rows.reduce(0) { $0 + $1.total }
+    }
+
+    var totalVAT: Decimal {
+        rows.reduce(0) { $0 + ($1.total * Decimal($1.vatPercentage)) }
+    }
+
+    var totalIncludingVAT: Decimal {
+        totalExcludingVAT + totalVAT
+    }
 }
 
-struct Customer {
+struct Client {
+    let id: String
     let name: String
-    let address: String
-    let city: String
-    let state: String
-    let zip: String
+    let address: [String]
 }
 
-struct LineItem {
+struct Row {
     let description: String
-    let quantity: Int
-    let price: Decimal
+    let hours: Decimal
+    let rate: Decimal
+    let vatPercentage: Double
 
-    var total: Decimal { Decimal(quantity) * price }
+    var total: Decimal { hours * rate }
 }
 
 // Invoice generation service
@@ -508,12 +544,15 @@ struct InvoiceService {
 
 **This example demonstrates:**
 - ✅ Type-safe HTML with Swift models
-- ✅ Professional CSS styling
-- ✅ Computed properties for calculations
-- ✅ Print-optimized layout with `@media print`
+- ✅ Real-world patterns from production code
+- ✅ Modern HTML DSL with `.padding()`, `.margin()`, `.inlineStyle()`
+- ✅ `HTMLForEach` for iterating collections
+- ✅ Nested tables for complex layouts
+- ✅ Computed properties for VAT calculations
+- ✅ Clean separation of concerns (model, view, styling)
+- ✅ Print-optimized with minimal CSS
 - ✅ Batch processing with streaming
 - ✅ Database integration
-- ✅ Real-time progress tracking
 - ✅ Email delivery
 
 ---
