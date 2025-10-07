@@ -619,9 +619,15 @@ struct PerformanceBenchmarks {
 
 // MARK: - Performance Analysis
 
+/// Performance analysis tests with detailed timing breakdowns
+///
+/// **Manual-only tests** (skipped in CI for faster feedback)
+///
+/// Run locally with: swift test --filter "Performance Analysis"
 @Suite(
     "Performance Analysis",
-    .serialized
+    .serialized,
+    .tags(.benchmark)
 )
 struct PerformanceAnalysisTests {
     @Dependency(\.pdf) var pdf
