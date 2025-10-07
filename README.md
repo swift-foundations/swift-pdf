@@ -96,8 +96,20 @@ for try await result in try await pdf.render(htmls: htmls, to: directory) {
 
 ### Type-Safe HTML (Optional)
 
-For compile-time safety, use [swift-html](https://github.com/coenttb/swift-html):
+For compile-time safety, enable the HTML trait to use [swift-html](https://github.com/coenttb/swift-html):
 
+**Package.swift:**
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/coenttb/swift-html-to-pdf.git",
+        from: "1.0.0",
+        traits: ["HTML"]  // ← Enable HTML trait
+    )
+]
+```
+
+**Usage:**
 ```swift
 import HtmlToPdf
 
@@ -178,26 +190,25 @@ Add to your target:
 )
 ```
 
+**Optional: Enable type-safe HTML DSL**
+
+To use the [swift-html](https://github.com/coenttb/swift-html) integration, enable the HTML trait:
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/coenttb/swift-html-to-pdf.git",
+        from: "1.0.0",
+        traits: ["HTML"]  // ← Enable HTML trait
+    )
+]
+```
+
 ### Requirements
 
 - **Swift 6.0+**
 - **macOS 14.0+** or **iOS 17.0+**
 - **Xcode 16.0+**
-
----
-
-## Comparison
-
-| Solution               | Throughput     | Memory     | Type-Safe | Platform | Cost  |
-|------------------------|----------------|------------|-----------|----------|-------|
-| **swift-html-to-pdf**  | **1,939/sec**  | Constant   | ✅ Swift 6| Apple    | Free  |
-| wkhtmltopdf            | ~100/sec       | Growing    | ❌ CLI    | Linux    | Free  |
-| Puppeteer              | ~50/sec        | High       | ❌ JS     | Cross    | Free  |
-| PDFKit (native)        | N/A            | Low        | Partial   | Apple    | Free  |
-| AWS Lambda             | ~1,667/sec     | Per-call   | ❌        | Cloud    | $$$   |
-| Commercial APIs        | Varies         | N/A        | ❌        | Cloud    | $$$$  |
-
-**swift-html-to-pdf is the fastest open-source solution for Apple platforms.**
 
 ---
 
@@ -316,16 +327,9 @@ Contributions welcome! Please:
 
 ## Related Projects
 
-Part of the [coenttb Swift ecosystem](https://github.com/coenttb):
+Part of the [coenttb Swift ecosystem](https://github.com/coenttb), and optionally integrates with [swift-html](https://github.com/coenttb/swift-html)** - Type-safe HTML & CSS DSL.
 
-- **[swift-html](https://github.com/coenttb/swift-html)** - Type-safe HTML & CSS DSL
-- **[pointfree-html](https://github.com/coenttb/pointfree-html)** - HTML DSL foundation
-
-Built on [Point-Free](https://www.pointfree.co) dependencies:
-
-- **[swift-dependencies](https://github.com/pointfreeco/swift-dependencies)** - Dependency injection
-- **[swift-metrics](https://github.com/apple/swift-metrics)** - Production metrics
-
+Built on [Point-Free](https://www.pointfree.co)'s' [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), and integrates with [swift-metrics](https://github.com/apple/swift-metrics). 
 ---
 
 ## License
