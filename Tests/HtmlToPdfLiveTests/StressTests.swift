@@ -4,6 +4,9 @@
 //
 //  Extreme stress tests for resource pool under heavy load
 //
+//  **Manual-only tests** (skipped in CI for faster feedback)
+//  Run locally with: swift test --filter tag:stress
+//
 
 import Testing
 import Foundation

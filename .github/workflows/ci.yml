@@ -36,7 +36,8 @@ jobs:
       - name: Run tests
         run: |
           export WEBVIEW_POOL_SILENT=1
-          swift test -c ${{ matrix.config }}
+          # Skip slow tests for faster CI feedback
+          swift test -c ${{ matrix.config }} --skip tag:benchmark --skip tag:stress --skip tag:webViewMemory
 
   ios:
     name: iOS (Mac Catalyst)
@@ -61,10 +62,14 @@ jobs:
       - name: Run Mac Catalyst Tests
         run: |
           export WEBVIEW_POOL_SILENT=1
+          # Skip slow tests for faster CI feedback
           xcodebuild test \
             -scheme swift-html-to-pdf \
             -destination 'platform=macOS,variant=Mac Catalyst' \
             -derivedDataPath .build/catalyst \
+            -skip-testing:HtmlToPdfLiveTests/PerformanceBenchmarks \
+            -skip-testing:HtmlToPdfLiveTests/StressTests \
+            -skip-testing:HtmlToPdfLiveTests/WebViewMemoryTests \
             | xcpretty || exit 1
         continue-on-error: true  # Tests may timeout but compilation is what matters
 

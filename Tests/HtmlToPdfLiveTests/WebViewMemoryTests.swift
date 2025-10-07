@@ -4,6 +4,9 @@
 //
 //  Tests to empirically measure WebView memory usage
 //
+//  **Manual-only tests** (skipped in CI for faster feedback)
+//  Run locally with: swift test --filter tag:webViewMemory
+//
 
 import Testing
 import Foundation

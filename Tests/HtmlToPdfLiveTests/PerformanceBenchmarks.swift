@@ -39,7 +39,9 @@ extension TestMetricsBackend {
 
 /// Performance benchmarks for generating README statistics
 ///
-/// Run with: swift test --filter tag:benchmark
+/// **Manual-only tests** (skipped in CI for faster feedback)
+///
+/// Run locally with: swift test --filter tag:benchmark
 ///
 /// These tests generate consistent performance metrics for documentation.
 /// Run multiple times and report the median results.
@@ -297,7 +299,11 @@ struct PerformanceBenchmarks {
 
     // MARK: - Summary Report
 
-    @Test("Generate README Performance Table", .timeLimit(.minutes(10)))
+    @Test(
+        "Generate README Performance Table",
+        .disabled(),
+        .timeLimit(.minutes(10))
+    )
     func generateReadmeTable() async throws {
         print("\n")
         print("╔═══════════════════════════════════════════════════════════════════════════╗")
