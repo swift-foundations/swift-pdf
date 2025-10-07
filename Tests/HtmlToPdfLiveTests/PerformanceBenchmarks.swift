@@ -731,11 +731,7 @@ struct PerformanceAnalysisTests {
             recordPoolAcquisitionTime: { storage.addPool($0) },
             recordWebViewRenderTime: { storage.addRender($0) },
             recordCSSInjectionTime: { storage.addCSS($0) },
-            recordDataConversionTime: { storage.addData($0) },
-            getCurrentPDFCount: { 0 },
-            getCurrentThroughput: { 0 },
-            getCurrentPoolUtilization: { 0 },
-            getP95RenderTime: { 0 }
+            recordDataConversionTime: { storage.addData($0) }
         )
 
         try await withDependencies {

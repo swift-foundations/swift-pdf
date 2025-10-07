@@ -86,7 +86,7 @@ extension PDF.PaginationMode {
     ///
     /// Provides a stable string representation for use in metrics dimensions.
     /// This allows segmentation of render duration metrics by pagination mode.
-    var metricsLabel: String {
+    public var metricsLabel: String {
         switch self {
         case .continuous:
             return "continuous"

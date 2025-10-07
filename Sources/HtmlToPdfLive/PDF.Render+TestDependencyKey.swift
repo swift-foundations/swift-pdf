@@ -38,3 +38,33 @@ extension PDF.Render: TestDependencyKey {
 extension PDF.Render.Client: TestDependencyKey {
     public static let testValue = PDF.Render.Client()
 }
+
+extension PDF.Render.Metrics: TestDependencyKey {
+    /// Test value that silently ignores all metric operations (no-op)
+    ///
+    /// This allows tests to run without triggering unimplemented errors.
+    /// For testing with metrics observation, bootstrap TestMetricsBackend from PDFTestSupport:
+    ///
+    /// ```swift
+    /// let backend = TestMetricsBackend()
+    /// MetricsSystem.bootstrap(backend)
+    ///
+    /// // Run code that records metrics
+    /// try await pdf.render(html: html, to: url)
+    ///
+    /// // Query backend directly
+    /// #expect(backend.counters["htmltopdf_pdfs_generated_total"]?.value == 1)
+    /// ```
+    public static let testValue = PDF.Render.Metrics(
+        incrementPDFsGenerated: {},
+        incrementPDFsFailed: {},
+        incrementPoolReplacements: {},
+        recordRenderDuration: { _, _ in },
+        updatePoolUtilization: { _ in },
+        updateThroughput: { _ in },
+        recordPoolAcquisitionTime: { _ in },
+        recordWebViewRenderTime: { _ in },
+        recordCSSInjectionTime: { _ in },
+        recordDataConversionTime: { _ in }
+    )
+}
