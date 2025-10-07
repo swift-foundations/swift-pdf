@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "D1A54D3C-4651-44CD-AB9D-502650D4C8D8",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "HtmlToPdfTests",
+        "name" : "HtmlToPdfTests"
+      }
+    }
+  ],
+  "version" : 1
+}

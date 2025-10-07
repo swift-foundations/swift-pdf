@@ -159,11 +159,11 @@ struct NamingCollisionTests {
     func testHighConcurrencyNamingCollisions() async throws {
         @Dependency(\.pdf) var pdf
 
-        // Use platform maximum concurrency (macOS: 16, iOS: 8)
+        // Use high concurrency for stress testing
         #if os(macOS)
-        let platformMax = PDF.Render.ConcurrencyLimit.testedMacOS
+        let platformMax = 32
         #else
-        let platformMax = PDF.Render.ConcurrencyLimit.testedIOS
+        let platformMax = 8
         #endif
 
         try await withTemporaryDirectory { dir in

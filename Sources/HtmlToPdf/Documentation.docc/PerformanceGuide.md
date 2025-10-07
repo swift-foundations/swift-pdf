@@ -275,69 +275,6 @@ $0.pdf.render.configuration.concurrency = 8
 
 ---
 
-## Adaptive Throughput Optimization
-
-### What It Does
-
-**Self-healing performance.** The library monitors throughput and automatically fixes degradation.
-
-```swift
-try await withDependencies {
-    $0.pdf.render.configuration.adaptiveThroughputOptimization = true
-} operation: {
-    // Process millions of PDFs
-    // Library auto-detects and fixes performance drops
-}
-```
-
-**How it works:**
-
-1. **Monitor:** Track throughput every 1,000 PDFs
-2. **Detect:** Is current throughput >15% below peak?
-3. **Act:** Trigger early pool replacement
-4. **Restore:** Fresh pool restores peak performance
-
-**Example scenario:**
-
-```
-PDFs 0-1K:    1,386/sec  ← Peak established
-PDFs 1K-2K:   1,398/sec  ← Stable
-PDFs 2K-3K:   1,402/sec  ← Stable
-...
-PDFs 47K-48K: 1,158/sec  ← Detected: 16% below peak
-PDFs 48K-49K: Replacing pool (200ms)
-PDFs 49K-50K: 1,372/sec  ← Restored: Back to peak
-```
-
-**Without optimization:**
-- Throughput degrades 44% over 100K PDFs
-- No recovery without restart
-
-**With optimization:**
-- Throughput degrades max 19% (minimal, inevitable)
-- Auto-recovery every ~50K PDFs
-- 60% faster over 1M PDFs
-
-### When to Enable
-
-**Enable when:**
-- Batches >10,000 PDFs
-- Long-running processes (hours)
-- Variable document complexity
-- Need consistent throughput over time
-
-**Skip when:**
-- Small batches (<1,000 PDFs)
-- Short-lived processes
-- Memory is extremely constrained
-- Occasional throughput dips are acceptable
-
-**Cost:**
-- ~100-200ms overhead every ~50K PDFs
-- Negligible for large batches
-
----
-
 ## Memory Management
 
 ### Constant Memory Regardless of Batch Size
@@ -382,11 +319,6 @@ for try await result in try await pdf.render(htmls: htmls, to: directory) {
 **Tip 2:** Lower concurrency if memory is extremely constrained
 ```swift
 $0.pdf.render.configuration.concurrency = 2  // Minimal memory footprint
-```
-
-**Tip 3:** Enable adaptive optimization for long-running processes
-```swift
-$0.pdf.render.configuration.adaptiveThroughputOptimization = true
 ```
 
 ---
@@ -568,12 +500,7 @@ for try await result in try await pdf.render(...) {
 }
 ```
 
-**Check #2:** Is adaptive optimization enabled for large batches?
-```swift
-$0.pdf.render.configuration.adaptiveThroughputOptimization = true
-```
-
-**Check #3:** macOS memory compression?
+**Check #2:** macOS memory compression?
 - macOS may show high memory usage but it's compressed
 - Check "Memory Pressure" in Activity Monitor (should be green)
 
@@ -584,12 +511,12 @@ $0.pdf.render.configuration.adaptiveThroughputOptimization = true
 - Subsequent batches are at peak throughput
 
 **Cause #2:** System load fluctuations
-- **Solution:** Enable adaptive optimization
-- Monitors and adjusts automatically
+- **Solution:** Monitor system resources
+- Close competing applications
 
 **Cause #3:** Variable document complexity
 - **Solution:** Batch similar documents together
-- Or use adaptive optimization
+- Consider testing with representative samples
 
 ---
 

@@ -94,26 +94,23 @@ let html = "<p><h1>Title</h1></p>"
 ```swift
 import HTML
 
-struct Invoice: HTML {
+struct Invoice: HTMLDocument {
     let number: Int
     let total: Decimal
 
-    var body: some HTML {
-        html {
-            head {
-                title { "Invoice #\(number)" }
-                style { """
-                    body { font-family: system-ui; padding: 20px; }
-                    h1 { color: #333; }
-                    """
-                }
-            }
-            body {
-                h1 { "Invoice #\(number)" }
-                p { "Thank you for your business!" }
-                p { "Total: $\(total)" }
-            }
+    var head: some HTML {
+        title { "Invoice #\(number)" }
+        style { """
+            body { font-family: system-ui; padding: 20px; }
+            h1 { color: #333; }
+            """
         }
+    }
+
+    var body: some HTML {
+        h1 { "Invoice #\(number)" }
+        p { "Thank you for your business!" }
+        p { "Total: $\(total)" }
     }
 }
 
@@ -132,31 +129,31 @@ try await pdf.render(html: Invoice(number: 1234, total: 99.99), to: fileURL)
 Use all of Swift's features:
 
 ```swift
-struct Report: HTML {
+struct Report: HTMLDocument {
     let items: [LineItem]
 
+    var head: some HTML {
+        title { "Sales Report" }
+    }
+
     var body: some HTML {
-        html {
-            body {
-                h1 { "Sales Report" }
+        h1 { "Sales Report" }
 
-                // For loops
-                for item in items {
-                    div {
-                        p { item.name }
-                        p { "$\(item.price)" }
-                    }
-                }
-
-                // Conditionals
-                if items.isEmpty {
-                    p { "No items to display" }
-                }
-
-                // Computed properties
-                p { "Total: $\(totalPrice)" }
+        // For loops
+        for item in items {
+            div {
+                p { item.name }
+                p { "$\(item.price)" }
             }
         }
+
+        // Conditionals
+        if items.isEmpty {
+            p { "No items to display" }
+        }
+
+        // Computed properties
+        p { "Total: $\(totalPrice)" }
     }
 
     var totalPrice: Decimal {
@@ -249,7 +246,6 @@ try await withDependencies {
 
         // Performance
         concurrency: 24,                       // Max throughput
-        adaptiveThroughputOptimization: true,  // Self-healing
 
         // Timeouts
         documentTimeout: .seconds(30),         // Per-document
@@ -276,58 +272,55 @@ import HTML
 import Dependencies
 
 // Type-safe invoice model
-struct Invoice: HTML {
+struct Invoice: HTMLDocument {
     let number: Int
     let date: Date
     let customer: Customer
     let items: [LineItem]
 
+    var head: some HTML {
+        title { "Invoice #\(number)" }
+        style { invoiceCSS }
+    }
+
     var body: some HTML {
-        html {
-            head {
-                title { "Invoice #\(number)" }
-                style { invoiceCSS }
-            }
-            body {
-                div(.class("header")) {
-                    h1 { "INVOICE" }
-                    p { "Invoice #\(number)" }
-                    p { "Date: \(formattedDate)" }
-                }
+        div(.class("header")) {
+            h1 { "INVOICE" }
+            p { "Invoice #\(number)" }
+            p { "Date: \(formattedDate)" }
+        }
 
-                div(.class("customer")) {
-                    h2 { "Bill To:" }
-                    p { customer.name }
-                    p { customer.address }
-                }
+        div(.class("customer")) {
+            h2 { "Bill To:" }
+            p { customer.name }
+            p { customer.address }
+        }
 
-                table(.class("items")) {
-                    thead {
-                        tr {
-                            th { "Item" }
-                            th { "Quantity" }
-                            th { "Price" }
-                            th { "Total" }
-                        }
-                    }
-                    tbody {
-                        for item in items {
-                            tr {
-                                td { item.name }
-                                td { "\(item.quantity)" }
-                                td { "$\(item.price)" }
-                                td { "$\(item.total)" }
-                            }
-                        }
-                    }
-                }
-
-                div(.class("total")) {
-                    p { "Subtotal: $\(subtotal)" }
-                    p { "Tax: $\(tax)" }
-                    p { "Total: $\(total)" }
+        table(.class("items")) {
+            thead {
+                tr {
+                    th { "Item" }
+                    th { "Quantity" }
+                    th { "Price" }
+                    th { "Total" }
                 }
             }
+            tbody {
+                for item in items {
+                    tr {
+                        td { item.name }
+                        td { "\(item.quantity)" }
+                        td { "$\(item.price)" }
+                        td { "$\(item.total)" }
+                    }
+                }
+            }
+        }
+
+        div(.class("total")) {
+            p { "Subtotal: $\(subtotal)" }
+            p { "Tax: $\(tax)" }
+            p { "Total: $\(total)" }
         }
     }
 
@@ -407,11 +400,6 @@ $0.pdf.render.configuration.paginationMode = .paginated   // 696 PDFs/sec
 **Level 3:** Tune concurrency
 ```swift
 $0.pdf.render.configuration.concurrency = 24  // 3x CPU count = optimal
-```
-
-**Level 4:** Enable adaptive optimization (for large batches)
-```swift
-$0.pdf.render.configuration.adaptiveThroughputOptimization = true
 ```
 
 ### When to Use Each Pagination Mode

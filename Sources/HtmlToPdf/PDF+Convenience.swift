@@ -22,12 +22,13 @@ extension PDF {
     /// ```swift
     /// import HTML
     ///
-    /// struct MyPage: HTML {
+    /// struct MyPage: HTMLDocument {
+    ///     var head: some HTML {
+    ///         title { "My Document" }
+    ///     }
+    ///
     ///     var body: some HTML {
-    ///         html {
-    ///             head { title { "My Document" } }
-    ///             body { h1 { "Hello, World!" } }
-    ///         }
+    ///         h1 { "Hello, World!" }
     ///     }
     /// }
     ///

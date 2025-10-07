@@ -84,7 +84,7 @@ extension PDF {
     /// - **iOS**: min(CPU count, 4) - conservative for thermal/battery constraints
     ///
     /// **Tested values:**
-    /// - macOS: 24-32 concurrent works excellently (see empirical data in ``PDF/Render/ConcurrencyLimit``)
+    /// - macOS: 24-32 concurrent works excellently
     /// - iOS: 4-8 tested, varies by device
     ///
     /// **You can set higher:**

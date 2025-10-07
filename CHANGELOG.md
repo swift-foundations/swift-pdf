@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- HTML DSL integration tests (`HTMLDSLExamplesTests.swift`) with 5 tests verifying swift-html integration works correctly
+
+### Changed
+- Replaced deprecated `ProgressTracker` with `MetricsProgressTracker` in StressTests
+
+### Fixed
+- Corrected HTML DSL syntax throughout documentation to use `HTMLDocument` protocol with separate `head` and `body` properties
+- Updated swift-html examples in README.md, MIGRATION.md, GettingStarted.md, and PDF+Convenience.swift to reflect proper syntax
+
+### Removed
+- `adaptiveThroughputOptimization` configuration option (legacy self-healing feature)
+- `PDF.Render.ConcurrencyLimit` enum (reference-only documentation values replaced with inline constants)
+- All documentation mentions of adaptive optimization feature from README, GettingStarted, PerformanceGuide, ConfigurationGuide, and MetricsGuide
+
 ## [0.5.0] - 2025-09-29
 
 ### Added

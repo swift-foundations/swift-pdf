@@ -232,15 +232,6 @@ struct PlatformSpecificTests {
 
     // MARK: - Concurrency Limits
 
-    @Test("Platform concurrency limits are correctly defined (reference values)")
-    func platformConcurrencyLimits() {
-        #if os(macOS)
-        #expect(PDF.Render.ConcurrencyLimit.testedMacOS == 32, "macOS tested maximum is 32")
-        #else
-        #expect(PDF.Render.ConcurrencyLimit.testedIOS == 8, "iOS tested maximum is 8")
-        #endif
-    }
-
     @Test("High concurrency is allowed (no artificial limits)")
     func testHighConcurrencyAllowed() async throws {
         await withTemporaryDirectory { dir in

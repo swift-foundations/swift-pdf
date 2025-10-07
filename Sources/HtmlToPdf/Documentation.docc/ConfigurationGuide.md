@@ -54,7 +54,6 @@ try await withDependencies {
         baseURL: URL(string: "https://example.com"),
         paginationMode: .paginated,
         concurrency: 16,
-        adaptiveThroughputOptimization: true,
         documentTimeout: .seconds(30),
         batchTimeout: .seconds(3600),
         webViewAcquisitionTimeout: .seconds(300),
@@ -180,25 +179,6 @@ $0.pdf.render.configuration.concurrency = 8
 - **4-8 WebViews**: Balanced (typical iOS constraint)
 - **12-24 WebViews**: High throughput (macOS optimal)
 
-### Adaptive Throughput Optimization
-
-Enable real-time performance monitoring and optimization:
-
-```swift
-$0.pdf.render.configuration.adaptiveThroughputOptimization = true
-```
-
-**When enabled:**
-- Monitors throughput every 1,000 PDFs
-- Detects performance degradation (>15% drop from peak)
-- Triggers early pool replacement to restore performance
-- Adapts to changing workload characteristics
-
-**Recommended for:**
-- Batches >10,000 PDFs
-- Variable document complexity
-- Long-running background processes
-
 ### Timeouts
 
 Prevent hanging on problematic documents:
@@ -263,7 +243,6 @@ $0.pdf.render.configuration = PDF.Configuration(
     margins: .standard,
     paginationMode: .continuous,  // Fast mode
     concurrency: .automatic,      // Maximum throughput
-    adaptiveThroughputOptimization: true,
     batchTimeout: .seconds(86400), // 24 hours
     createDirectories: true
 )
@@ -294,7 +273,6 @@ $0.pdf.render.configuration = PDF.Configuration(
     margins: .standard,
     paginationMode: .continuous,
     concurrency: 2,               // Minimal concurrency
-    adaptiveThroughputOptimization: false,
     webViewAcquisitionTimeout: .seconds(60),
     createDirectories: true
 )

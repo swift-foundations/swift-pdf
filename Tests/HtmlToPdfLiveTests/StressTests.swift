@@ -192,7 +192,20 @@ struct StressTests {
                 let count = 200_000
                 let filesPerDirectory = 1_000 // Keep directories manageable
                 
-                let tracker = ProgressTracker(totalCount: count, reportInterval: 5.0)
+                @Dependency(\.logger) var logger
+
+                // Create custom log handler
+                let customLogHandler: @Sendable (String, Logger.Metadata) -> Void = { message, metadata in
+                    logger.info("\(message)", metadata: metadata)
+                }
+
+                let tracker = MetricsProgressTracker(
+                    totalCount: count,
+                    reportInterval: .seconds(5.0),
+                    logHandler: customLogHandler
+                )
+                await tracker.start()
+
                 let startTime = Date()
                 
                 // Create subdirectories to avoid file system degradation
@@ -227,11 +240,11 @@ struct StressTests {
                 let stream = try await pdf.render.client.documents(documents)
                 
                 for try await _ in stream {
-                    _ = await tracker.recordCompletion()
+                    // Metrics system handles tracking
                 }
-                
+
+                await tracker.stop()
                 let duration = Date().timeIntervalSince(startTime)
-                _ = await tracker.completed
                 
                 // Verify all files were created by counting across all subdirectories
                 var totalFiles = 0

@@ -609,18 +609,16 @@ This architecture ensures production gets real metrics backends while tests get 
 
 If you see frequent pool replacements:
 
-1. **Check configuration**
-   ```swift
-   // Ensure adaptive optimization is working
-   $0.pdf.render.configuration.adaptiveThroughputOptimization = true
-   ```
-
-2. **Monitor memory usage**
+1. **Monitor memory usage**
    ```promql
    process_resident_memory_bytes
    ```
 
-3. **Consider increasing pool size**
+2. **Check system resource pressure**
+   - Monitor CPU utilization
+   - Check available memory
+
+3. **Consider increasing pool size if needed**
    ```swift
    $0.pdf.render.configuration.concurrency = 32  // Increase from default 24
    ```

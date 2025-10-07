@@ -235,14 +235,15 @@ try await pdf.render(html: "<html>...</html>", to: url)
 // Option 2: Type-safe HTML (NEW!)
 import HTML
 
-struct Invoice: HTML {
+struct Invoice: HTMLDocument {
     let number: Int
 
+    var head: some HTML {
+        title { "Invoice #\(number)" }
+    }
+
     var body: some HTML {
-        html {
-            head { title { "Invoice #\(number)" } }
-            body { h1 { "Invoice #\(number)" } }
-        }
+        h1 { "Invoice #\(number)" }
     }
 }
 

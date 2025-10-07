@@ -13,19 +13,8 @@ extension String {
     static var dependenciesTestSupport: Self { "DependenciesTestSupport" }
     static var loggingExtras: Self { "LoggingExtras" }
     static var metrics: Self { "Metrics" }
-    static var pointFreeHTML: Self { "PointFreeHTML" }
     static var html: Self { "HTML" }
     static var resourcePool: Self { "ResourcePool" }
-}
-
-// MARK: - Package Dependency Extensions
-extension Package.Dependency {
-    static var swiftDependencies: Package.Dependency { .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.8.0") }
-    static var swiftLoggingExtras: Package.Dependency { .package(url: "https://github.com/coenttb/swift-logging-extras", from: "0.0.1") }
-    static var swiftMetrics: Package.Dependency { .package(url: "https://github.com/apple/swift-metrics", from: "2.4.0") }
-    static var swiftResourcePool: Package.Dependency { .package(path: "../swift-resource-pool") }
-    static var pointfreeHtml: Package.Dependency { .package(path: "../pointfree-html") }
-    static var swiftHtml: Package.Dependency { .package(path: "../swift-html") }
 }
 
 // MARK: - Target Dependency Extensions
@@ -34,14 +23,25 @@ extension Target.Dependency {
     static var htmlToPdfLive: Self { .target(name: .htmlToPdfLive) }
     static var htmlToPdf: Self { .target(name: .htmlToPdf) }
     static var pdfTestSupport: Self { .target(name: .pdfTestSupport) }
+}
+
+extension Target.Dependency {
     static var dependencies: Self { .product(name: .dependencies, package: "swift-dependencies") }
     static var dependenciesMacros: Self { .product(name: .dependenciesMacros, package: "swift-dependencies") }
     static var dependenciesTestSupport: Self { .product(name: .dependenciesTestSupport, package: "swift-dependencies") }
     static var loggingExtras: Self { .product(name: .loggingExtras, package: "swift-logging-extras") }
     static var metrics: Self { .product(name: .metrics, package: "swift-metrics") }
-    static var pointFreeHTML: Self { .product(name: .pointFreeHTML, package: "pointfree-html") }
-    static var html: Self { .product(name: .html, package: "swift-html") }
     static var resourcePool: Self { .product(name: .resourcePool, package: "swift-resource-pool") }
+    static var html: Self { .product(name: .html, package: "swift-html") }
+}
+
+// MARK: - Package Dependencies (to help compiler with traits complexity)
+extension Package.Dependency {
+    static var swiftDependencies: Package.Dependency { .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.8.0") }
+    static var swiftLoggingExtras: Package.Dependency { .package(url: "https://github.com/coenttb/swift-logging-extras", from: "0.0.1") }
+    static var swiftMetrics: Package.Dependency { .package(url: "https://github.com/apple/swift-metrics", from: "2.4.0") }
+    static var swiftResourcePool: Package.Dependency { .package(url: "https://github.com/coenttb/swift-resource-pool", from: "0.1.0") }
+    static var swiftHtml: Package.Dependency { .package(url: "https://github.com/coenttb/swift-html", from: "0.1.0") }
 }
 
 let package = Package(
@@ -69,7 +69,8 @@ let package = Package(
         .trait(
             name: "HTML",
             description: "Include HTML integration (swift-html with PointFreeHTML)"
-        )
+        ),
+        .default(enabledTraits: ["HTML"]),
     ],
     dependencies: [
         .swiftDependencies,
