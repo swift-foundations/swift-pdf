@@ -157,6 +157,7 @@ for try await result in try await pdf.render(html: html, to: directory) {
 - Automatic lifecycle management
 - FIFO fairness under load
 - Optimal concurrency: 1x CPU count (8 WebViews on 8-core Mac)
+- Powered by [swift-resource-pool](https://github.com/coenttb/swift-resource-pool)
 
 ### 3. Swift 6 Strict Concurrency
 
