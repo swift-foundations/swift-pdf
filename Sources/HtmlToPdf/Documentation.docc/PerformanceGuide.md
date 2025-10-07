@@ -146,7 +146,7 @@ try await withDependencies {
 ```
 
 **Characteristics:**
-- **5.1x faster** than paginated mode
+- **2.9x faster** than paginated mode
 - Single tall page (height = content height)
 - CSS page breaks are ignored
 - Uses modern `WKWebView.createPDF()` API
@@ -183,7 +183,7 @@ try await withDependencies {
 - Documents for physical printing
 - When page breaks must be precise
 
-**Trade-off:** 5.1x slower due to page break calculation overhead
+**Trade-off:** 2.9x slower due to page break calculation overhead
 
 ### Automatic Mode: Smart Detection
 

@@ -20,7 +20,7 @@ Generate a PDF in one line:
 
 ```swift
 @Dependency(\.pdf) var pdf
-try await pdf.html("<html><body><h1>Hello</h1></body></html>", to: fileURL)
+try await pdf.render(html: "<html><body><h1>Hello</h1></body></html>", to: fileURL)
 ```
 
 ## Topics
@@ -30,6 +30,10 @@ try await pdf.html("<html><body><h1>Hello</h1></body></html>", to: fileURL)
 - <doc:GettingStarted>
 - <doc:PerformanceGuide>
 - <doc:ConfigurationGuide>
+
+### Observability
+
+- <doc:MetricsGuide>
 
 ### Core Types
 

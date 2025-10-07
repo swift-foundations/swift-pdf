@@ -11,9 +11,30 @@ import Dependencies
 import PDFTestSupport
 import Metrics
 @testable import HtmlToPdfLive
+@testable import CoreMetrics
 
 extension Tag {
     @Tag static var benchmark: Self
+}
+
+// MARK: - Test-Only Extensions
+
+extension TestMetricsBackend {
+    /// Shared test metrics backend with singleton pattern to avoid bootstrap crashes
+    ///
+    /// Uses `bootstrapInternal()` which allows multiple bootstrap calls for testing.
+    /// This is only available in test targets with `@testable import CoreMetrics`.
+    static let shared: TestMetricsBackend = {
+        let backend = TestMetricsBackend()
+        MetricsSystem.bootstrapInternal(backend)
+        return backend
+    }()
+
+    /// Create or get the shared test backend
+    static func forTest() -> TestMetricsBackend {
+        shared.reset()
+        return shared
+    }
 }
 
 /// Performance benchmarks for generating README statistics

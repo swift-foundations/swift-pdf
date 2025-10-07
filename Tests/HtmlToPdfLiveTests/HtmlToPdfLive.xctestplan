@@ -15,8 +15,8 @@
     {
       "target" : {
         "containerPath" : "container:",
-        "identifier" : "HtmlToPdfTests",
-        "name" : "HtmlToPdfTests"
+        "identifier" : "HtmlToPdfLiveTests",
+        "name" : "HtmlToPdfLiveTests"
       }
     }
   ],

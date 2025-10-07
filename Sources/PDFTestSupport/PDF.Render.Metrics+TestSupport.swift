@@ -20,7 +20,7 @@
 
 import Dependencies
 import Foundation
-@testable import HtmlToPdfTypes
+import HtmlToPdfTypes
 
 // MARK: - Metrics Storage Dependency
 

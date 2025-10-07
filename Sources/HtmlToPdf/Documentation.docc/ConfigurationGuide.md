@@ -144,7 +144,7 @@ Choose how content flows into pages:
 // Single tall page (fast, 1,939 PDFs/sec)
 $0.pdf.render.configuration.paginationMode = .continuous
 
-// Multiple pages (print-ready, 696 PDFs/sec)
+// Multiple pages (print-ready, 677 PDFs/sec)
 $0.pdf.render.configuration.paginationMode = .paginated
 
 // Automatic selection based on content

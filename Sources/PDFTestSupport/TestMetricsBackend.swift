@@ -7,7 +7,6 @@
 
 import Foundation
 import Metrics
-@testable import CoreMetrics  // Access internal bootstrapInternal for testing
 import Dependencies
 
 /// Test metrics backend that captures all recorded metrics for testing
@@ -447,26 +446,22 @@ public final class TestRecorder: RecorderHandler, @unchecked Sendable {
 }
 
 // MARK: - Direct Usage (for tests that don't use Dependencies)
-
-extension TestMetricsBackend {
-    /// Create and bootstrap a test backend for direct use
-    ///
-    /// Use this when you need a standalone metrics backend for testing,
-    /// outside of the Dependencies framework:
-    ///
-    /// ```swift
-    /// let backend = TestMetricsBackend.forTest()
-    /// // Metrics are now captured in this backend
-    /// #expect(backend.counter("my_counter")?.value == 1)
-    /// ```
-    ///
-    /// **Note**: For testing with Dependencies, use `@Dependency(\.pdf).render.metrics.testBackend` instead.
-    public static func forTest() -> TestMetricsBackend {
-        let backend = TestMetricsBackend()
-        MetricsSystem.bootstrapInternal(backend)
-        return backend
-    }
-}
+//
+// Note: The `forTest()` method requires `@testable import CoreMetrics` to access
+// `bootstrapInternal()`, which is not available in library targets when building
+// for release. Tests that need this functionality should implement it locally with:
+//
+// ```swift
+// @testable import CoreMetrics
+//
+// extension TestMetricsBackend {
+//     static let shared: TestMetricsBackend = {
+//         let backend = TestMetricsBackend()
+//         MetricsSystem.bootstrapInternal(backend)
+//         return backend
+//     }()
+// }
+// ```
 
 // MARK: - Note on Test Isolation with Dependencies
 //

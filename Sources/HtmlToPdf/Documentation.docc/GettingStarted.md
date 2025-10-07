@@ -397,23 +397,23 @@ struct Invoice: HTMLDocument {
                     tr {
                         td { item.description }
                         td(.class("right")) { "\(item.quantity)" }
-                        td(.class("right")) { "$\(item.price, format: .currency)" }
-                        td(.class("right")) { "$\(item.total, format: .currency)" }
+                        td(.class("right")) { "$\(item.price)" }
+                        td(.class("right")) { "$\(item.total)" }
                     }
                 }
             }
             tfoot {
                 tr {
                     td(.colspan(3), .class("right")) { "Subtotal:" }
-                    td(.class("right")) { "$\(subtotal, format: .currency)" }
+                    td(.class("right")) { "$\(subtotal)" }
                 }
                 tr {
-                    td(.colspan(3), .class("right")) { "Tax (\(taxRate)%):" }
-                    td(.class("right")) { "$\(tax, format: .currency)" }
+                    td(.colspan(3), .class("right")) { "Tax (\(taxRate * 100)%):" }
+                    td(.class("right")) { "$\(tax)" }
                 }
                 tr(.class("total")) {
                     td(.colspan(3), .class("right")) { "Total:" }
-                    td(.class("right")) { "$\(total, format: .currency)" }
+                    td(.class("right")) { "$\(total)" }
                 }
             }
         }

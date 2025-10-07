@@ -246,7 +246,7 @@ struct App {
             let html = try await request.body.collect(upTo: .max)
             let htmlString = String(buffer: html)
 
-            let pdfData = try await pdf.render(html: htmltring)
+            let pdfData = try await pdf.render(html: htmlString)
 
             return Response(
                 status: .ok,
@@ -739,4 +739,3 @@ The metric labels are fixed to ensure consistency. However, you can add custom d
 - [Prometheus Documentation](https://prometheus.io/docs/) - Configure Prometheus scraping and querying
 - [Grafana Documentation](https://grafana.com/docs/) - Build dashboards and alerts
 - [Performance Guide](PerformanceGuide.md) - Optimize PDF generation performance
-- [METRICSFIX.md](https://github.com/coenttb/swift-html-to-pdf/blob/main/METRICSFIX.md) - Technical architecture details
