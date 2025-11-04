@@ -126,11 +126,15 @@
         // Materialize sequence for indexing and count operations (before Task to avoid Sendable issues)
         let documentsArray = Array(documents)
 
+        @Dependency(\.pdf.render.metrics) var metrics
+        @Dependency(\.logger) var logger
+        let metricsRef = metrics
+        let loggerRef = logger
+
         return AsyncThrowingStream<PDF.Render.Result, Error> { continuation in
             Task {
                 var completedCount = 0
                 do {
-                    @Dependency(\.pdf.render.metrics) var metrics
 
                     let maxConcurrent = config.concurrency.resolved
 
@@ -170,7 +174,7 @@
                             )
 
                             // Record metrics for successful PDF generation
-                            metrics.recordSuccess(duration: duration, mode: mode)
+                            metricsRef.recordSuccess(duration: duration, mode: mode)
 
                             continuation.yield(result)
 
@@ -202,14 +206,11 @@
                     // Clear directory cache after batch completes
                     directoryCache.clear()
                 } catch {
-                    @Dependency(\.logger) var logger
-                    @Dependency(\.pdf.render.metrics) var metrics
-
                     // Record metrics for failed PDF generation
                     let printingError = error as? PrintingError
-                    metrics.recordFailure(error: printingError)
+                    metricsRef.recordFailure(error: printingError)
 
-                    logger.error(
+                    loggerRef.error(
                         "Batch rendering failed",
                         metadata: [
                             "completed": "\(completedCount)", "total": "\(documentsArray.count)",

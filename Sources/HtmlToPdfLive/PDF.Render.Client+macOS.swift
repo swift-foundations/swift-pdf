@@ -261,19 +261,23 @@
         // Materialize sequence for indexing and count operations (before Task to avoid Sendable issues)
         let documentsArray = Array(documents)
 
+        // Get the pool ONCE at the beginning, not for every document
+        // Pool access doesn't require main actor
+        @Dependency(\.webViewPool) var webViewPool
+        @Dependency(\.pdf.render.metrics) var metrics
+        @Dependency(\.logger) var logger
+
+        let pool = try await webViewPool.pool
+        let maxConcurrent = config.concurrency.resolved
+
+        // Capture a reference to the dependencies
+        let metricsRef = metrics
+        let loggerRef = logger
+
         return AsyncThrowingStream<PDF.Render.Result, Error> { continuation in
             Task {
                 var completedCount = 0
                 do {
-
-                    // Get the pool ONCE at the beginning, not for every document
-                    // Pool access doesn't require main actor
-                    @Dependency(\.webViewPool) var webViewPool
-                    @Dependency(\.pdf.render.metrics) var metrics
-                    let pool = try await webViewPool.pool
-
-                    let maxConcurrent = config.concurrency.resolved
-
                     try await withThrowingTaskGroup(
                         of: (Int, URL, Int, [CGSize], PDF.PaginationMode, Duration).self
                     ) { taskGroup in
@@ -305,7 +309,7 @@
                             )
 
                             // Record metrics for successful PDF generation
-                            metrics.recordSuccess(duration: duration, mode: mode)
+                            metricsRef.recordSuccess(duration: duration, mode: mode)
 
                             continuation.yield(result)
 
@@ -331,14 +335,11 @@
                     // Clear directory cache after batch completes
                     directoryCache.clear()
                 } catch {
-                    @Dependency(\.logger) var logger
-                    @Dependency(\.pdf.render.metrics) var metrics
-
                     // Record metrics for failed PDF generation
                     let printingError = error as? PrintingError
-                    metrics.recordFailure(error: printingError)
+                    metricsRef.recordFailure(error: printingError)
 
-                    logger.error(
+                    loggerRef.error(
                         "Batch rendering failed",
                         metadata: [
                             "completed": "\(completedCount)", "total": "\(documentsArray.count)",
