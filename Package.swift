@@ -53,7 +53,7 @@ extension Package.Dependency {
         .package(url: "https://github.com/apple/swift-metrics", from: "2.4.0")
     }
     static var swiftResourcePool: Package.Dependency {
-        .package(url: "https://github.com/coenttb/swift-resource-pool", from: "0.1.1")
+        .package(url: "https://github.com/coenttb/swift-resource-pool", from: "0.1.3")
     }
     static var swiftHtml: Package.Dependency {
         .package(url: "https://github.com/coenttb/swift-html", from: "0.11.1")
