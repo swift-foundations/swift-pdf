@@ -62,7 +62,7 @@ extension Package.Dependency {
 
 let package = Package(
     name: "swift-html-to-pdf",
-    platforms: [.macOS(.v14), .iOS(.v17)],
+    platforms: [.macOS(.v14), .iOS(.v16)],
     products: [
         .library(name: .htmlToPdfTypes, targets: [.htmlToPdfTypes]),
         .library(name: .htmlToPdfLive, targets: [.htmlToPdfLive]),
