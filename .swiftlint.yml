@@ -1,45 +1,6 @@
-# SwiftLint Configuration for swift-html-to-pdf
-# Aligned with Point-Free standards
+# SwiftLint configuration
+# Inherits from the shared parent configuration in swift-standards
 
-# Disabled Rules (too strict or not applicable)
-disabled_rules:
-  - line_length  # Handled by swift-format
-  - function_body_length  # PDF conversion functions can be long
-  - type_body_length  # Test support types can be large
-  - file_length  # Some test files need to be comprehensive
-  - redundant_discardable_let  # Required for Swift 6.0+ result builders
-  - explicit_type_interface  # Too strict - Swift type inference is good
-  - explicit_init  # Unnecessary verbosity
-  - identifier_name  # Allow short names like 'i' in loops
-  - opening_brace  # Handled by swift-format
-  - closure_parameter_position  # Handled by swift-format
-  - trailing_comma  # Handled by swift-format
-  - trailing_whitespace  # Preserve whitespace in snapshot tests
-  - large_tuple  # Sometimes necessary for complex operations
-  - type_name  # Allow iOS-prefixed types like iOSPrintFormatterRenderer
-  - nesting  # Allow deeply nested enums for namespacing
-  - optional_data_string_conversion  # HTML bytes are guaranteed UTF-8 by library design (PDF.Document enforces UTF-8 at construction)
+parent_config: https://raw.githubusercontent.com/swift-standards/swift-standards/main/.swiftlint.yml
 
-# Enabled Opt-In Rules (helpful additions)
-opt_in_rules:
-  - contains_over_first_not_nil  # Prefer contains over first != nil
-  - first_where  # Prefer first(where:) over filter().first
-  - sorted_first_last  # Prefer min/max over sorted().first/last
-  - unneeded_parentheses_in_closure_argument  # Clean closure syntax
-  - toggle_bool  # Prefer toggle() over = !
-  - yoda_condition  # Consistent comparison order
-
-# Paths
-included:
-  - Sources
-  - Tests
-  - Package.swift
-  - Package@swift-6.0.swift
-
-excluded:
-  - .build
-  - .swiftpm
-
-# Custom Rule Configuration
-force_cast: warning  # Warn but don't fail on force casts
-force_try: warning  # Warn but don't fail on force try
+# Package-specific overrides (if needed)
