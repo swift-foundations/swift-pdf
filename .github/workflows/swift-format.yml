@@ -26,7 +26,7 @@ jobs:
 
       - name: Restore swift-format cache
         id: cache-swift-format-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: /usr/local/bin/swift-format
           key: ${{ runner.os }}-swift-format-main-v1
@@ -50,7 +50,7 @@ jobs:
           branch: 'main'
 
       - name: Save swift-format cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: steps.cache-swift-format-restore.outputs.cache-hit != 'true'
         with:
           path: /usr/local/bin/swift-format

@@ -28,7 +28,7 @@ jobs:
         run: swift --version
 
       - name: Cache Swift packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           key: ${{ runner.os }}-spm-v1-${{ hashFiles('Package.swift') }}
@@ -65,7 +65,7 @@ jobs:
         run: swift --version
 
       - name: Cache Swift packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           key: ${{ runner.os }}-spm-release-v1-${{ hashFiles('Package.swift') }}
@@ -92,7 +92,7 @@ jobs:
         run: xcrun simctl list devices available
 
       - name: Cache Swift packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           key: ${{ runner.os }}-spm-ios-v1-${{ hashFiles('Package.swift') }}
@@ -128,7 +128,7 @@ jobs:
         run: swift --version
 
       - name: Cache Swift packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           key: ${{ runner.os }}-spm-ios-release-v1-${{ hashFiles('Package.swift') }}
