@@ -142,7 +142,7 @@ import Testing
                     at: output,
                     includingPropertiesForKeys: nil
                 )) ?? []
-            #expect(files.count > 0, "Some PDFs should be created despite pool pressure")
+            #expect(!files.isEmpty, "Some PDFs should be created despite pool pressure")
         }
     }
 

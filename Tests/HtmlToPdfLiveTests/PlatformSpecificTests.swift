@@ -327,7 +327,7 @@ import Testing
 
         #expect(description.contains("iOS"))
         #expect(description.contains("concurrency=32"))
-        #expect(failureReason.count > 0)
+        #expect(!failureReason.isEmpty)
         #expect(recoverySuggestion.contains("reduce") || recoverySuggestion.contains("platform"))
     }
 

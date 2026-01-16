@@ -19,7 +19,7 @@ import Testing
             let doc = PDF.Document(html: page, destination: url)
 
             #expect(doc.destination == url)
-            #expect(doc.html.count > 0)
+            #expect(!doc.html.isEmpty)
         }
 
         @Test("PDF.Document HTML init renders correctly") func htmlRenderingWorks() {

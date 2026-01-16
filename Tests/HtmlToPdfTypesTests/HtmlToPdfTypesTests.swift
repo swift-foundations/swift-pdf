@@ -16,7 +16,7 @@ import Testing
         let doc = PDF.Document(html: html, destination: url)
 
         #expect(doc.destination == url)
-        #expect(doc.html.count > 0)
+        #expect(!doc.html.isEmpty)
     }
 
     @Test("PDF.Document can be created from bytes") func documentFromBytes() {

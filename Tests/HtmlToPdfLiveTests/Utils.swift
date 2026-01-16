@@ -128,7 +128,7 @@ extension String {
                     logHandler("PDF generation progress", metadata)
                 } else {
                     print(
-                        "Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed)/1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec"
+                        "Progress: \(completed)/\(totalCount) PDFs (\(String(format: "%.1f", Double(completed) / 1000.0))k) - Rate: \(String(format: "%.0f", rate)) PDFs/sec"
                     )
                 }
                 lastReportedAt = now

@@ -44,3 +44,7 @@ docs/
 
 # Ignored directory
 Ignored/
+
+
+# SwiftLint Remote Config Cache
+.swiftlint/RemoteConfigCache
