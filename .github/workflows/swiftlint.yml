@@ -22,7 +22,7 @@ jobs:
 
       - name: Restore swiftlint cache
         id: cache-swiftlint-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: /usr/local/bin/swiftlint
           key: ${{ runner.os }}-swiftlint-0.62.2
@@ -41,7 +41,7 @@ jobs:
         run: swiftlint lint --strict --reporter github-actions-logging
 
       - name: Save swiftlint cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: always() && steps.cache-swiftlint-restore.outputs.cache-hit != 'true'
         with:
           path: /usr/local/bin/swiftlint
