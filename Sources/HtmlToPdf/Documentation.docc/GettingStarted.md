@@ -722,6 +722,20 @@ Solution: Increase `documentTimeout` for complex documents:
 $0.pdf.render.configuration.documentTimeout = .seconds(60)
 ```
 
+**Issue: Background colors not appearing in PDF (iOS 16+)**
+
+Solution: WebKit's print rendering ignores background colors by default. Add this CSS to your HTML:
+
+```css
+@media print {
+    * {
+        -webkit-print-color-adjust: exact !important;
+    }
+}
+```
+
+This applies to any element with `background-color` or `background` CSS properties.
+
 ---
 
 ## Next Steps
