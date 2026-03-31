@@ -114,6 +114,45 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation
 
+  # visionOS development workflow: Latest Swift on visionOS Simulator with debug build
+  visionos-latest:
+    name: visionOS (Swift 6.2, debug)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select Xcode 26.0
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
+
+      - name: Print Swift version
+        run: swift --version
+
+      - name: List available visionOS simulators
+        run: xcrun simctl list devices available | grep -A5 "visionOS"
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-visionos-v1-${{ hashFiles('Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-visionos-v1-
+
+      - name: Test (visionOS Simulator)
+        run: |
+          # Find first available Apple Vision Pro simulator
+          DEVICE_ID=$(xcrun simctl list devices available | grep "Apple Vision Pro" | head -1 | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/')
+          echo "Using simulator: $DEVICE_ID"
+          xcodebuild test \
+            -scheme swift-html-to-pdf-Package \
+            -destination "platform=visionOS Simulator,id=$DEVICE_ID" \
+            -configuration Debug \
+            -skip-testing:HtmlToPdfLiveTests/PerformanceTests \
+            -skip-testing:HtmlToPdfLiveTests/StressTests \
+            -skip-testing:HtmlToPdfLiveTests/WebViewMemoryTests \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+
   # iOS production build: Latest Swift on iOS Simulator with release build
   ios-latest-release:
     name: iOS (Swift 6.2, release)

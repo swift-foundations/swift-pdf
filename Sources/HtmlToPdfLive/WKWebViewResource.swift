@@ -74,7 +74,7 @@
             )
             webViewConfig.preferences.setValue(false, forKey: "developerExtrasEnabled")
 
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
                 webViewConfig.allowsInlineMediaPlayback = true
                 webViewConfig.suppressesIncrementalRendering = true
             #endif
@@ -87,7 +87,7 @@
             #endif
 
             // Disable scrolling and gestures (not needed for PDF rendering)
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
                 webView.scrollView.isScrollEnabled = false
             #endif
             #if os(macOS)

@@ -5,7 +5,7 @@
 //  Live metrics implementation using swift-metrics
 //
 
-#if os(macOS) || os(iOS)
+#if os(macOS) || os(iOS) || os(visionOS)
     import Dependencies
     import Metrics
 
