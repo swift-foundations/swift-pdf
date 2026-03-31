@@ -20,7 +20,7 @@ extension PDF.Render: TestDependencyKey {
         var testClient: PDF.Render.Client {
             #if os(macOS)
                 return .macOS
-            #elseif os(iOS)
+            #elseif os(iOS) || os(visionOS)
                 return .iOS
             #else
                 return .testValue
