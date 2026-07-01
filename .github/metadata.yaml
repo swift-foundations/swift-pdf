@@ -1,9 +1,12 @@
 # .github/metadata.yaml
 # Triaged 2026-04-29 — anomaly-fix pass after wave-4 PR-branch triage didn't apply.
-description: "PDF for Swift."
+# 2026-07-01 — release-readiness: enriched description; topics 2→4 (+html, +document-generation) [GH-REPO-010/020/060].
+description: "HTML-to-PDF document generation for Swift."
 topics:
   - foundations
   - pdf
+  - html
+  - document-generation
 homepage: "https://swift-institute.org"
 readme:
   family: E
