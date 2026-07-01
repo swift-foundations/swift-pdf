@@ -1,3 +1,21 @@
+> ### Heritage & migration — this repository was `swift-html-to-pdf`
+>
+> `swift-pdf` is the evolved successor to
+> [`coenttb/swift-html-to-pdf`](https://github.com/coenttb/swift-html-to-pdf), transferred here to
+> preserve its full history, tags, and stars. **swift-pdf presents a redesigned API that differs
+> from html-to-pdf.**
+>
+> - **Staying on the original html-to-pdf API?** Pin a `1.x` version (tags `0.1.0`–`1.0.5`, e.g.
+>   `from: "1.0.5"`) or track the [`html-to-pdf`](../../tree/html-to-pdf) branch — that line stays
+>   maintained and receives `1.0.x` patch releases.
+> - **Adopting swift-pdf?** The first swift-pdf release will be **`2.0.0`** (a clean major break).
+>   See [MIGRATION.md](MIGRATION.md).
+>
+> Existing version-pinned dependents are unaffected — the tags `≤ 1.0.5` still resolve to the
+> original html-to-pdf commits.
+
+---
+
 # swift-pdf
 
 ![Development Status](https://img.shields.io/badge/status-active--development-blue.svg)
