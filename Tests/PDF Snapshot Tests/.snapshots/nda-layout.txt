@@ -1,0 +1,14 @@
+Pages: 3
+
+Page 1: 9221 content bytes, 2 fonts
+Page 2: 6977 content bytes, 2 fonts
+Page 3: 81 content bytes, 1 fonts
+
+Outline:
+  - NON-DISCLOSURE AGREEMENT
+    - RECITALS
+    - ARTICLE 1: DEFINITIONS
+    - ARTICLE 2: OBLIGATIONS OF RECIPIENT
+    - ARTICLE 3: TERM AND TERMINATION
+    - ARTICLE 4: GENERAL PROVISIONS
+    - SIGNATURES

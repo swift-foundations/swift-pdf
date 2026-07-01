@@ -1,0 +1,31 @@
+Pages: 4
+
+Page 1: 4082 content bytes, 4 fonts, 3 annotations
+Page 2: 8791 content bytes, 4 fonts, 2 annotations
+Page 3: 4292 content bytes, 2 fonts
+Page 4: 3508 content bytes, 3 fonts
+
+Outline:
+  - All HTML Elements Demo
+    - 1. Text Styling
+    - 2. Links
+    - 3. Block Elements
+    - 4. Lists
+      - 4.1 Simple Unordered List
+      - 4.2 Simple Ordered List
+      - 4.3 List Items with Wrapping Text
+      - 4.4 List Items with Inline Formatting
+      - 4.5 Nested Lists
+      - 4.6 Mixed Nested Lists
+      - 4.7 List with Many Items
+      - 4.8 List Spacing
+      - 4.9 Single Item Lists
+    - 5. Headings
+  - H1
+    - H2
+      - H3
+        - H4
+          - H5
+            - H6
+      - Article Title
+    - 10. CSS Styling

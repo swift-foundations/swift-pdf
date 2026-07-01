@@ -1,0 +1,32 @@
+{
+  "$schema": "https://swift-institute.org/schemas/research-index-v1.json",
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-04-18",
+  "title": "Research Index",
+  "blurb": "",
+  "scope": "swift-pdf (swift-foundations)",
+  "documents": [
+    {
+      "file": "pdf-snapshot-testing-and-diffing.md",
+      "displayName": "pdf-snapshot-testing-and-diffing.md",
+      "topic": "PDF snapshot testing strategies and diffing approaches",
+      "date": "2026-03-13",
+      "status": "RECOMMENDATION",
+      "statusDetail": null,
+      "statusRaw": "RECOMMENDATION",
+      "tier": null,
+      "scope": null
+    },
+    {
+      "file": "sigbus-stack-overflow-handoff.md",
+      "displayName": "sigbus-stack-overflow-handoff.md",
+      "topic": "SIGBUS stack overflow in PDF Markdown rendering",
+      "date": "2026-03-13",
+      "status": "IN_PROGRESS",
+      "statusDetail": null,
+      "statusRaw": "IN_PROGRESS",
+      "tier": null,
+      "scope": null
+    }
+  ]
+}

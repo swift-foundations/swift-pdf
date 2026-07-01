@@ -1,8 +1,0 @@
-version: 1
-builder:
-  configs:
-  - documentation_targets:
-    - HtmlToPdfTypes
-    - HtmlToPdfLive
-    - HtmlToPdf
-    - PDFTestSupport

@@ -1,0 +1,50 @@
+Pages: 4
+
+Page 1: 4069 content bytes, 2 fonts
+Page 2: 3899 content bytes, 2 fonts
+Page 3: 3491 content bytes, 2 fonts
+Page 4: 3782 content bytes, 2 fonts
+
+Outline:
+  - Technical Specification XYZ-2024
+  - 1 Scope
+  - 2 Normative references
+  - 3 Terms and definitions
+  - 4 Notation
+    - 4.1 General
+    - 4.2 Established notations
+    - 4.3 Special symbols
+      - 4.3.1 Mathematical symbols
+      - 4.3.2 Logical symbols
+  - 5 Version designations
+  - 6 Conformance
+    - 6.1 Conformance levels
+      - 6.1.1 Basic conformance
+      - 6.1.2 Full conformance
+        - 6.1.2.1 Mandatory features
+        - 6.1.2.2 Optional features
+    - 6.2 Conformance testing
+  - 7 Syntax
+    - 7.1 Lexical elements
+    - 7.2 Expressions
+    - 7.3 Statements
+  - 8 Graphics
+    - 8.1 Coordinate systems
+    - 8.2 Transformations
+  - 9 Text
+    - 9.1 General
+    - 9.2 Organisation and use of fonts
+      - 9.2.1 Font types
+      - 9.2.2 Font embedding
+    - 9.3 Text state parameters and operators
+    - 9.4 Text objects
+    - 9.5 Introduction to font data structures
+    - 9.6 Simple fonts
+      - 9.6.1 Type 1 fonts
+      - 9.6.2 TrueType fonts
+    - 9.7 Composite fonts
+    - 9.8 Font descriptors
+  - Annex A (normative) Implementation notes
+  - Annex B (informative) Examples
+    - B.1 Basic example
+    - B.2 Advanced example

@@ -1,0 +1,14 @@
+Pages: 2
+
+Page 1: 12053 content bytes, 4 fonts
+Page 2: 8595 content bytes, 3 fonts
+
+Outline:
+  - 6. Tables
+    - 6.1 Simple Data Table
+    - 6.2 Product Inventory
+    - 6.3 Table with Formatted Content
+    - 6.4 Financial Summary with Footer
+    - 6.5 Key-Value Table
+    - 6.6 Colspan/Rowspan Table
+    - 6.7 Text Alignment (CSS)

@@ -1,132 +1,90 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.3.1
 
 import PackageDescription
 
-// MARK: - String Extensions
 extension String {
-    static var htmlToPdfTypes: Self { "HtmlToPdfTypes" }
-    static var htmlToPdfLive: Self { "HtmlToPdfLive" }
-    static var htmlToPdf: Self { "HtmlToPdf" }
-    static var pdfTestSupport: Self { "PDFTestSupport" }
-    static var dependencies: Self { "Dependencies" }
-    static var dependenciesMacros: Self { "DependenciesMacros" }
-    static var dependenciesTestSupport: Self { "DependenciesTestSupport" }
-    static var loggingExtras: Self { "LoggingExtras" }
-    static var metrics: Self { "Metrics" }
-    static var html: Self { "HTML" }
-    static var resourcePool: Self { "ResourcePool" }
-}
-
-// MARK: - Target Dependency Extensions
-extension Target.Dependency {
-    static var htmlToPdfTypes: Self { .target(name: .htmlToPdfTypes) }
-    static var htmlToPdfLive: Self { .target(name: .htmlToPdfLive) }
-    static var htmlToPdf: Self { .target(name: .htmlToPdf) }
-    static var pdfTestSupport: Self { .target(name: .pdfTestSupport) }
+    static let pdf: Self = "PDF"
+    var tests: Self { self + " Tests" }
 }
 
 extension Target.Dependency {
-    static var dependencies: Self { .product(name: .dependencies, package: "swift-dependencies") }
-    static var dependenciesMacros: Self {
-        .product(name: .dependenciesMacros, package: "swift-dependencies")
-    }
-    static var dependenciesTestSupport: Self {
-        .product(name: .dependenciesTestSupport, package: "swift-dependencies")
-    }
-    static var loggingExtras: Self {
-        .product(name: .loggingExtras, package: "swift-logging-extras")
-    }
-    static var metrics: Self { .product(name: .metrics, package: "swift-metrics") }
-    static var resourcePool: Self { .product(name: .resourcePool, package: "swift-resource-pool") }
-    static var html: Self { .product(name: .html, package: "swift-html") }
+    static var pdf: Self { .target(name: .pdf) }
 }
 
-// MARK: - Package Dependencies (to help compiler with traits complexity)
-extension Package.Dependency {
-    static var swiftDependencies: Package.Dependency {
-        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.8.0")
+extension Target.Dependency {
+    static var html: Self {
+        .product(name: "HTML", package: "swift-html")
     }
-    static var swiftLoggingExtras: Package.Dependency {
-        .package(url: "https://github.com/coenttb/swift-logging-extras", from: "0.1.1")
+    static var pdfHTMLRendering: Self {
+        .product(name: "PDF HTML Rendering", package: "swift-pdf-html-render")
     }
-    static var swiftMetrics: Package.Dependency {
-        .package(url: "https://github.com/apple/swift-metrics", from: "2.4.0")
-    }
-    static var swiftResourcePool: Package.Dependency {
-        .package(url: "https://github.com/coenttb/swift-resource-pool", from: "0.1.3")
-    }
-    static var swiftHtml: Package.Dependency {
-        .package(url: "https://github.com/coenttb/swift-html", from: "0.11.1")
+    static var fileSystem: Self {
+        .product(name: "File System", package: "swift-file-system")
     }
 }
 
 let package = Package(
-    name: "swift-html-to-pdf",
-    platforms: [.macOS(.v13), .iOS(.v16), .visionOS(.v1)],
-    products: [
-        .library(name: .htmlToPdfTypes, targets: [.htmlToPdfTypes]),
-        .library(name: .htmlToPdfLive, targets: [.htmlToPdfLive]),
-        .library(name: .htmlToPdf, targets: [.htmlToPdf]),
-        .library(name: .pdfTestSupport, targets: [.pdfTestSupport]),
+    name: "swift-pdf",
+    platforms: [
+        .macOS(.v26),
+        .iOS(.v26),
+        .tvOS(.v26),
+        .watchOS(.v26),
+        .visionOS(.v26),
     ],
-    traits: [
-        .trait(
-            name: "HTML",
-            description: "Include HTML integration (swift-html with PointFreeHTML)"
-        )  //        .default(enabledTraits: ["HTML"])
+    products: [
+        .library(name: .pdf, targets: [.pdf]),
+        .library(name: "PDF Test Support", targets: ["PDF Test Support"]),
     ],
     dependencies: [
-        .swiftDependencies, .swiftLoggingExtras, .swiftMetrics, .swiftResourcePool, .swiftHtml,
-        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
+        .package(url: "https://github.com/swift-foundations/swift-html.git", branch: "main"),
+        .package(url: "https://github.com/swift-foundations/swift-pdf-html-render.git", branch: "main"),
+        .package(url: "https://github.com/swift-foundations/swift-file-system.git", branch: "main"),
     ],
     targets: [
-        // Types target - NO PointFreeHTML dependency
-        .target(name: .htmlToPdfTypes, dependencies: [.dependencies, .dependenciesMacros]),
-
-        // Live target - NO PointFreeHTML dependency
         .target(
-            name: .htmlToPdfLive,
+            name: .pdf,
             dependencies: [
-                .htmlToPdfTypes, .dependencies, .dependenciesMacros, .loggingExtras, .metrics,
-                .resourcePool,
-            ],
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency")
+                .html,
+                .pdfHTMLRendering,
+                .fileSystem,
             ]
         ),
-
-        // Umbrella + Integration target - ADDS swift-html (conditionally)
         .target(
-            name: .htmlToPdf,
+            name: "PDF Test Support",
             dependencies: [
-                .htmlToPdfLive,
-                .product(name: .html, package: "swift-html", condition: .when(traits: ["HTML"])),
+                .pdf,
             ],
-            swiftSettings: [.define("HTML", .when(traits: ["HTML"]))]
+            path: "Tests/Support"
         ),
-
-        .target(name: .pdfTestSupport, dependencies: [.htmlToPdfTypes, .dependencies, .metrics]),
-
         .testTarget(
-            name: .htmlToPdfTypes.tests,
-            dependencies: [.htmlToPdfTypes, .dependenciesTestSupport],
-            exclude: ["HtmlToPdfTypes.xctestplan"],
+            name: .pdf.tests,
+            dependencies: [
+                .pdf,
+                .html,
+                "PDF Test Support",
+            ],
+            path: "Tests/PDF Tests"
         ),
-
-        .testTarget(
-            name: .htmlToPdfLive.tests,
-            dependencies: [.htmlToPdfLive, .pdfTestSupport, .dependenciesTestSupport],
-            exclude: ["HtmlToPdfLive.xctestplan", "StressTestLogs"],
-            resources: [.process("Resources")]
-        ),
-
-        .testTarget(
-            name: .htmlToPdf.tests,
-            dependencies: [.htmlToPdf, .pdfTestSupport, .dependenciesTestSupport],
-            exclude: ["HtmlToPdf.xctestplan"],
-            swiftSettings: [.define("HTML", .when(traits: ["HTML"]))]
-        ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
 
-extension String { var tests: Self { self + "Tests" } }
+for target in package.targets where ![.system, .binary, .plugin, .macro].contains(target.type) {
+    let ecosystem: [SwiftSetting] = [
+        .strictMemorySafety(),
+        .enableUpcomingFeature("ExistentialAny"),
+        .enableUpcomingFeature("InternalImportsByDefault"),
+        .enableUpcomingFeature("MemberImportVisibility"),
+        .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+        .enableExperimentalFeature("LifetimeDependence"),
+        .enableExperimentalFeature("Lifetimes"),
+        .enableExperimentalFeature("SuppressedAssociatedTypes"),
+        .enableUpcomingFeature("InferIsolatedConformances"),
+        .enableUpcomingFeature("LifetimeDependence"),
+    ]
+
+    let package: [SwiftSetting] = []
+
+    target.swiftSettings = (target.swiftSettings ?? []) + ecosystem + package
+}
