@@ -85,7 +85,7 @@ Requires Swift 6.3.1 and macOS 26 / iOS 26 / tvOS 26 / watchOS 26 / visionOS 26.
 ## Community
 
 <!-- BEGIN: discussion -->
-*Discussion thread will be created at first public flip.*
+Discuss this package: [swift-institute/discussions/38](https://github.com/orgs/swift-institute/discussions/38)
 <!-- END: discussion -->
 
 ## License
