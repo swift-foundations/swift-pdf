@@ -3,13 +3,12 @@
 > `swift-pdf` is the evolved successor to
 > [`coenttb/swift-html-to-pdf`](https://github.com/coenttb/swift-html-to-pdf), transferred here to
 > preserve its full history, tags, and stars. **swift-pdf presents a redesigned API that differs
-> from html-to-pdf.**
+> from html-to-pdf.** See [Migration & versioning](#migration--versioning).
 >
 > - **Staying on the original html-to-pdf API?** Pin a `1.x` version (tags `0.1.0`–`1.0.5`, e.g.
 >   `from: "1.0.5"`) or track the [`html-to-pdf`](../../tree/html-to-pdf) branch — that line stays
 >   maintained and receives `1.0.x` patch releases.
 > - **Adopting swift-pdf?** The first swift-pdf release will be **`2.0.0`** (a clean major break).
->   See [MIGRATION.md](MIGRATION.md).
 >
 > Existing version-pinned dependents are unaffected — the tags `≤ 1.0.5` still resolve to the
 > original html-to-pdf commits.
@@ -92,3 +91,48 @@ Requires Swift 6.3.1 and macOS 26 / iOS 26 / tvOS 26 / watchOS 26 / visionOS 26.
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE.md).
+
+---
+
+## Migration & versioning
+
+`swift-pdf` is the evolved successor to
+[`coenttb/swift-html-to-pdf`](https://github.com/coenttb/swift-html-to-pdf), transferred into Swift
+Institute to preserve the original's full history, tags, and stars. **The API differs** — swift-pdf
+is a redesign, not a drop-in update.
+
+### Staying on html-to-pdf (no migration needed)
+
+The original API is preserved and remains maintainable:
+
+- **Pin a 1.x version** (tags `0.1.0`–`1.0.5`):
+  ```swift
+  .package(url: "https://github.com/swift-foundations/swift-pdf.git", from: "1.0.5")
+  ```
+- **or track the maintenance branch:**
+  ```swift
+  .package(url: "https://github.com/swift-foundations/swift-pdf.git", branch: "html-to-pdf")
+  ```
+
+Bug-fix releases for the old API are cut as `1.0.x` on the `html-to-pdf` branch. The entire `1.x`
+range is reserved for html-to-pdf, so `.upToNextMajor(from: "1.0.x")` will never pull the new
+swift-pdf API by accident.
+
+### Moving to swift-pdf
+
+- The first swift-pdf release will be **`2.0.0`** — a deliberate major break signalling the new API.
+- **API mapping:** _pending_ — the full old→new mapping will be added by a focused migration pass
+  over both codebases.
+
+### Version guardrail (maintainers)
+
+```
+main             = swift-pdf    (new API, releases >= 2.0.0)
+html-to-pdf      = original API (maintenance, releases 1.0.x)
+tags 0.1.0–1.0.5 = original html-to-pdf commits (immutable)
+```
+
+The entire `1.x` range is **reserved** for html-to-pdf. **Never cut a `1.x` tag on `main`** — it
+would collide with the html-to-pdf line and silently auto-upgrade `.upToNextMajor(from: "1.0.x")`
+consumers into the incompatible new API. The first swift-pdf release on `main` **must be `2.0.0` or
+higher.**
