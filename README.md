@@ -88,6 +88,12 @@ Requires Swift 6.3.1 and macOS 26 / iOS 26 / tvOS 26 / watchOS 26 / visionOS 26.
 Discuss this package: [swift-institute/discussions/38](https://github.com/orgs/swift-institute/discussions/38)
 <!-- END: discussion -->
 
+## Status & maintainer
+
+This package is public alpha: the redesigned swift-pdf API on `main` is unreleased and will first ship as `2.0.0`; interfaces may change until then. See [Migration & versioning](#migration--versioning) for the maintained html-to-pdf `1.x` line.
+
+Maintained by [Coen ten Thije Boonkkamp](https://github.com/coenttb) — available for Swift infrastructure and document-systems consulting: coen@coenttb.com.
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE.md).
