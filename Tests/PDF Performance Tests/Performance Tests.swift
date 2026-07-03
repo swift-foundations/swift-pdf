@@ -90,21 +90,27 @@ func makePDF(paragraphs: Int) {
     case 1:
         let doc = PDF.Document { Doc1() }
         let _ = [UInt8](doc)
+
     case 10:
         let doc = PDF.Document { Doc10() }
         let _ = [UInt8](doc)
+
     case 50:
         let doc = PDF.Document { Doc50() }
         let _ = [UInt8](doc)
+
     case 100:
         let doc = PDF.Document { Doc100() }
         let _ = [UInt8](doc)
+
     case 200:
         let doc = PDF.Document { Doc200() }
         let _ = [UInt8](doc)
+
     case 500:
         let doc = PDF.Document { Doc500() }
         let _ = [UInt8](doc)
+
     default:
         let doc = PDF.Document { Doc1() }
         let _ = [UInt8](doc)

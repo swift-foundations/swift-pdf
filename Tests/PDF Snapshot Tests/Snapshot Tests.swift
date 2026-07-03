@@ -1,9 +1,9 @@
 // Snapshot Tests.swift
 
 import PDF
+import Test_Snapshot_Primitives
 import Testing
 import Tests_Inline_Snapshot
-import Test_Snapshot_Primitives
 
 extension PDF {
     #Tests(snapshots: .init(recording: .all, subdirectory: "PDF.Test.Snapshot"))
