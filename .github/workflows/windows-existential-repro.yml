@@ -13,9 +13,15 @@ name: Windows existential repro
 #      Per swiftlang/swift#86202 (the `any HTML.View` sibling), cross-package
 #      + namespace-typealias sugar are load-bearing ingredients; the written
 #      existential carries TypeAliasType sugar at its root, which is the
-#      non-canonical type the mangler chokes on. 6.4 carries typealias-
-#      existential debug-info fixes (45547be3f8f, 6f60adf009c, 2934386efde)
-#      absent from 6.3.
+#      non-canonical type the mangler chokes on. VERIFIED 2026-07-06 (run
+#      28776276301): STILL FIRING on 6.3.3 AND on 6.4-dev a42409e978ff428 —
+#      the 6.4 typealias-existential debug-info fixes (45547be3f8f,
+#      6f60adf009c, 2934386efde) do NOT cover this shape; single-file CLEAN
+#      on both (cross-package + alias sugar are load-bearing);
+#   3. respell-canonical — identical to (2) except the two downcasts are
+#      spelled through the canonical root (`any ISO_32000.…`). CLEAN here
+#      while (2) fires validates the surgical production fix: respell the
+#      written existential type at the two crash-site downcasts.
 #
 # Reading the legs together (per variant):
 #   6.3.3 FIRING  + 6.4 CLEAN  → the 6.4 fix is empirically confirmed for that
@@ -89,12 +95,17 @@ jobs:
           Write-Host $out1
           Write-Host "::notice title=single-file::$disp1 on Swift ${{ matrix.swift-version }}"
 
-          $out2 = & swift build -c debug --package-path '.github/repro/cross-package/crash' 2>&1 | Out-String
+          $out2 = & swift build -c debug --package-path '.github/repro/cross-package/crash' --target CrashModule 2>&1 | Out-String
           $disp2 = Get-Disposition -Output $out2 -Code $LASTEXITCODE
           Write-Host $out2
           Write-Host "::notice title=cross-package::$disp2 on Swift ${{ matrix.swift-version }}"
 
-          Write-Host "DISPOSITION MATRIX (Swift ${{ matrix.swift-version }}): single-file=$disp1 cross-package=$disp2"
-          if (($disp1 -eq 'CLEAN') -and ($disp2 -eq 'CLEAN')) { exit 0 }
-          if (($disp1 -eq 'INCONCLUSIVE') -or ($disp2 -eq 'INCONCLUSIVE')) { exit 1 }
+          $out3 = & swift build -c debug --package-path '.github/repro/cross-package/crash' --target RespellModule 2>&1 | Out-String
+          $disp3 = Get-Disposition -Output $out3 -Code $LASTEXITCODE
+          Write-Host $out3
+          Write-Host "::notice title=respell-canonical::$disp3 on Swift ${{ matrix.swift-version }}"
+
+          Write-Host "DISPOSITION MATRIX (Swift ${{ matrix.swift-version }}): single-file=$disp1 cross-package=$disp2 respell-canonical=$disp3"
+          if (($disp1 -eq 'CLEAN') -and ($disp2 -eq 'CLEAN') -and ($disp3 -eq 'CLEAN')) { exit 0 }
+          if (($disp1 -eq 'INCONCLUSIVE') -or ($disp2 -eq 'INCONCLUSIVE') -or ($disp3 -eq 'INCONCLUSIVE')) { exit 1 }
           exit 2

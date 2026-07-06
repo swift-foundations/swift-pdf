@@ -23,7 +23,18 @@ let package = Package(
                 .enableUpcomingFeature("InternalImportsByDefault"),
                 .enableUpcomingFeature("MemberImportVisibility"),
             ]
-        )
+        ),
+        .target(
+            name: "RespellModule",
+            dependencies: [
+                .product(name: "BasePDF", package: "base")
+            ],
+            swiftSettings: [
+                .enableUpcomingFeature("ExistentialAny"),
+                .enableUpcomingFeature("InternalImportsByDefault"),
+                .enableUpcomingFeature("MemberImportVisibility"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
