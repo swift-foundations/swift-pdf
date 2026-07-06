@@ -1,0 +1,83 @@
+name: Windows existential repro
+
+# swift-pdf-OWNED, NON-centralized evidence job (deliberately NOT added to the
+# universal reusable — per principal direction). It compiles the minimal
+# single-file reproducer for the Swift 6.3.3 Windows (+Asserts) debug-info-
+# mangler ICE (Assertion `isActuallyCanonicalOrNull()`, AST/Type.h:421) on the
+# `any PDF.HTML.Style.Modifier` nested-protocol-existential shape, on BOTH
+# Swift 6.3.3 and Swift 6.4, isolated from the ecosystem's 6.4-unreadiness
+# (the reproducer has zero dependencies).
+#
+# Reading the two legs together:
+#   6.3.3 FIRING  + 6.4 CLEAN  → the 6.4 fix is empirically confirmed for the
+#                                 minimal shape (Option B evidence).
+#   6.3.3 CLEAN                → the minimal shape under-captures the trigger;
+#                                 the conclusion covers ONLY this shape — extend
+#                                 fidelity before drawing any broader conclusion.
+#   6.3.3 FIRING  + 6.4 FIRING → the bug is NOT fixed in 6.4; re-plan.
+#
+# Disposition per leg (three-way, so a rephrased diagnostic can't false-flip):
+#   exit 0 = CLEAN, exit 2 = STILL FIRING (signature found), exit 1 = INCONCLUSIVE.
+# ADVISORY (continue-on-error): evidence, not a merge gate.
+# WHEN TO REMOVE: when the ecosystem moves to 6.4 (~Sept 2026) and the standard
+# Windows leg is green.
+# TRACKING: swift-institute/Issues — swift-issue-noncanonical-existential-windows-debuginfo-ice.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/repro/**"
+      - ".github/workflows/windows-existential-repro.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: win-existential-repro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repro:
+    name: Windows repro (Swift ${{ matrix.swift-version }}, debug)
+    if: ${{ !github.event.repository.private }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        swift-version: ["6.3.3", "6.4"]
+    steps:
+      - name: Harden runner (audit-mode egress logging)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v6
+
+      - name: Install Swift ${{ matrix.swift-version }}
+        uses: SwiftyLab/setup-swift@38f54a76b70d989321de9dc7c840618c08cf56e9 # v1.14.0
+        with:
+          swift-version: "${{ matrix.swift-version }}"
+
+      - name: Print toolchain info
+        run: swift --version
+
+      - name: Compile repro (debug info) — three-way disposition
+        shell: pwsh
+        run: |
+          $out = & swiftc -Onone -g -c '.github/repro/noncanonical-existential-debuginfo.swift' -o repro.o 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Host $out
+          if ($out -match 'isActuallyCanonicalOrNull') {
+            Write-Host "::notice title=Disposition::STILL FIRING on Swift ${{ matrix.swift-version }} — the debug-info mangler assertion reproduces on the minimal shape."
+            exit 2
+          }
+          if ($code -eq 0) {
+            Write-Host "::notice title=Disposition::CLEAN on Swift ${{ matrix.swift-version }} — the minimal shape compiles with debug info."
+            exit 0
+          }
+          Write-Host "::warning title=Disposition::INCONCLUSIVE on Swift ${{ matrix.swift-version }} — exit $code without the assertion signature; human re-triage."
+          exit 1

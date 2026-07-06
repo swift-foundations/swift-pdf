@@ -2,27 +2,30 @@ name: Windows 6.4 proof
 
 # swift-pdf-OWNED, NON-centralized proof job (deliberately NOT added to the
 # universal reusable — per principal direction). It empirically proves that the
-# Swift 6.3.3 Windows (+Asserts) debug-info-mangler crash on the `any HTML.View`
-# existential (Assertion `isActuallyCanonicalOrNull()`, AST/Type.h:421) is
-# resolved on Swift 6.4.
+# Swift 6.3.3 Windows (+Asserts) debug-info-mangler crash
+# (Assertion `isActuallyCanonicalOrNull()`, AST/Type.h:421) is resolved on
+# Swift 6.4 for the full swift-pdf dependency graph.
 #
-# Background: HTML.View refines the move-only Render.View (~Copyable) with a
-# recursive `Body: HTML.View` constraint; its Copyable existential `any HTML.View`
-# is non-canonical for the 6.3.3 Windows debug-info mangler. Explicit-existential
-# removal cleared the whole cohort (html-render/css/markdown Windows-green), but
-# the last site — swift-pdf-html-render's `PDF.HTML.Context.apply(inlineStyle:)` —
-# forms `any HTML.View` IMPLICITLY from legitimate `<H: HTML.View>` generic
-# constraints, which cannot be removed without breaking the public API. The code
-# is correct; the compiler is buggy. My local repro does not reproduce on a
-# 6.5-dev snapshot, indicating an upstream fix. This job is the empirical proof
-# on 6.4 for the Windows target specifically.
+# Background: two trigger existentials are known. The cohort's `any HTML.View`
+# (a ~Copyable-refining, recursively-constrained protocol existential) was
+# removed at source and cleared html-render/css/markdown Windows-green. The
+# REMAINING trigger in this graph is different: the explicit
+# `as? any PDF.HTML.Style.Modifier` / `as? any PDF.HTML.Style.Context.Modifier`
+# downcasts in swift-pdf-html-render's `PDF.HTML.Context.apply(inlineStyle:)`
+# (PDF.HTML.Context+Rendering.swift:267/:283). Those protocols are PLAIN — no
+# ~Copyable, no recursion, no associated types — so the trigger is broader than
+# the recursive-~Copyable theory. The dispatch is correct, idiomatic Swift; the
+# compiler is buggy. Local repros do not reproduce on macOS 6.4/6.5-dev
+# snapshots (non-asserts hosts), so this job is the empirical proof on 6.4 for
+# the Windows target specifically. Companion minimal repro (dependency-free,
+# 6.3.3-vs-6.4 disposition): windows-existential-repro.yml.
 #
 # ADVISORY (continue-on-error): 6.4 is pre-release and this proves a compiler
 # fix, it must not gate merges. The standard 6.3 Windows leg (universal reusable)
 # stays red on this one module until the ecosystem 6.4 move.
-# WHEN TO REMOVE: when the ecosystem moves to 6.4 (project_swift_64_move_...) and
+# WHEN TO REMOVE: when the ecosystem moves to 6.4 (~Sept 2026) and
 # the standard Windows leg is green — then this proof is redundant.
-# TRACKING: swift-institute/Issues — win-anyview-debuginfo-mangling.
+# TRACKING: swift-institute/Issues — swift-issue-noncanonical-existential-windows-debuginfo-ice.
 
 on:
   push:
@@ -36,7 +39,7 @@ concurrency:
 
 jobs:
   windows-6-4:
-    name: Windows (Swift 6.4, debug) — any-HTML.View 6.4-fix proof
+    name: Windows (Swift 6.4, debug) — Style.Modifier existential 6.4-fix proof
     if: ${{ !github.event.repository.private }}
     runs-on: windows-latest
     timeout-minutes: 60
@@ -76,6 +79,10 @@ jobs:
       # The crash is an IRGen/debug-info build crash surfaced during the test
       # target's compile of swift-pdf-html-render — `--build-tests` reproduces it
       # without running tests (snapshot-test portability is a separate concern).
-      # A green build here is the proof: the any-HTML.View mangler crash is gone.
+      # A green build here is the proof: the Style.Modifier existential mangler
+      # crash is gone. KNOWN LIMIT: the full 6.4 graph currently fails EARLY on
+      # swift-sequence-primitives (not 6.4-ready) before reaching the crash site,
+      # so a red here is INCONCLUSIVE until the ecosystem is 6.4-ready; the
+      # companion windows-existential-repro.yml isolates the answer.
       - name: Build (debug, incl. tests) — proof the crash is fixed
         run: swift build --build-tests -c debug
