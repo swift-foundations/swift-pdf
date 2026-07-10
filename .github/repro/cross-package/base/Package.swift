@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.3.3
 // Base package for the cross-package debug-info-mangler repro.
 // Provides the spec namespace root + the load-bearing namespace TYPEALIAS
 // (mirrors swift-pdf-standard's `public typealias PDF = ISO_32000`).

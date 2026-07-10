@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.3.3
 // Crash package for the cross-package debug-info-mangler repro.
 // Extends the OTHER package's typealias-sugared namespace with nested
 // protocols and forms their existentials at a debug-info-emitting site
