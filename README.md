@@ -1,3 +1,9 @@
+# swift-pdf
+
+![Development Status](https://img.shields.io/badge/status-active--development-blue.svg)
+
+Generates PDF documents from HTML views and Markdown authored with a Swift result-builder DSL.
+
 > ### Heritage & migration — this repository was `swift-html-to-pdf`
 >
 > `swift-pdf` is the evolved successor to
@@ -12,14 +18,6 @@
 >
 > Existing version-pinned dependents are unaffected — the tags `≤ 1.0.5` still resolve to the
 > original html-to-pdf commits.
-
----
-
-# swift-pdf
-
-![Development Status](https://img.shields.io/badge/status-active--development-blue.svg)
-
-Generates PDF documents from HTML views and Markdown authored with a Swift result-builder DSL.
 
 ---
 
