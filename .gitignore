@@ -1,5 +1,5 @@
 # ========== CANONICAL (auto-synced, do not edit) ==========
-# Source: swift-institute/Scripts/sync-gitignore.sh
+# This file is generated - do not edit by hand.
 
 *~
 .DS_Store
