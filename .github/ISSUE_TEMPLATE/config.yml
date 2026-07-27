@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/swift-foundations/swift-pdf/security/advisories/new
+    about: Privately report a vulnerability in this repository.
+  - name: Questions, proposals, and research
+    url: https://github.com/orgs/swift-institute/discussions
+    about: Use the Institute discussion hub for non-actionable questions and early design work.
