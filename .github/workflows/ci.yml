@@ -22,6 +22,4 @@ concurrency:
 jobs:
   ci:
     uses: swift-foundations/.github/.github/workflows/swift-ci.yml@main
-    with:
-      integrated-docs: true
     secrets: inherit
