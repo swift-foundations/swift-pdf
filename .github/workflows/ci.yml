@@ -11,18 +11,17 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  actions: read
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Build + test matrix — see swift-foundations/.github/.github/workflows/swift-ci.yml (layer wrapper)
   ci:
     uses: swift-foundations/.github/.github/workflows/swift-ci.yml@main
-    secrets: inherit
-
-  # DocC umbrella-catalog pipeline per [DOC-019a] — see
-  # swift-foundations/.github/.github/workflows/swift-docs.yml
-  docs:
-    uses: swift-foundations/.github/.github/workflows/swift-docs.yml@main
+    with:
+      integrated-docs: true
     secrets: inherit
