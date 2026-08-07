@@ -57,8 +57,7 @@ jobs:
       - uses: swift-institute/.github/.github/actions/configure-private-repos@main
         with:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          app-client-id: ${{ secrets.SWIFT_INSTITUTE_BOT_APP_CLIENT_ID }}
-          app-id: ${{ secrets.SWIFT_INSTITUTE_BOT_APP_ID }}
+          app-client-id: ${{ vars.SWIFT_INSTITUTE_BOT_APP_ID }}
           app-private-key: ${{ secrets.SWIFT_INSTITUTE_BOT_APP_PRIVATE_KEY }}
           enabled: true
 
