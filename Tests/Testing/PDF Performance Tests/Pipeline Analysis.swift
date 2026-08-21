@@ -1,14 +1,8 @@
-// Pipeline Analysis.swift
-
 import HTML
 import PDF
 import Testing
 
-// MARK: - Pipeline Micro-benchmarks
-
 extension PDF.Test.Performance {
-
-    // MARK: - Raw PDF.Text (no HTML pipeline)
 
     @Test(.timed(iterations: 100, warmup: 10))
     func `raw PDF.Text 5 paragraphs`() {
@@ -21,8 +15,6 @@ extension PDF.Test.Performance {
         }
         let _ = [UInt8](doc)
     }
-
-    // MARK: - HTML Paragraph at Various Scales
 
     @Test(.timed(iterations: 100, warmup: 10))
     func `HTML pipeline 5 paragraphs`() {
@@ -39,8 +31,6 @@ extension PDF.Test.Performance {
         makePDF(paragraphs: 100)
     }
 
-    // MARK: - Direct PDF.Text at Various Scales
-
     @Test(.timed(iterations: 100, warmup: 10))
     func `direct PDF.Text 5 paragraphs`() {
         makePDFDirect(paragraphs: 5)
@@ -56,8 +46,6 @@ extension PDF.Test.Performance {
         makePDFDirect(paragraphs: 100)
     }
 }
-
-// MARK: - Helpers
 
 private func makePDFDirect(paragraphs: Int) {
     let doc = PDF.Document {

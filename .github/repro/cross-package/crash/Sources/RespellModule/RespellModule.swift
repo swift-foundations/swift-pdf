@@ -1,12 +1,3 @@
-// A″ fix-shape validation: IDENTICAL to CrashModule except the two
-// existential downcasts (and only those) are respelled through the
-// CANONICAL namespace root `ISO_32000` instead of the `PDF` typealias.
-// Declarations still extend via the `PDF` alias (declaration parity with
-// production). If this target is CLEAN on Windows 6.3.3 while CrashModule
-// fires, the typealias sugar in the WRITTEN type at the downcast site is
-// the trigger, and the production fix is a one-token respell at
-// PDF.HTML.Context+Rendering.swift:267/:283.
-
 public import BasePDF
 
 extension PDF {
@@ -57,7 +48,6 @@ extension PDF.HTML {
 
             var handled = false
 
-            // Canonical-root spelling — the only difference from CrashModule.
             if let modifier = unwrapped as? any ISO_32000.HTML.Style.Modifier {
                 modifier.apply(to: &pdf, configuration: configuration)
                 handled = true

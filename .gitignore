@@ -21,7 +21,6 @@
 /Sources/**
 !/Sources/**/
 !/Sources/**/*.swift
-!/Sources/**/*.docc/**
 /Tests/**
 !/Tests/**/
 !/Tests/**/*.swift

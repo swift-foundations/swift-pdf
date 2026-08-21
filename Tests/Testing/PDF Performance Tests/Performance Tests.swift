@@ -1,5 +1,3 @@
-// Performance Tests.swift
-
 import HTML
 import PDF
 import Testing
@@ -7,8 +5,6 @@ import Testing
 extension PDF {
     #Tests
 }
-
-// MARK: - Paragraph Scaling
 
 extension PDF.Test.Performance {
 
@@ -42,8 +38,6 @@ extension PDF.Test.Performance {
         makePDF(paragraphs: 500)
     }
 
-    // MARK: - Throughput at Different Scales
-
     @Test(.timed(iterations: 500, warmup: 50))
     func `throughput 1 paragraph`() {
         makePDF(paragraphs: 1)
@@ -69,8 +63,6 @@ extension PDF.Test.Performance {
         makePDF(paragraphs: 500)
     }
 
-    // MARK: - Batch Generation
-
     @Test(.timed(iterations: 10, warmup: 2))
     func `batch 10 documents`() {
         for i in 0..<10 {
@@ -82,8 +74,6 @@ extension PDF.Test.Performance {
         }
     }
 }
-
-// MARK: - Helpers
 
 func makePDF(paragraphs: Int) {
     switch paragraphs {

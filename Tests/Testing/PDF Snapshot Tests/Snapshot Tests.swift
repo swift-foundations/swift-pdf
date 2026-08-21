@@ -1,5 +1,3 @@
-// Snapshot Tests.swift
-
 import PDF
 import Test_Snapshot_Primitives
 import Testing
@@ -8,8 +6,6 @@ import Tests_Inline_Snapshot
 extension PDF {
     #Tests(snapshots: .init(recording: .all, subdirectory: "PDF.Test.Snapshot"))
 }
-
-// MARK: - Snapshot Tests
 
 extension PDF.Test.Snapshot {
     @Test
@@ -66,8 +62,6 @@ extension PDF.Test.Snapshot {
     }
 }
 
-// MARK: - Top-Level Test Views
-
 struct TechnicalSpecificationView: HTML.View {
     var body: some HTML.View {
         TechSpecFrontMatter()
@@ -118,8 +112,6 @@ struct NDADemoView: HTML.View {
         NDADemoClosing()
     }
 }
-
-// MARK: - Technical Specification Sub-Views
 
 private struct TechSpecFrontMatter: HTML.View {
     var body: some HTML.View {
@@ -263,8 +255,6 @@ private struct TechSpecAnnexes: HTML.View {
         Paragraph { "A complex example showing advanced features." }
     }
 }
-
-// MARK: - All Elements Sub-Views
 
 private struct TextStylingDemo: HTML.View {
     var body: some HTML.View {
@@ -519,8 +509,6 @@ private struct HeadingsDemo: HTML.View {
         H6 { "H6" }
     }
 }
-
-// MARK: - Table Sub-Views
 
 private struct TableDemoHeader: HTML.View {
     var body: some HTML.View {
@@ -837,8 +825,6 @@ private struct TableSection6_7: HTML.View {
     }
 }
 
-// MARK: - Other Element Sub-Views
-
 private struct DescriptionListDemo: HTML.View {
     var body: some HTML.View {
         DescriptionList {
@@ -892,8 +878,6 @@ private struct NestedListDemo: HTML.View {
         }
     }
 }
-
-// MARK: - NDA Sub-Views
 
 private struct NDADemoPreamble: HTML.View {
     var body: some HTML.View {

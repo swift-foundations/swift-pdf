@@ -1,15 +1,8 @@
-// Test.Snapshot.Strategy+PDF.swift
-// Structural snapshot strategy for PDF documents.
-
 import PDF
 import Testing
 
 extension Test.Snapshot.Strategy where Value == PDF.Document, Format == Swift.String {
-    /// Structural snapshot of a PDF document.
-    ///
-    /// Captures page count, per-page content size (bytes), font count,
-    /// annotation count, and outline structure. Diffs as text lines,
-    /// so failures pinpoint exactly which structural property changed.
+
     static var pdfStructure: Self {
         Test.Snapshot.Strategy<Swift.String, Swift.String>.lines.pullback {
             (document: PDF.Document) -> Swift.String in

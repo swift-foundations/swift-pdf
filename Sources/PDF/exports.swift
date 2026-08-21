@@ -1,5 +1,3 @@
-// exports.swift
-
 @_exported public import File_System
 @_exported public import HTML
 @_exported public import Kernel

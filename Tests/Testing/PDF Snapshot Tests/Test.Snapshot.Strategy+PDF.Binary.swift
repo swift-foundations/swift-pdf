@@ -1,8 +1,3 @@
-//
-//  Test.Snapshot.Strategy+PDF.Binary.swift
-//  swift-pdf
-//
-
 import PDF
 import Test_Snapshot_Primitives
 

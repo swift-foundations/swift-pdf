@@ -1,5 +1,3 @@
-// PDF Tests.swift
-
 import Foundation
 import PDF
 import Testing
@@ -9,8 +7,6 @@ extension PDF {
         @Suite struct Unit {}
     }
 }
-
-// MARK: - Markdown to PDF Tests
 
 extension PDF.Test.Unit {
     @Suite

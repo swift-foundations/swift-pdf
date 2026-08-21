@@ -1,18 +1,3 @@
-// Mirrors swift-pdf-html-render's crash shape at
-// PDF.HTML.Context+Rendering.swift:267/:283:
-// - `PDF` below is the OTHER package's typealias for ISO_32000
-//   (TypeAliasType sugar at the namespace root of every written type here);
-// - `HTML`/`Style`/`Style.Context` are enums extending that sugared root;
-// - `Modifier` protocols are SE-0404 nested, PLAIN (no ~Copyable, no
-//   recursion, no associated types);
-// - the existentials form via explicit `as? any …` downcasts from `Any`
-//   whose local bindings receive debug info (-Onone -g).
-//
-// Expected on Windows Swift 6.3.3 (+Asserts), `swift build -c debug`:
-//   Assertion failed: isActuallyCanonicalOrNull() &&
-//   "Forming a CanType out of a non-canonical type!", AST/Type.h:421
-//   ... While mangling type for debugger type 'any PDF.HTML.Style.Modifier'
-
 public import BasePDF
 
 extension PDF {
@@ -52,7 +37,7 @@ extension PDF.HTML {
         }
 
         public mutating func apply(inlineStyle property: Any) -> Bool {
-            // Unwrap Optional if needed (mirrors the production dataflow).
+
             let unwrapped: Any
             let mirror = Mirror(reflecting: property)
             if mirror.displayStyle == .optional {
