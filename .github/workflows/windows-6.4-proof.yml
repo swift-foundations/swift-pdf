@@ -80,7 +80,7 @@ jobs:
       # without running tests (snapshot-test portability is a separate concern).
       # A green build here is the proof: the Style.Modifier existential mangler
       # crash is gone. KNOWN LIMIT: the full 6.4 graph currently fails EARLY on
-      # swift-sequence-primitives (not 6.4-ready) before reaching the crash site,
+      # swift-sequence (not 6.4-ready) before reaching the crash site,
       # so a red here is INCONCLUSIVE until the ecosystem is 6.4-ready; the
       # companion windows-existential-repro.yml isolates the answer.
       - name: Build (debug, incl. tests) — proof the crash is fixed

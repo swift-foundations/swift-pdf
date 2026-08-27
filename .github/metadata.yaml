@@ -3,7 +3,7 @@
 # 2026-07-01 — release-readiness: enriched description; topics 2→4 (+html, +document-generation) [GH-REPO-010/020/060].
 description: "HTML-to-PDF document generation for Swift."
 topics:
-  - foundations
+  - compositions
   - pdf
   - html
   - document-generation

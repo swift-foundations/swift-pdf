@@ -37,12 +37,12 @@ let package = Package(
         .library(name: "PDF Test Support", targets: ["PDF Test Support"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/swift-foundations/swift-html.git", branch: "main"),
+        .package(url: "https://github.com/swift-compositions/swift-html.git", branch: "main"),
         .package(
-            url: "https://github.com/swift-foundations/swift-pdf-html-render.git",
+            url: "https://github.com/swift-compositions/swift-pdf-html-render.git",
             branch: "main"
         ),
-        .package(url: "https://github.com/swift-foundations/swift-file-system.git", branch: "main"),
+        .package(url: "https://github.com/swift-compositions/swift-file-system.git", branch: "main"),
     ],
     targets: [
         .target(

@@ -63,7 +63,7 @@ try document.write(to: File("release-notes.pdf"), createIntermediates: true)
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/swift-foundations/swift-pdf.git", branch: "main")
+    .package(url: "https://github.com/swift-compositions/swift-pdf.git", branch: "main")
 ]
 ```
 
@@ -105,11 +105,11 @@ The original API is preserved and remains maintainable:
 
 - **Pin a 1.x version** (tags `0.1.0`–`1.0.5`):
   ```swift
-  .package(url: "https://github.com/swift-foundations/swift-pdf.git", from: "1.0.5")
+  .package(url: "https://github.com/swift-compositions/swift-pdf.git", from: "1.0.5")
   ```
 - **or track the maintenance branch:**
   ```swift
-  .package(url: "https://github.com/swift-foundations/swift-pdf.git", branch: "html-to-pdf")
+  .package(url: "https://github.com/swift-compositions/swift-pdf.git", branch: "html-to-pdf")
   ```
 
 Bug-fix releases for the old API are cut as `1.0.x` on the `html-to-pdf` branch. The entire `1.x`
