@@ -2,27 +2,6 @@
 
 import PackageDescription
 
-extension String {
-    static let pdf: Self = "PDF"
-    var tests: Self { self + " Tests" }
-}
-
-extension Target.Dependency {
-    static var pdf: Self { .target(name: .pdf) }
-}
-
-extension Target.Dependency {
-    static var html: Self {
-        .product(name: "HTML", package: "swift-html")
-    }
-    static var pdfHTMLRendering: Self {
-        .product(name: "PDF HTML Rendering", package: "swift-pdf-html-render")
-    }
-    static var fileSystem: Self {
-        .product(name: "File System", package: "swift-file-system")
-    }
-}
-
 let package = Package(
     name: "swift-pdf",
     platforms: [
@@ -33,7 +12,7 @@ let package = Package(
         .visionOS(.v27),
     ],
     products: [
-        .library(name: .pdf, targets: [.pdf]),
+        .library(name: "PDF", targets: ["PDF"]),
         .library(name: "PDF Test Support", targets: ["PDF Test Support"]),
     ],
     dependencies: [
@@ -46,26 +25,26 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: .pdf,
+            name: "PDF",
             dependencies: [
-                .html,
-                .pdfHTMLRendering,
-                .fileSystem,
+                .product(name: "HTML", package: "swift-html"),
+                .product(name: "PDF HTML Rendering", package: "swift-pdf-html-render"),
+                .product(name: "File System", package: "swift-file-system"),
             ]
         ),
         .target(
             name: "PDF Test Support",
             dependencies: [
-                .pdf
+                .target(name: "PDF")
             ],
             path: "Tests/Support"
         ),
         .testTarget(
-            name: .pdf.tests,
+            name: "PDF Tests",
             dependencies: [
-                .pdf,
-                .html,
-                "PDF Test Support",
+                .target(name: "PDF"),
+                .product(name: "HTML", package: "swift-html"),
+                .target(name: "PDF Test Support"),
             ],
             path: "Tests/PDF Tests"
         ),
